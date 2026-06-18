@@ -739,6 +739,28 @@
   .sp-item:last-child { border-bottom: none; }
   .sp-item:active, .sp-item:hover { background: var(--accent-light); color: var(--accent); }
   .sp-hint { padding: 8px 14px; font-size: 11px; color: var(--text-muted); background: var(--surface2); } */
+  /* ── PES DIAGNOSIS PICKER (v74) ── */
+  .pes-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.45);
+    display: flex; align-items: flex-start; justify-content: center; padding: 6vh 12px 12px; }
+  .pes-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    width: 580px; max-width: 100%; max-height: 84vh; display: flex; flex-direction: column;
+    overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.3); }
+  .pes-head { display: flex; gap: 8px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .pes-head input { flex: 1; font-family: var(--sans); font-size: 14px; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); }
+  .pes-head input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,92,58,.1); }
+  .pes-close { background: transparent; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 8px 11px; font-size: 14px; cursor: pointer; flex-shrink: 0; }
+  .pes-list { overflow-y: auto; padding: 4px 0 10px; }
+  .pes-group { padding: 13px 14px 4px; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); position: sticky; top: 0; background: var(--surface); }
+  .pes-cond { padding: 9px 14px 3px; font-size: 12px; font-weight: 700; color: var(--text-muted); }
+  .pes-var { padding: 9px 14px 9px 22px; cursor: pointer; border-bottom: 1px solid var(--border-soft); transition: background .1s; }
+  .pes-var:hover, .pes-var:active { background: var(--accent-light); }
+  .pes-var .pv-prob { font-size: 13.5px; font-weight: 600; color: var(--text); }
+  .pes-var .pv-rel { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+  .pes-var .pv-guide { font-size: 11px; color: var(--text-faint); margin-top: 2px; font-style: italic; line-height: 1.35; }
+  .pes-empty { padding: 26px; text-align: center; color: var(--text-muted); font-size: 13px; }
+  .pes-trigger-row { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; flex-wrap: wrap; }
+  @media (max-width: 768px) { .pes-overlay { padding: 0; } .pes-modal { max-height: 100%; height: 100%; width: 100%; border-radius: 0; } }
+
   /* ── COLLAPSIBLE SECTIONS ── */
   .section-header { cursor: pointer; user-select: none; }
   .section-header::after {
@@ -5172,7 +5194,11 @@ function renderOPDPrechart(idx) {
         </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>🎯 Nutrition Diagnosis (PES)</label>
-          <textarea class="field" id="opNutDx_${idx}" placeholder="e.g. Inadequate energy intake (NI-1.2) related to poor appetite as evidenced by...">${esc(saved.nutDx||'')}</textarea>
+          <div class="pes-trigger-row">
+            <button type="button" class="btn-ghost btn-small" style="font-size:11px;padding:4px 10px" onclick="openPESPicker('opNutDx_${idx}')">🔎 Insert diagnosis</button>
+            <button type="button" class="btn-ghost btn-small" style="font-size:11px;padding:4px 10px" onclick="selectNextPlaceholder(document.getElementById('opNutDx_${idx}'))" title="Jump to the next [blank]">↦ Next blank</button>
+          </div>
+          <textarea class="field" id="opNutDx_${idx}" placeholder="Tap “Insert diagnosis” to pull a statement from your bank — or type your own. Lays out as: problem, then “Related to:” and “As evidenced by:”.">${esc(saved.nutDx||'')}</textarea>
         </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>🏁 Goals</label>
@@ -5745,7 +5771,11 @@ function renderPrechart(idx) {
         </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>🎯 Nutrition Diagnosis (PES statement)</label>
-          <textarea class="field" id="nutDx_${idx}" placeholder="e.g. Inadequate energy and protein intake (NI-1.2) related to poor appetite and dysphagia as evidenced by &lt;40% of EER for 2 weeks and weight loss of 8%...">${esc(saved.nutDx||'')}</textarea>
+          <div class="pes-trigger-row">
+            <button type="button" class="btn-ghost btn-small" style="font-size:11px;padding:4px 10px" onclick="openPESPicker('nutDx_${idx}')">🔎 Insert diagnosis</button>
+            <button type="button" class="btn-ghost btn-small" style="font-size:11px;padding:4px 10px" onclick="selectNextPlaceholder(document.getElementById('nutDx_${idx}'))" title="Jump to the next [blank]">↦ Next blank</button>
+          </div>
+          <textarea class="field" id="nutDx_${idx}" placeholder="Tap “Insert diagnosis” to pull a statement from your bank — or type your own. Lays out as: problem, then “Related to:” and “As evidenced by:”.">${esc(saved.nutDx||'')}</textarea>
         </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>🏁 Goals</label>
@@ -5953,6 +5983,218 @@ function parseOPDPrevPlan(idx) {
       ['Current diet:','opCurrentDiet'], ['Current supplements:','opSupplements'], ['Previous dietetic input:','opPrevDietInput'] ]
   });
 }
+
+// ──────────────────────────────────────────
+//  PES DIAGNOSIS BANK + PICKER (v74)
+//  Code-free bank from the project's PES doc. Inserts a structured statement
+//  (bare problem line, then "Related to:" / "As evidenced by:" bullets) into the
+//  Nutrition Diagnosis field, then lets the user tab through the [blanks].
+// ──────────────────────────────────────────
+const PES_BANK = [
+  { group:'Paediatric', name:'Malnutrition (undernutrition)', variants:[
+    { label:'single data point', problem:'Malnutrition (undernutrition)',
+      related:'inadequate energy and protein intake secondary to [chronic illness / feeding difficulty / poor appetite]',
+      signs:['weight-for-height / BMI-for-age z-score [X]','MUAC [X] cm / z-score [X]','reported intake ≤ [X]% of usual or estimated energy and protein needs'],
+      guide:'z-score: mild −1 to −1.9 · moderate −2 to −2.9 · severe ≤ −3' },
+    { label:'serial measurements (≥2 points)', problem:'Malnutrition (undernutrition)',
+      related:'ongoing inadequate intake relative to needs',
+      signs:['deceleration of [X] weight-for-length / BMI-for-age z-score(s)','weight gain velocity [X]% of expected for age (<2y)','weight loss [X]% of usual body weight (2–20y)','reported intake [X]% of estimated energy / protein needs over [X] weeks'],
+      guide:'velocity: mild <75% · mod <50% · severe <25%  ·  wt loss: mild 5% · mod 7.5% · severe ≥10%  ·  intake: mild 51–75% · mod 26–50% · severe ≤25%' },
+    { problem:'Inadequate protein-energy intake',
+      related:'increased requirements and reduced intake during acute illness',
+      signs:['unintentional weight loss [X]% over [X] weeks','reported intake < 75% of estimated requirements'] },
+  ]},
+  { group:'Paediatric', name:'Growth faltering', variants:[
+    { problem:'Inadequate protein-energy intake',
+      related:'feeding difficulty / poor appetite / chronic illness / inadequate breastmilk or formula volume',
+      signs:['faltering growth — sustained downward crossing of [X] weight (or weight-for-length) centiles; growth velocity below expected for age','weight-for-age z-score [X]','reported intake ≤ [X]% of estimated energy and protein needs'] },
+    { problem:'Faltering growth (growth rate below expected)',
+      related:'chronic inadequate energy and protein intake',
+      signs:['sustained downward crossing of [X] weight (or weight-for-length) centiles','weight-for-age z-score [X]','weight gain / growth velocity below expected for age'] },
+    { problem:'Increased nutrient needs (energy and protein)',
+      related:'increased requirements for catch-up growth and/or chronic illness',
+      signs:['requirements raised for catch-up; current reported intake below estimated needs'] },
+  ]},
+  { group:'Paediatric', name:'Acute inadequate intake', variants:[
+    { problem:'Inadequate oral intake', related:'reduced appetite secondary to acute illness',
+      signs:['reported oral intake < 50% of usual intake for [X] days','reported intake ~[X]% of energy and protein requirements'] },
+    { problem:'Inadequate energy intake', related:'nausea / pain / reduced appetite',
+      signs:['[X] days of reported poor intake; ~[X]% of estimated requirements','early or at-risk weight loss [X]%'] },
+    { problem:'Increased nutrient needs (energy and protein)', related:'acute illness or infection',
+      signs:['raised requirements with reported intake below estimated needs'] },
+  ]},
+  { group:'Paediatric', name:'Selective eating (limited food acceptance)', variants:[
+    { problem:'Inadequate nutrient intake ([specify, e.g. iron / calcium / fibre / vitamin D])',
+      related:'limited food acceptance / selective, restrictive eating behaviour',
+      signs:['reported intake of [nutrient] below the RNI; exclusion of [food group]','reported acceptance of fewer than [X] foods; little variety across meals'] },
+    { problem:'Unbalanced diet pattern', related:'a narrow range of accepted foods',
+      signs:['reported diet limited to [X] food groups; little variety across meals'] },
+    { problem:'Limited food acceptance',
+      related:'selective / restrictive eating behaviour and sensory sensitivity [± neurodevelopmental condition, e.g. ASD]',
+      signs:['reported acceptance of fewer than [X] foods; refusal of whole food groups ([e.g. vegetables / proteins])','mealtime distress / food refusal','reliance on specific textures, brands or presentation'] },
+  ]},
+  { group:'Paediatric', name:'Dengue fever', variants:[
+    { problem:'Inadequate oral intake', related:'anorexia, nausea, vomiting and mouth/throat discomfort secondary to dengue',
+      signs:['reported oral intake < 50% of usual intake','reported intake ~[X]% of energy requirements'] },
+    { problem:'Inadequate fluid intake', related:'fever, poor intake and increased losses (vomiting) secondary to dengue',
+      signs:['reported oral fluid [X] mL/day versus [X] mL/day requirement','signs of [mild dehydration / reduced urine output]'] },
+    { problem:'Increased nutrient needs (energy and protein)', related:'febrile hypermetabolism secondary to dengue',
+      signs:['ongoing fever; raised requirements; reported intake below estimate'] },
+  ]},
+  { group:'Paediatric', name:'Iron deficiency / iron-deficiency anaemia', variants:[
+    { problem:'Inadequate mineral (iron) intake', related:"low dietary iron and/or excessive cow's-milk intake during a period of rapid growth",
+      signs:['haemoglobin [X] g/dL; ferritin [X] µg/L; low MCV','reported dietary iron below the RNI'] },
+    { problem:'Altered nutrition-related laboratory values', related:'inadequate iron intake and/or absorption',
+      signs:['haemoglobin [X] g/dL; ferritin [X] µg/L','microcytic, hypochromic indices'] },
+    { problem:'Limited food- and nutrition-related knowledge', related:'limited caregiver knowledge of iron-rich foods and absorption enhancers',
+      signs:['reported diet history low in haem iron and high in inhibitors (excess milk / tea)','reported uncertainty about suitable foods'] },
+  ]},
+  { group:'Paediatric', name:'Overweight / obesity', variants:[
+    { problem:'Excessive energy intake', related:'frequent intake of energy-dense, nutrient-poor foods and sugary drinks, with low physical activity',
+      signs:['BMI-for-age z-score [X] (> +2 SD / > 95th percentile)','reported diet history of [X]','reported [X] hours/day screen time; < 60 min/day activity'] },
+    { problem:'Overweight / obesity', related:'habitual energy intake exceeding requirements and low physical activity',
+      signs:['BMI-for-age z-score [X] (> +2 SD / > 95th percentile)','reported diet / activity history: energy-dense intake, < 60 min/day activity'] },
+    { problem:'Physical inactivity', related:'high screen time and limited active play',
+      signs:['reported [X] hours/day screen time','reported < 60 minutes/day of moderate-to-vigorous activity'] },
+  ]},
+  { group:'Adult', name:'Malnutrition', variants:[
+    { problem:'Malnutrition (undernutrition)', related:'reduced oral intake secondary to [illness / poor appetite]',
+      signs:['unintentional weight loss [X]% over [X] months','BMI [X] kg/m²','reduced muscle mass','reported intake ≤ [X]% of usual or estimated needs for [X] days (GLIM-consistent)'] },
+    { problem:'Inadequate protein-energy intake', related:'poor appetite and increased requirements during illness',
+      signs:['reported intake < [X]% of energy / protein needs','progressive weight loss'] },
+    { problem:'Unintended weight loss', related:'inadequate intake relative to needs',
+      signs:['[X] kg ([X]%) loss over [X] months','reported declining oral intake'] },
+  ]},
+  { group:'Adult', name:'Type 2 diabetes', variants:[
+    { problem:'Inconsistent carbohydrate intake', related:'irregular meal patterns and limited carbohydrate awareness',
+      signs:['reported variable carbohydrate portions across meals','HbA1c [X]%; fasting glucose [X] mmol/L','post-prandial glucose variability'] },
+    { problem:'Altered nutrition-related laboratory values – glucose', related:"carbohydrate intake exceeding the body's ability to maintain glycaemic control",
+      signs:['HbA1c [X]%','fasting glucose [X] mmol/L','reported diet history of irregular / high carbohydrate intake'] },
+    { problem:'Limited food- and nutrition-related knowledge', related:'limited understanding of carbohydrate sources and glycaemic management',
+      signs:['reported uncertainty about portions / label reading','HbA1c [X]%'] },
+  ]},
+  { group:'Adult', name:'Gestational diabetes (GDM)', variants:[
+    { problem:'Excessive / inconsistent carbohydrate intake', related:'large carbohydrate portions and uneven distribution against pregnancy-related insulin resistance',
+      signs:['fasting glucose [X] mmol/L and/or post-prandial glucose [X] mmol/L above GDM targets','post-prandial readings above target after [meals]'] },
+    { problem:'Altered nutrition-related laboratory values – glucose', related:'pregnancy-related insulin resistance and carbohydrate intake exceeding tolerance',
+      signs:['fasting glucose [X] mmol/L and/or post-prandial glucose [X] mmol/L above GDM targets'] },
+    { problem:'Limited food- and nutrition-related knowledge', related:'a new GDM diagnosis',
+      signs:['limited understanding of carbohydrate distribution, portioning and glucose self-monitoring'] },
+  ]},
+  { group:'Adult', name:'Enteral nutrition', variants:[
+    { problem:'Inadequate enteral nutrition infusion', related:'frequent feed interruptions for procedures and/or feed intolerance',
+      signs:['delivery of only [X]% of the prescribed volume / energy over [X] days'] },
+    { problem:'Increased nutrient needs (energy and protein)', related:'[wound healing / catabolic illness]',
+      signs:['elevated estimated requirements','current enteral provision meeting [X]% of needs'] },
+    { problem:'Enteral nutrition composition / rate inconsistent with needs', related:'a regimen not yet matched to requirements',
+      signs:['provides [X] kcal and [X] g protein versus [X] kcal and [X] g protein estimated'] },
+  ]},
+  { group:'Adult', name:'ICU / critically ill', variants:[
+    { problem:'Increased energy expenditure', related:'hypermetabolism secondary to critical illness / sepsis',
+      signs:['raised estimated requirements; ongoing catabolism','delivered intake ~[X]% of needs'] },
+    { problem:'Inadequate protein-energy intake', related:'feed interruptions and the acute metabolic response to critical illness',
+      signs:['delivery of [X]% of estimated energy','[X] g/kg protein versus a [X] g/kg target'] },
+    { problem:'Malnutrition (undernutrition)', related:'inadequate intake plus disease-related hypercatabolism',
+      signs:['[X]% weight loss','reduced muscle mass on assessment','delivered intake below requirements'] },
+  ]},
+  { group:'Cross-cutting (knowledge / behaviour)', name:'Knowledge, beliefs, skills & behaviour', variants:[
+    { problem:'Limited food- and nutrition-related knowledge',
+      related:'[no previous dietary education / exposure to nutrition misinformation / beliefs conflicting with evidence-based advice / limited access to reliable information]',
+      signs:['reported uncertainty about [portion sizes / label reading / suitable foods / carbohydrate counting]','repeating inaccurate nutrition claims','knowledge gaps identified on assessment'] },
+    { problem:'Food- and nutrition-related beliefs/attitudes that hinder change',
+      related:'[mistrust of dietary advice / cultural or personal beliefs / exposure to misinformation]',
+      signs:['expressed beliefs conflicting with evidence-based advice','reluctance to follow recommendations despite understanding them'] },
+    { problem:'Limited adherence to nutrition-related recommendations',
+      related:'[competing priorities / practical or financial barriers / low motivation / cultural factors]',
+      signs:['reported intake or behaviour not matching previously agreed advice','[biomarker / weight / intake] not at target despite recommendations'] },
+    { problem:'Self-monitoring deficit', related:'not recording [intake / blood glucose / weight / symptoms] as advised',
+      signs:['incomplete or absent [food / glucose / symptom] diary','difficulty linking intake to [glucose / symptoms]'] },
+    { problem:'Limited food- and nutrition-related skill', related:'limited cooking, food-preparation, shopping or label-reading skills',
+      signs:['reported reliance on convenience / ready-made foods','reported difficulty preparing recommended meals'] },
+    { problem:'Not ready for nutrition-related behaviour change', related:'pre-contemplation / ambivalence about change',
+      signs:['reported reluctance to change [behaviour]','not yet engaging with recommendations'] },
+  ]},
+];
+
+function _pesFormat(v) {
+  return v.problem + '\nRelated to: ' + v.related + '\nAs evidenced by:\n' + v.signs.map(s => '- ' + s).join('\n');
+}
+// Placeholder ([...]) navigation for tab-through-the-blanks.
+function _phRanges(s) { const r=[], re=/\[[^\]]*\]/g; let m; while ((m=re.exec(s))) r.push([m.index, m.index+m[0].length]); return r; }
+function selectFirstPlaceholder(el) { if(!el) return; const R=_phRanges(el.value); if(R.length){ el.focus(); el.setSelectionRange(R[0][0], R[0][1]); } }
+function selectNextPlaceholder(el) { if(!el) return; const R=_phRanges(el.value); if(!R.length){ el.focus(); return; } const c=el.selectionEnd||0; const t=R.find(x=>x[0]>=c)||R[0]; el.focus(); el.setSelectionRange(t[0], t[1]); }
+function selectPrevPlaceholder(el) { if(!el) return; const R=_phRanges(el.value); if(!R.length) return; const c=el.selectionStart||0; let p=null; R.forEach(x=>{ if(x[1]<=c) p=x; }); if(!p) p=R[R.length-1]; el.focus(); el.setSelectionRange(p[0], p[1]); }
+
+let _pesEsc = null;
+function openPESPicker(targetId) {
+  closePESPicker();
+  const ov = document.createElement('div');
+  ov.id = 'pesOverlay'; ov.className = 'pes-overlay';
+  ov.innerHTML =
+    `<div class="pes-modal" role="dialog" aria-label="Insert nutrition diagnosis" data-target="${targetId}">
+       <div class="pes-head">
+         <input type="text" id="pesSearch" placeholder="Search diagnoses… e.g. dengue, malnutrition, diabetes" autocomplete="off">
+         <button class="pes-close" onclick="closePESPicker()" aria-label="Close">✕</button>
+       </div>
+       <div class="pes-list" id="pesList"></div>
+     </div>`;
+  ov.addEventListener('mousedown', e => { if (e.target === ov) closePESPicker(); });
+  document.body.appendChild(ov);
+  renderPESList('', targetId);
+  const s = document.getElementById('pesSearch');
+  s.addEventListener('input', () => renderPESList(s.value, targetId));
+  setTimeout(() => s.focus(), 30);
+  _pesEsc = function (e) { if (e.key === 'Escape') closePESPicker(); };
+  document.addEventListener('keydown', _pesEsc);
+}
+function closePESPicker() {
+  const ov = document.getElementById('pesOverlay'); if (ov) ov.remove();
+  if (_pesEsc) { document.removeEventListener('keydown', _pesEsc); _pesEsc = null; }
+}
+function renderPESList(query, targetId) {
+  const q = (query || '').trim().toLowerCase();
+  const host = document.getElementById('pesList'); if (!host) return;
+  let html = '', lastGroup = '', any = false;
+  PES_BANK.forEach((cond, ci) => {
+    const condMatch = !q || cond.name.toLowerCase().includes(q) || cond.group.toLowerCase().includes(q);
+    const vars = cond.variants.map((v, vi) => ({ v, vi }))
+      .filter(({ v }) => condMatch || [v.problem, v.related, v.label || '', v.signs.join(' ')].join(' ').toLowerCase().includes(q));
+    if (!vars.length) return;
+    any = true;
+    if (cond.group !== lastGroup) { html += `<div class="pes-group">${esc(cond.group)}</div>`; lastGroup = cond.group; }
+    html += `<div class="pes-cond">${esc(cond.name)}</div>`;
+    vars.forEach(({ v, vi }) => {
+      html += `<div class="pes-var" onmousedown="event.preventDefault();insertPES('${targetId}',${ci},${vi})">
+        <div class="pv-prob">${esc(v.problem)}${v.label ? ` <span style="font-weight:400;color:var(--text-muted)">— ${esc(v.label)}</span>` : ''}</div>
+        <div class="pv-rel">related to ${esc(v.related)}</div>
+        ${v.guide ? `<div class="pv-guide">${esc(v.guide)}</div>` : ''}
+      </div>`;
+    });
+  });
+  host.innerHTML = any ? html : `<div class="pes-empty">No diagnoses match “${esc(query)}”.</div>`;
+}
+function insertPES(targetId, ci, vi) {
+  const cond = PES_BANK[ci]; if (!cond) return;
+  const v = cond.variants[vi]; if (!v) return;
+  const el = document.getElementById(targetId); if (!el) return;
+  const text = _pesFormat(v);
+  el.value = el.value.trim() ? (el.value.replace(/\s+$/, '') + '\n\n' + text) : text;
+  el.classList.remove('from-prev');
+  if (typeof autoExpand === 'function') autoExpand(el);
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
+  closePESPicker();
+  selectFirstPlaceholder(el);
+  if (typeof toast === 'function') toast('Diagnosis inserted — fill the [blanks] (Tab or “Next blank” to jump)', 3200);
+}
+// Tab cycles through [blanks] while editing a Nutrition Diagnosis field.
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Tab') return;
+  const el = e.target;
+  if (!el || !el.id || !/^(op)?nutDx_/.test(el.id)) return;
+  if (!/\[[^\]]*\]/.test(el.value)) return; // no blanks → let Tab behave normally
+  e.preventDefault();
+  if (e.shiftKey) selectPrevPlaceholder(el); else selectNextPlaceholder(el);
+});
 
 // ──────────────────────────────────────────
 //  GENERATE ADIME NOTE
