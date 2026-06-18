@@ -109,26 +109,16 @@
   body.dark .card-dx { color: #f0ece8; }
   body.dark .prechart-header .sub { color: #a8a09a; }
   body.dark .med-flag { background: #2a2000; color: #c8a84a; border-color: #5a4a00; }
-    body.dark .section .section-header    { background: #1e1c18; }
-  body.dark .section[data-s="clinical"] .section-header { background: #0e1a12; }
-  body.dark .section[data-s="nfpe"]     .section-header { background: #0e1a12; }
-  body.dark .section[data-s="diet"]     .section-header { background: #0a1810; }
-  body.dark .section[data-s="plan"]     .section-header { background: #0a1810; }
-  body.dark .section[data-s="anthro"]   .section-header { background: #0e1a12; }
-  body.dark .section[data-s="reqs"]     .section-header { background: #0e1a12; }
-  body.dark .section[data-s="social"]   .section-header { background: #0e1a12; }
-  body.dark .section[data-s="biochem"]  .section-header { background: #0e1a12; }
-  body.dark .section[data-s="meds"]     .section-header { background: #111810; }
-  body.dark .section[data-s="social"]   .section-title  { color: #5aac7e; }
-  body.dark .section[data-s="biochem"]  .section-title  { color: #5aac7e; }
-  body.dark .section[data-s="meds"]     .section-title  { color: #5aac7e; }
-  body.dark .section[data-s="clinical"] .section-title  { color: #6dba8e; }
-  body.dark .section[data-s="nfpe"]     .section-title  { color: #5aac7e; }
-  body.dark .section[data-s="diet"]     .section-title  { color: #6dba8e; }
-  body.dark .section[data-s="plan"]     .section-title  { color: #6dba8e; }
-  body.dark .section[data-s="anthro"]   .section-title  { color: #6dba8e; }
-  body.dark .section[data-s="reqs"]     .section-title  { color: #6dba8e; }
-  body.dark .section[data-s="plan"]     .section-title  { color: #3d9e68; }
+  /* Per-domain section colours — dark mode (v72) */
+  body.dark .section[data-s="anthro"]   { --sec:#5dcaa5; --sec-bg:#0d241d; }
+  body.dark .section[data-s="biochem"]  { --sec:#f09595; --sec-bg:#241010; }
+  body.dark .section[data-s="clinical"] { --sec:#efaa3a; --sec-bg:#241a08; }
+  body.dark .section[data-s="nfpe"]     { --sec:#afa9ec; --sec-bg:#16142a; }
+  body.dark .section[data-s="diet"]     { --sec:#acd36f; --sec-bg:#16210a; }
+  body.dark .section[data-s="reqs"]     { --sec:#85b7eb; --sec-bg:#0c1e30; }
+  body.dark .section[data-s="plan"]     { --sec:#f0997b; --sec-bg:#241208; }
+  body.dark .section[data-s="social"]   { --sec:#cfcdc4; --sec-bg:#201f1b; }
+  body.dark .section[data-s="meds"]     { --sec:#ed93b1; --sec-bg:#24121a; }
   body.dark .section { border-top-color: #2a2a2a; border-right-color: #2a2a2a; border-bottom-color: #2a2a2a; }
   body.dark .hint { color: #706860; }
   body.dark .card-meta, body.dark .card-dx { color: #a8a09a; }
@@ -401,50 +391,47 @@
   }
   .section-body { padding: 12px 16px 14px; transition: all .2s; }
 
-  /* Section colour themes — unified accent strip system */
-  .section                    { border-left-color: var(--border); }
-  .section .section-header    { background: var(--surface2); }
-  .section .section-title     { color: var(--text-muted); }
-
+  /* Section colour themes — per-domain hues (v72). One --sec var drives the
+     left border, header tint, title colour and completion dot per section. */
+  .section[data-s="anthro"]   { --sec:#0f6e56; --sec-bg:#e1f5ee; }
+  .section[data-s="biochem"]  { --sec:#a32d2d; --sec-bg:#fcebeb; }
+  .section[data-s="clinical"] { --sec:#854f0b; --sec-bg:#faeeda; }
+  .section[data-s="nfpe"]     { --sec:#534ab7; --sec-bg:#eeedfe; }
+  .section[data-s="diet"]     { --sec:#3b6d11; --sec-bg:#eaf3de; }
+  .section[data-s="reqs"]     { --sec:#185fa5; --sec-bg:#e6f1fb; }
+  .section[data-s="plan"]     { --sec:#993c1d; --sec-bg:#faece7; }
+  .section[data-s="social"]   { --sec:#5f5e5a; --sec-bg:#f1efe8; }
+  .section[data-s="meds"]     { --sec:#993556; --sec-bg:#fbeaf0; }
   .section[data-s="docnote"]  { border-left-color: rgba(26,92,58,.25); }
-  .section[data-s="docnote"]  .section-header { background: var(--surface2); }
-  .section[data-s="docnote"]  .section-title  { color: var(--text-muted); }
 
-  .section[data-s="clinical"] { border-left-color: rgba(26,92,58,.7); }
-  .section[data-s="clinical"] .section-header { background: var(--accent-faint); }
-  .section[data-s="clinical"] .section-title  { color: var(--accent); }
+  .section                    { border-left-color: var(--sec, var(--border)); }
+  .section .section-header    { background: var(--sec-bg, var(--surface2)); }
+  .section .section-title     { color: var(--sec, var(--text-muted)); }
+  .section[data-s="plan"]     .section-title  { font-weight: 800; }
 
-  .section[data-s="nfpe"]     { border-left-color: rgba(26,92,58,.5); }
-  .section[data-s="nfpe"]     .section-header { background: var(--accent-faint); }
-  .section[data-s="nfpe"]     .section-title  { color: var(--accent-mid); }
+  /* Per-section completion dot (v72): hollow = empty, filled (in the section's
+     own colour) = has content. Lives at the right edge of each section header. */
+  .sec-dot { width:10px; height:10px; border-radius:50%; border:1.6px solid var(--text-faint);
+             background:transparent; flex-shrink:0; transition:background .15s, border-color .15s; }
+  .sec-dot.filled { border-color:transparent; background: var(--sec, var(--accent)); }
 
-  .section[data-s="meds"]     { border-left-color: rgba(26,92,58,.5); }
-  .section[data-s="meds"]     .section-header { background: var(--surface2); }
-  .section[data-s="meds"]     .section-title  { color: var(--text-muted); }
+  /* Floating-nav labels tinted to their section colour (v72) */
+  .mfn-btn[data-s="anthro"]   .mfn-label { color:#5dcaa5; }
+  .mfn-btn[data-s="biochem"]  .mfn-label { color:#f09595; }
+  .mfn-btn[data-s="clinical"] .mfn-label { color:#efaa3a; }
+  .mfn-btn[data-s="nfpe"]     .mfn-label { color:#afa9ec; }
+  .mfn-btn[data-s="diet"]     .mfn-label { color:#acd36f; }
+  .mfn-btn[data-s="reqs"]     .mfn-label { color:#85b7eb; }
+  .mfn-btn[data-s="plan"]     .mfn-label { color:#f0997b; }
+  .mfn-btn[data-s="social"]   .mfn-label { color:#cfcdc4; }
 
-  .section[data-s="social"]   { border-left-color: rgba(26,92,58,.6); }
-  .section[data-s="social"]   .section-header { background: var(--accent-faint); }
-  .section[data-s="social"]   .section-title  { color: var(--accent-mid); }
-
-  .section[data-s="anthro"]   { border-left-color: rgba(26,92,58,.55); }
-  .section[data-s="anthro"]   .section-header { background: var(--accent-faint); }
-  .section[data-s="anthro"]   .section-title  { color: var(--accent); }
-
-  .section[data-s="biochem"]  { border-left-color: rgba(26,92,58,.5); }
-  .section[data-s="biochem"]  .section-header { background: var(--accent-faint); }
-  .section[data-s="biochem"]  .section-title  { color: var(--accent-mid); }
-
-  .section[data-s="diet"]     { border-left-color: rgba(26,92,58,.9); }
-  .section[data-s="diet"]     .section-header { background: var(--accent-light); }
-  .section[data-s="diet"]     .section-title  { color: var(--accent); }
-
-  .section[data-s="reqs"]     { border-left-color: rgba(26,92,58,.6); }
-  .section[data-s="reqs"]     .section-header { background: var(--accent-faint); }
-  .section[data-s="reqs"]     .section-title  { color: var(--accent); }
-
-  .section[data-s="plan"]     { border-left-color: var(--accent); }
-  .section[data-s="plan"]     .section-header { background: var(--accent-light); }
-  .section[data-s="plan"]     .section-title  { color: var(--accent); font-weight: 800; }
+  /* Traffic-light severity for graded radios — Mild/Moderate/Severe (v72) */
+  .radio-opt[value$="grade-1"]:checked + .radio-label { background:#faeeda; color:#854f0b; border-color:#e0b057; }
+  .radio-opt[value$="grade-2"]:checked + .radio-label { background:#faece7; color:#993c1d; border-color:#e09472; }
+  .radio-opt[value$="grade-3"]:checked + .radio-label { background:#fcebeb; color:#a32d2d; border-color:#e08a8a; }
+  body.dark .radio-opt[value$="grade-1"]:checked + .radio-label { background:#241a08; color:#efaa3a; border-color:#6b4a12; }
+  body.dark .radio-opt[value$="grade-2"]:checked + .radio-label { background:#241208; color:#f0997b; border-color:#6b3a1c; }
+  body.dark .radio-opt[value$="grade-3"]:checked + .radio-label { background:#241010; color:#f09595; border-color:#6b2a2a; }
 
   /* ── FORM ELEMENTS ── */
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -6503,14 +6490,14 @@ function toast(msg, dur=2000) {
   <div id="mobileFloatNav">
     <div class="mfn-grip" id="mfnGrip" title="Drag to move · docks left or right"><span class="mfn-grip-dots">⠿</span></div>
     <button class="mfn-btn" onclick="mobileJump('docnote')"><span class="mfn-icon">📋</span><span class="mfn-label">Notes</span></button>
-    <button class="mfn-btn" onclick="mobileJump('clinical')"><span class="mfn-icon">🩺</span><span class="mfn-label">Clinical</span></button>
-    <button class="mfn-btn" onclick="mobileJump('biochem')"><span class="mfn-icon">🩸</span><span class="mfn-label">Biochem</span></button>
-    <button class="mfn-btn" onclick="mobileJump('nfpe')"><span class="mfn-icon">💪</span><span class="mfn-label">Physical</span></button>
-    <button class="mfn-btn" onclick="mobileJump('diet')"><span class="mfn-icon">🥗</span><span class="mfn-label">Diet</span></button>
-    <button class="mfn-btn" onclick="mobileJump('anthro')"><span class="mfn-icon">⚖️</span><span class="mfn-label">Anthro</span></button>
-    <button class="mfn-btn" onclick="mobileJump('social')"><span class="mfn-icon">🏠</span><span class="mfn-label">Social</span></button>
-    <button class="mfn-btn" onclick="mobileJump('reqs')"><span class="mfn-icon">⚡</span><span class="mfn-label">Reqs</span></button>
-    <button class="mfn-btn" onclick="mobileJump('plan')"><span class="mfn-icon">✏️</span><span class="mfn-label">Plan</span></button>
+    <button class="mfn-btn" data-s="clinical" onclick="mobileJump('clinical')"><span class="mfn-icon">🩺</span><span class="mfn-label">Clinical</span></button>
+    <button class="mfn-btn" data-s="biochem" onclick="mobileJump('biochem')"><span class="mfn-icon">🩸</span><span class="mfn-label">Biochem</span></button>
+    <button class="mfn-btn" data-s="nfpe" onclick="mobileJump('nfpe')"><span class="mfn-icon">💪</span><span class="mfn-label">Physical</span></button>
+    <button class="mfn-btn" data-s="diet" onclick="mobileJump('diet')"><span class="mfn-icon">🥗</span><span class="mfn-label">Diet</span></button>
+    <button class="mfn-btn" data-s="anthro" onclick="mobileJump('anthro')"><span class="mfn-icon">⚖️</span><span class="mfn-label">Anthro</span></button>
+    <button class="mfn-btn" data-s="social" onclick="mobileJump('social')"><span class="mfn-icon">🏠</span><span class="mfn-label">Social</span></button>
+    <button class="mfn-btn" data-s="reqs" onclick="mobileJump('reqs')"><span class="mfn-icon">⚡</span><span class="mfn-label">Reqs</span></button>
+    <button class="mfn-btn" data-s="plan" onclick="mobileJump('plan')"><span class="mfn-icon">✏️</span><span class="mfn-label">Plan</span></button>
     <div class="mfn-divider"></div>
     <button class="mfn-btn" onclick="if(_mfnIdx){if(_mfnIdx.mode==='op')generateOPDNote(_mfnIdx.idx);else generateNote(_mfnIdx.idx);}"><span class="mfn-icon">✨</span><span class="mfn-label">Generate</span></button>
   </div>
@@ -6524,5 +6511,47 @@ function toast(msg, dur=2000) {
     });
   }
 </script>
+
+<script>
+  // v72: per-section completion dots. A small dot at the right of each section
+  // header — hollow when the section is empty, filled (in the section's own
+  // colour) once it has any content. Decoupled from the render functions via a
+  // MutationObserver on the panel, so it works for every render path.
+  function _secHasContent(sec) {
+    const fields = sec.querySelectorAll('input, textarea, select');
+    for (const f of fields) {
+      if (f.closest('.section-header')) continue;
+      if (f.type === 'radio' || f.type === 'checkbox') { if (f.checked) return true; }
+      else if (f.value && String(f.value).trim()) return true;
+    }
+    return false;
+  }
+  function updateSectionDots() {
+    const panel = document.getElementById('prechartPanel');
+    if (!panel) return;
+    panel.querySelectorAll('.section[data-s]').forEach(function (sec) {
+      if (sec.getAttribute('data-s') === 'docnote') return;
+      const hdr = sec.querySelector('.section-header');
+      if (!hdr) return;
+      let dot = hdr.querySelector('.sec-dot');
+      if (!dot) {
+        dot = document.createElement('span');
+        dot.className = 'sec-dot';
+        dot.title = 'Filled when this section has content';
+        hdr.appendChild(dot);
+      }
+      dot.classList.toggle('filled', _secHasContent(sec));
+    });
+  }
+  (function () {
+    let t;
+    const ping = function () { clearTimeout(t); t = setTimeout(updateSectionDots, 120); };
+    const panel = document.getElementById('prechartPanel');
+    if (panel) new MutationObserver(ping).observe(panel, { childList: true });
+    document.addEventListener('input', ping);
+    document.addEventListener('change', ping);
+  })();
+</script>
+
 </body>
 </html>
