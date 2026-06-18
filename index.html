@@ -2703,6 +2703,9 @@ const SP_MAP = {
   'socialHx':          'socialHx',
   'opSocialHx':        'socialHx',
   'wtHx':              'wtHx',
+  'opWtHx':            'wtHx',
+  'wtChg':             'wtHx',
+  'opWtChg':           'wtHx',
   'feedingHxNotes':    'feedingHx',
   'opFeedingHxNotes':  'feedingHx',
   'mealBreakfast':     'typicalDay',
@@ -6116,6 +6119,37 @@ const PES_BANK = [
   ]},
 ];
 
+// Per-condition Goal + Monitoring (v75), keyed by the condition name above.
+// Picking a diagnosis also drops these into the Goals & Monitoring fields (if empty).
+const PES_PLAN = {
+  'Malnutrition (undernutrition)': { goal:'catch-up growth toward [X] percentile; weight gain [X] g/day over [X] weeks',
+    monitoring:['Weight, length/height, MUAC and z-scores each review','Oral intake versus estimated needs (recall / intake chart)','Growth trajectory on WHO / local chart; supplement tolerance and adherence'] },
+  'Growth faltering': { goal:'re-establish expected growth velocity and catch-up toward the [X] centile over [X] weeks',
+    monitoring:['Weight, length/height and centiles; growth velocity','Intake versus estimated needs','Feeding behaviour and caregiver concerns; trajectory at review'] },
+  'Acute inadequate intake': { goal:'restore intake to ≥ [X]% of requirements within [X] days; prevent further weight loss',
+    monitoring:['Daily oral intake versus needs; meals taken','Daily / alternate-day weight; hydration','Symptom resolution; progression to full oral intake'] },
+  'Selective eating (limited food acceptance)': { goal:'increase variety by [X] accepted foods and maintain nutritional adequacy over [X] weeks/months',
+    monitoring:['Number and range of accepted foods / food groups','Growth (weight, height, centiles)','Micronutrient status / dietary adequacy; caregiver-reported mealtime stress'] },
+  'Dengue fever': { goal:'maintain hydration; prevent weight loss / intake decline through febrile and critical phases',
+    monitoring:['Oral fluid and food intake versus needs; tolerance','Hydration, urine output and weight per medical fluid plan','Return of appetite; progression to full diet'] },
+  'Iron deficiency / iron-deficiency anaemia': { goal:'normalise haemoglobin; replenish iron stores; establish an iron-adequate diet',
+    monitoring:['Haemoglobin and ferritin at the medical recheck',"Dietary iron intake and cow's-milk volume; vitamin-C enhancers",'Caregiver knowledge / adherence; supplement tolerance'] },
+  'Overweight / obesity': { goal:'weight maintenance / slowed gain to grow into BMI; reduce sugary drinks to [X]',
+    monitoring:['BMI-for-age z-score / percentile trajectory each review','Sugary-drink and energy-dense-food frequency; fruit and vegetable intake','Activity and screen-time targets; family engagement'] },
+  'Malnutrition': { goal:'halt weight loss; weight gain [X] kg over [X] weeks; meet ≥ [X]% of energy and protein needs',
+    monitoring:['Weight, BMI and % change; muscle mass / function where available','Oral intake versus needs; supplement adherence and tolerance','Biochemistry (including refeeding electrolytes); progress toward weight goal'] },
+  'Type 2 diabetes': { goal:'HbA1c toward [X]%; pre-meal glucose [X] mmol/L; consistent carbohydrate distribution',
+    monitoring:['HbA1c at next review; home glucose log (fasting and post-prandial)','Carbohydrate consistency and quality; free-sugar intake','Weight / anthropometry; knowledge and adherence'] },
+  'Gestational diabetes (GDM)': { goal:'meet GDM targets (fasting < [X], 1-h / 2-h post-prandial < [X] mmol/L); appropriate gestational weight gain and fetal growth',
+    monitoring:['Self-monitored fasting and post-prandial glucose versus targets','Gestational weight gain; carbohydrate distribution and quality','Knowledge / adherence; escalation to pharmacotherapy if needed'] },
+  'Enteral nutrition': { goal:'deliver ≥ [X]% of prescribed energy and protein while maintaining GI tolerance',
+    monitoring:['Delivered versus prescribed energy, protein and fluid','GI tolerance, hydration and biochemistry (including refeeding markers)','Weight trend; progress toward feeding goals / transition'] },
+  'ICU / critically ill': { goal:'progress toward target energy and protein (avoid early overfeeding); preserve lean mass; prevent / treat malnutrition',
+    monitoring:['Delivered versus prescribed energy and protein; route and tolerance','Electrolytes / refeeding markers, fluid balance and biochemistry','Muscle mass / anthropometry where feasible; weight; goal progression'] },
+  'Knowledge, beliefs, skills & behaviour': { goal:'improve [knowledge / belief / adherence / self-monitoring / skill / readiness] so the linked primary nutrition goal can be met',
+    monitoring:['Understanding on teach-back at review','Adherence and self-monitoring records (food / glucose diary)','Progress on the linked primary diagnosis'] },
+};
+
 function _pesFormat(v) {
   return v.problem + '\nRelated to: ' + v.related + '\nAs evidenced by:\n' + v.signs.map(s => '- ' + s).join('\n');
 }
@@ -6181,16 +6215,39 @@ function insertPES(targetId, ci, vi) {
   el.value = el.value.trim() ? (el.value.replace(/\s+$/, '') + '\n\n' + text) : text;
   el.classList.remove('from-prev');
   if (typeof autoExpand === 'function') autoExpand(el);
+
+  // Also drop the condition's Goal + Monitoring into those fields, but only if
+  // they're still empty (so a 2nd/3rd diagnosis doesn't overwrite them).
+  const op = targetId.startsWith('opNutDx');
+  const idx = targetId.replace(/^(?:opNutDx_|nutDx_)/, '');
+  const plan = PES_PLAN[cond.name];
+  const extra = [];
+  const fillIfEmpty = (id, value) => {
+    const f = document.getElementById(id);
+    if (f && value && !f.value.trim()) {
+      f.value = value; f.classList.remove('from-prev');
+      if (typeof autoExpand === 'function') autoExpand(f);
+      return true;
+    }
+    return false;
+  };
+  if (plan) {
+    if (fillIfEmpty((op ? 'opGoals_' : 'goals_') + idx, plan.goal)) extra.push('goal');
+    if (plan.monitoring && plan.monitoring.length &&
+        fillIfEmpty((op ? 'opMonitoring_' : 'monitoring_') + idx, plan.monitoring.map(s => '- ' + s).join('\n'))) extra.push('monitoring');
+  }
+
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
   closePESPicker();
   selectFirstPlaceholder(el);
-  if (typeof toast === 'function') toast('Diagnosis inserted — fill the [blanks] (Tab or “Next blank” to jump)', 3200);
+  const xtra = extra.length ? ' (+ ' + extra.join(' & ') + ')' : '';
+  if (typeof toast === 'function') toast('Diagnosis inserted' + xtra + ' — fill the [blanks] (Tab or “Next blank” to jump)', 3200);
 }
-// Tab cycles through [blanks] while editing a Nutrition Diagnosis field.
+// Tab cycles through [blanks] while editing a Diagnosis, Goals or Monitoring field.
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Tab') return;
   const el = e.target;
-  if (!el || !el.id || !/^(op)?nutDx_/.test(el.id)) return;
+  if (!el || !el.id || !/^(op)?(nutDx|goals|monitoring)_/.test(el.id)) return;
   if (!/\[[^\]]*\]/.test(el.value)) return; // no blanks → let Tab behave normally
   e.preventDefault();
   if (e.shiftKey) selectPrevPlaceholder(el); else selectNextPlaceholder(el);
