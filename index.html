@@ -5163,8 +5163,11 @@ function renderOPDPrechart(idx) {
             <button class="btn-ghost btn-small" style="font-size:10px;padding:2px 8px" onclick="this.closest('div[style*=overflow]').querySelector('textarea').value='';this.closest('div[style*=overflow]').querySelector('textarea').style.display='none';this.textContent='Show';" >Clear</button>
           </div>
           <div style="padding:10px 14px">
-            <textarea class="doc-note-area" id="opPrevPlan_${idx}" placeholder="Paste previous Vesalius note or plan here — for reference only, does not affect generated note..." rows="3" style="font-size:11px;min-height:60px">${esc(saved.prevPlan||'')}</textarea>
-            <div style="font-size:10px;color:var(--text-faint);margin-top:4px">Reference only — not included in generated note</div>
+            <textarea class="doc-note-area" id="opPrevPlan_${idx}" placeholder="Paste your full previous Vesalius note here. 'Import' fills Dx/Intervention/Monitoring/anthro/labs; on a Review, the generated note also adds a 'Since last review' summary (weight & lab changes)." rows="3" style="font-size:11px;min-height:60px">${esc(saved.prevPlan||'')}</textarea>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+              <button class="btn-ghost btn-small" style="font-size:11px;padding:4px 10px" onclick="parseOPDPrevPlan(${idx})">↻ Import previous note → fill chart</button>
+              <span style="font-size:10px;color:var(--text-faint)">Populates Dx, Intervention, Monitoring, anthro & labs if empty</span>
+            </div>
           </div>
         </div>
         <div class="form-group" style="margin-bottom:10px">
@@ -5821,14 +5824,20 @@ function parseNoteSections(text) {
 // Comprehensive review import: fill the chart from a pasted previous (dashboard-format)
 // note. Fills EMPTY fields only, tints each as "carried forward — verify", and leaves
 // the clinical assessment toggles blank (carries their wording into Clinical Notes instead).
-function parsePrevPlan(idx) {
-  let text = document.getElementById(`prevPlan_${idx}`)?.value || '';
+// Shared previous-note importer for IP (parsePrevPlan) and OPD (parseOPDPrevPlan).
+// Round-trips the dashboard's own note format; fills EMPTY fields only, tints each
+// "carried forward — verify", leaves assessment toggles blank. cfg carries the
+// per-mode field-id map + label differences so the two modes can never drift apart.
+function importPrevNote(idx, cfg) {
+  let text = document.getElementById(`${cfg.prevId}_${idx}`)?.value || '';
   if (!text.trim()) { alert('Paste your previous note into the box first.'); return; }
   text = text.split(/\n\s*Aminath Iasha,\s*APD/i)[0]; // drop the signature block
 
+  const F = cfg.fields;
   let filled = 0;
-  const fill = (id, val) => {
-    const el = document.getElementById(id);
+  const fill = (baseId, val) => {
+    if (!baseId) return; // slot not present in this mode (e.g. OPD has no fluid field)
+    const el = document.getElementById(`${baseId}_${idx}`);
     if (el && val && String(val).trim() && !el.value.trim()) {
       el.value = String(val).trim();
       if (!el.value.trim()) return; // value didn't take (e.g. a <select> with no matching option)
@@ -5849,17 +5858,17 @@ function parsePrevPlan(idx) {
   const inSec = (body, re) => { const m = (body||'').match(re); return m ? m[1].trim() : ''; };
 
   // Carry-forward narrative
-  fill(`pmhText_${idx}`, labelBlock('Past medical history:'));
-  fill(`socialHx_${idx}`, labelBlock('Social history:'));
+  fill(F.pmh, labelBlock('Past medical history:'));
+  fill(F.social, labelBlock('Social history:'));
 
   // Anthropometry (numbers + history)
   const an = sec['ANTHROPOMETRY'] || '';
-  fill(`wt_${idx}`, inSec(an, /Weight:\s*([\d.]+)\s*kg/i));
-  fill(`ht_${idx}`, inSec(an, /Height:\s*([\d.]+)\s*cm/i));
-  fill(`bmi_${idx}`, inSec(an, /BMI(?:\/WFL)?:\s*([\d.]+)/i));
-  fill(`wtChg_${idx}`, inSec(an, /Weight change:\s*([^\n]+)/i));
-  fill(`wtHx_${idx}`, inSec(an, /Weight history:\s*([^\n]+)/i));
-  fill(`nutStatus_${idx}`, inSec(an, /Nutritional status:\s*([^\n]+)/i));
+  fill(F.wt, inSec(an, /Weight:\s*([\d.]+)\s*kg/i));
+  fill(F.ht, inSec(an, /Height:\s*([\d.]+)\s*cm/i));
+  fill(F.bmi, inSec(an, /BMI(?:\/WFL)?:\s*([\d.]+)/i));
+  fill(F.wtChg, inSec(an, /Weight change:\s*([^\n]+)/i));
+  fill(F.wtHx, inSec(an, /Weight history:\s*([^\n]+)/i));
+  fill(F.nutStatus, inSec(an, /Nutritional status:\s*([^\n]+)/i));
 
   // Biochem — split the "a | b | c" labs line back into fields by analyte keyword
   const bio = sec['BIOCHEMISTRY & INVESTIGATIONS'] || '';
@@ -5874,38 +5883,34 @@ function parsePrevPlan(idx) {
       else if (/\b(Alb|Albumin|LFT|Bili|ALT|AST|GGT|ALP)\b/i.test(pc)) b.lft.push(pc);
       else b.other.push(pc);
     });
-    fill(`hb_${idx}`, b.hb.join(', '));
-    fill(`crp_${idx}`, b.crp.join(', '));
-    fill(`rft_${idx}`, b.rft.join(', '));
-    fill(`lft_${idx}`, b.lft.join(', '));
-    fill(`otherLabs_${idx}`, b.other.join(', '));
-    fill(`bgl_${idx}`, b.bgl.join(', '));
+    fill(F.hb, b.hb.join(', '));
+    fill(F.crp, b.crp.join(', '));
+    fill(F.rft, b.rft.join(', '));
+    fill(F.lft, b.lft.join(', '));
+    fill(F.other, b.other.join(', '));
+    fill(F.bgl, b.bgl.join(', '));
   }
 
-  // Diet history
-  fill(`foodAllergies_${idx}`, labelVal('Food allergies:'));
-  fill(`foodIntolerances_${idx}`, labelVal('Food intolerances / avoids:'));
-  fill(`hospitalDiet_${idx}`, labelVal('Hospital diet:'));
-  fill(`currentIntake_${idx}`, labelVal('Current intake:'));
-  fill(`homeDiet_${idx}`, labelVal('Pre-admission diet:'));
+  // Diet history — [label, baseId] pairs (differ between IP and OPD)
+  (cfg.diet || []).forEach(([lbl, baseId]) => fill(baseId, labelVal(lbl)));
 
   // Requirements
-  fill(`eer_${idx}`, labelVal('EER:'));
-  fill(`epr_${idx}`, labelVal('EPR:'));
-  fill(`efr_${idx}`, labelVal('EFR:'));
-  fill(`intakePct_${idx}`, labelVal('Estimated current intake:'));
+  fill(F.eer, labelVal('EER:'));
+  fill(F.epr, labelVal('EPR:'));
+  fill(F.efr, labelVal('EFR:'));
+  fill(F.intakePct, labelVal(cfg.intakeLabel));
 
   // Plan
-  fill(`nutDx_${idx}`, sec['NUTRITION DIAGNOSIS']);
-  fill(`goals_${idx}`, labelBlock('Goals:'));
-  fill(`intervention_${idx}`, sec['INTERVENTION']);
-  fill(`monitoring_${idx}`, sec['MONITORING & EVALUATION'] || sec['MONITORING']);
+  fill(F.nutDx, sec['NUTRITION DIAGNOSIS']);
+  fill(F.goals, labelBlock('Goals:'));
+  fill(F.intervention, (sec['INTERVENTION'] || '').replace(/^>\s?/gm, ''));
+  fill(F.monitoring, sec['MONITORING & EVALUATION'] || sec['MONITORING']);
 
   // Clinical → carry the wording into Clinical Notes; leave assessment toggles to re-assess
-  fill(`clinicalNotes_${idx}`, sec['CLINICAL']);
+  fill(F.clinical, sec['CLINICAL']);
 
   if (typeof markRadioStates === 'function') markRadioStates();
-  const banner = document.getElementById(`labsBanner_${idx}`);
+  const banner = document.getElementById(`${cfg.banner}_${idx}`);
   if (banner) {
     banner.style.display = 'block';
     banner.style.cssText += ';background:var(--accent-light);border:1px solid var(--accent);color:var(--accent);padding:8px 12px;border-radius:6px;margin-top:8px;font-size:12px';
@@ -5915,6 +5920,38 @@ function parsePrevPlan(idx) {
   }
   scheduleAutosave();
   toast(filled > 0 ? `Imported ${filled} fields ✓ — verify the tinted ones` : 'Nothing recognised to import', 3500);
+}
+
+// IP import — fills the inpatient field set.
+function parsePrevPlan(idx) {
+  importPrevNote(idx, {
+    prevId: 'prevPlan', banner: 'labsBanner',
+    intakeLabel: 'Estimated current intake:',
+    fields: { pmh:'pmhText', social:'socialHx', wt:'wt', ht:'ht', bmi:'bmi',
+      wtChg:'wtChg', wtHx:'wtHx', nutStatus:'nutStatus',
+      hb:'hb', crp:'crp', rft:'rft', lft:'lft', other:'otherLabs', bgl:'bgl',
+      eer:'eer', epr:'epr', efr:'efr', intakePct:'intakePct',
+      nutDx:'nutDx', goals:'goals', intervention:'intervention', monitoring:'monitoring',
+      clinical:'clinicalNotes' },
+    diet: [ ['Food allergies:','foodAllergies'], ['Food intolerances / avoids:','foodIntolerances'],
+      ['Hospital diet:','hospitalDiet'], ['Current intake:','currentIntake'], ['Pre-admission diet:','homeDiet'] ]
+  });
+}
+
+// OPD import — same logic, outpatient field set (no fluid field; "Estimated intake:" label).
+function parseOPDPrevPlan(idx) {
+  importPrevNote(idx, {
+    prevId: 'opPrevPlan', banner: 'opLabsBanner',
+    intakeLabel: 'Estimated intake:',
+    fields: { pmh:'opPmhText', social:'opSocialHx', wt:'opWt', ht:'opHt', bmi:'opBmi',
+      wtChg:'opWtChg', wtHx:'opWtHx', nutStatus:'opNutStatus',
+      hb:'opHb', crp:'opCrp', rft:'opRft', lft:'opLft', other:'opOtherLabs', bgl:'opBgl',
+      eer:'opEer', epr:'opEpr', efr:null, intakePct:'opIntakePct',
+      nutDx:'opNutDx', goals:'opGoals', intervention:'opIntervention', monitoring:'opMonitoring',
+      clinical:'opClinicalNotes' },
+    diet: [ ['Food allergies:','opAllergies'], ['Food intolerances / avoids:','opFoodIntolerances'],
+      ['Current diet:','opCurrentDiet'], ['Current supplements:','opSupplements'], ['Previous dietetic input:','opPrevDietInput'] ]
+  });
 }
 
 // ──────────────────────────────────────────
