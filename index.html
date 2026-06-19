@@ -4043,10 +4043,12 @@ function parseBiochem(idx, text) {
     .replace(/^[\s\-\u2022]+/gm, '')
     // Normalise comma-as-decimal-separator (e.g. European format CRP 0,2 → 0.2)
     .replace(/(\d),(\d)/g, '$1.$2')
-    // Handle >> serial values
-    .replace(/(\d[\d.]*(?:\s*>>\s*[\d.]+)+)/g, m => m.split(/\s*>>\s*/).join(' -> '))
-    // Handle space > space serial values (e.g. "CRP 14 > 6.56")
-    .replace(/(\d[\d.]*)\s+>\s+(\d[\d.]*)/g, '$1 -> $2')
+    // Lab TRENDS — when a result is written as a series "old --> new" (arrows
+    // -->, ->, →, >>, or " > "), keep only the LATEST value. Runs left-to-right
+    // so a chain (a-->b-->c) collapses to its final value. Requires a number on
+    // BOTH sides, so it never touches ">100,000", ranges (62-659), or free-text
+    // arrows like "haziness> consolidation".
+    .replace(/[0-9.\/]+\s*(?:[-–—]+>|→|>+)\s*(?=[0-9.\/])/g, '')
     // Strip Vesalius "VIEW PATIENT RESULTS CHART" noise
     .replace(/VIEW\s+PATIENT\s+RESULTS\s+CHART/gi, '');
   const src = normalise(text);
