@@ -5925,12 +5925,36 @@ function renderPrechart(idx) {
 // ──────────────────────────────────────────
 // Split a dashboard-format note into its sections (header line → body)
 function parseNoteSections(text) {
-  const HEADERS = ['SINCE LAST REVIEW','ANTHROPOMETRY','BIOCHEMISTRY & INVESTIGATIONS','CLINICAL',
-    'DIET HISTORY','NUTRITIONAL REQUIREMENTS','NUTRITION DIAGNOSIS','INTERVENTION',
-    'MONITORING & EVALUATION','MONITORING'];
+  // Header aliases → canonical section key. Tolerant of a trailing colon and a
+  // trailing parenthetical, and of older/looser wording, so notes written as
+  // "ANTHROPOMETRY:", "DIET & NUTRITION:", or "NUTRITIONAL REQUIREMENTS (Calculated 16/2)"
+  // still split correctly instead of bleeding into the previous section.
+  const ALIASES = [
+    ['SINCE LAST REVIEW', 'SINCE LAST REVIEW'],
+    ['ANTHROPOMETRY', 'ANTHROPOMETRY'], ['ANTHROPOMETRICS', 'ANTHROPOMETRY'],
+    ['BIOCHEMISTRY & INVESTIGATIONS', 'BIOCHEMISTRY & INVESTIGATIONS'],
+    ['BIOCHEMISTRY AND INVESTIGATIONS', 'BIOCHEMISTRY & INVESTIGATIONS'],
+    ['BIOCHEMISTRY', 'BIOCHEMISTRY & INVESTIGATIONS'], ['INVESTIGATIONS', 'BIOCHEMISTRY & INVESTIGATIONS'],
+    ['CLINICAL', 'CLINICAL'], ['CLINICAL ASSESSMENT', 'CLINICAL'],
+    ['DIET HISTORY', 'DIET HISTORY'], ['DIET & NUTRITION HISTORY', 'DIET HISTORY'],
+    ['DIET & NUTRITION', 'DIET HISTORY'], ['DIET AND NUTRITION', 'DIET HISTORY'], ['DIET', 'DIET HISTORY'],
+    ['NUTRITIONAL REQUIREMENTS', 'NUTRITIONAL REQUIREMENTS'], ['NUTRITION REQUIREMENTS', 'NUTRITIONAL REQUIREMENTS'],
+    ['REQUIREMENTS', 'NUTRITIONAL REQUIREMENTS'],
+    ['NUTRITION DIAGNOSIS', 'NUTRITION DIAGNOSIS'], ['NUTRITION DIAGNOSIS & PLAN', 'NUTRITION DIAGNOSIS'],
+    ['INTERVENTION', 'INTERVENTION'], ['INTERVENTION & PLAN', 'INTERVENTION'], ['PLAN', 'INTERVENTION'],
+    ['MONITORING & EVALUATION', 'MONITORING & EVALUATION'],
+    ['MONITORING AND EVALUATION', 'MONITORING & EVALUATION'], ['MONITORING', 'MONITORING']
+  ];
+  const matchHeader = (ln) => {
+    let s = ln.trim().toUpperCase();
+    if (!s || s.length > 40) return null; // real headers are short, single-line
+    s = s.replace(/:\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim(); // drop trailing colon / "(…)"
+    for (const [alias, canon] of ALIASES) if (s === alias) return canon;
+    return null;
+  };
   const map = {}; let cur = null;
   text.split('\n').forEach(ln => {
-    const h = HEADERS.find(H => ln.trim().toUpperCase() === H);
+    const h = matchHeader(ln);
     if (h) { cur = h; map[h] = map[h] || ''; return; }
     if (cur) map[cur] += ln + '\n';
   });
@@ -6050,7 +6074,8 @@ function parsePrevPlan(idx) {
       eer:'eer', epr:'epr', efr:'efr', intakePct:'intakePct',
       nutDx:'nutDx', goals:'goals', intervention:'intervention', monitoring:'monitoring',
       clinical:'clinicalNotes' },
-    diet: [ ['Food allergies:','foodAllergies'], ['Food intolerances / avoids:','foodIntolerances'],
+    diet: [ ['Food allergies:','foodAllergies'], ['Allergies:','foodAllergies'],
+      ['Food intolerances / avoids:','foodIntolerances'], ['Intolerances / avoids:','foodIntolerances'], ['Intolerances:','foodIntolerances'],
       ['Hospital diet:','hospitalDiet'], ['Current intake:','currentIntake'], ['Pre-admission diet:','homeDiet'] ]
   });
 }
@@ -6066,7 +6091,8 @@ function parseOPDPrevPlan(idx) {
       eer:'opEer', epr:'opEpr', efr:null, intakePct:'opIntakePct',
       nutDx:'opNutDx', goals:'opGoals', intervention:'opIntervention', monitoring:'opMonitoring',
       clinical:'opClinicalNotes' },
-    diet: [ ['Food allergies:','opAllergies'], ['Food intolerances / avoids:','opFoodIntolerances'],
+    diet: [ ['Food allergies:','opAllergies'], ['Allergies:','opAllergies'],
+      ['Food intolerances / avoids:','opFoodIntolerances'], ['Intolerances / avoids:','opFoodIntolerances'], ['Intolerances:','opFoodIntolerances'],
       ['Current diet:','opCurrentDiet'], ['Current supplements:','opSupplements'], ['Previous dietetic input:','opPrevDietInput'] ]
   });
 }
