@@ -1488,6 +1488,7 @@ function ensureAwarenessLoop() { if (!_awarenessInterval) _awarenessInterval = s
 
 function updateAwarenessTimers() {
   const phase = detectPhase();
+  if (currentPanelOpen) currentPanelOpen.lastActive = Date.now(); // v80: heartbeat for crash recovery
 
   // Per-patient focus timer — runs whenever a patient's chart is open (all phases:
   // precharting, rounds, finalising). Normal state is BLUE so it stands out from
@@ -1527,7 +1528,12 @@ window.addEventListener('DOMContentLoaded', ensureAwarenessLoop);
 
 function openIPPanelLog(idx) {
   closeIPPanelLog();
-  currentPanelOpen = { idx, startTime: Date.now() };
+  // v80: the session now runs continuously from open until you LEAVE the patient
+  // (switch / back-to-list / Mark Seen / Note Done) — it no longer pauses when the
+  // dashboard loses focus (e.g. while you're reading in Vesalius), so the recorded
+  // time matches the on-screen header timer. `lastActive` is a heartbeat so a
+  // backgrounded-tab kill can still recover the session up to its last known moment.
+  currentPanelOpen = { idx, startTime: Date.now(), lastActive: Date.now(), phase: detectPhase(), device: detectDevice() };
 }
 
 function closeIPPanelLog() {
@@ -2024,8 +2030,11 @@ window.addEventListener('beforeunload', () => {
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
-    try { closeIPPanelLog(); } catch(_) {}
-    try { persistSessionNow(); } catch(_) {} // mobile may kill the tab while backgrounded
+    // v80: DON'T close the session on background — keep counting (you're often in
+    // Vesalius). Just stamp lastActive + persist so a backgrounded-tab kill can
+    // still recover the session up to this moment.
+    try { if (currentPanelOpen) currentPanelOpen.lastActive = Date.now(); } catch(_) {}
+    try { persistSessionNow(); } catch(_) {}
   } else if (document.visibilityState === 'visible' && currentMode === 'ip' && activeIdx !== null && !currentPanelOpen) {
     try { openIPPanelLog(activeIdx); } catch(_) {}
   }
@@ -3131,6 +3140,8 @@ function buildSessionData() {
     lastSavedDevice: detectDevice(),
     panelOpenLog,
     opdConsultLog,
+    // v80: the currently-open timing session (so a backgrounded-tab kill can recover it)
+    currentPanelOpen: currentPanelOpen ? { ...currentPanelOpen, lastActive: Date.now() } : null,
   };
 }
 
@@ -3259,6 +3270,19 @@ function restoreSessionData(data) {
   panelOpenLog = Array.isArray(data.panelOpenLog) ? [...data.panelOpenLog] : [];
   opdConsultLog = Array.isArray(data.opdConsultLog) ? [...data.opdConsultLog] : [];
   if (opdConsultLog.some(e => !e.endTime)) ensureOPDTimerLoop();
+  // v80: finalise a timing session that was open when saved/killed — close it at its
+  // last-known heartbeat so the time isn't lost (and isn't left running on reload).
+  currentPanelOpen = null;
+  const cpo = data.currentPanelOpen;
+  if (cpo && cpo.startTime && (cpo.lastActive || cpo.startTime) - cpo.startTime >= 2000) {
+    panelOpenLog.push({
+      idx: cpo.idx,
+      device: cpo.device || lastSavedDevice || 'desktop',
+      phase: cpo.phase || 'precharting',
+      startTime: cpo.startTime,
+      endTime: cpo.lastActive || cpo.startTime
+    });
+  }
 
   // v59 round-3: auto-collapse import areas now that data is loaded
   if (patients.length > 0) {
@@ -3433,6 +3457,7 @@ function toggleSeen(idx) {
     btn.textContent = seenSet.has(idx) ? '👁 Seen' : '👁 Mark Seen';
     btn.classList.toggle('btn-seen-active', seenSet.has(idx));
   }
+  if (seenSet.has(idx) && currentPanelOpen && currentPanelOpen.idx === idx) closeIPPanelLog(); // v80: end the timed session — you're done with this patient
   if (idx === _focusIdx && seenSet.has(idx)) stopFocusTimer(); // done with this patient on rounds
   updateRoundsSummary();
 }
@@ -3459,6 +3484,7 @@ function markNoteDone(idx) {
   renderList();
   updateStats();
   updateRoundsSummary();
+  if (noteDoneSet.has(idx) && currentPanelOpen && currentPanelOpen.idx === idx) closeIPPanelLog(); // v80: end the timed session
   if (idx === _focusIdx && noteDoneSet.has(idx)) stopFocusTimer(); // done finalising this patient
   if (noteDoneSet.has(idx)) toast('Note marked done ✓');
 }
