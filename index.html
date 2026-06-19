@@ -1654,6 +1654,25 @@ function unchart(idx) {
   toast('Removed from Charted ✓');
 }
 
+// Clear ALL charted fields for one patient (e.g. after pasting the wrong note).
+// Confirms first; wipes the saved data and re-renders the panel blank.
+function clearChart(idx) {
+  const name = (patients[idx] && patients[idx].name) ? patients[idx].name : 'this patient';
+  if (!confirm('Clear ALL fields for ' + name + '?\n\nThis wipes everything you have entered (labs, diet, plan, etc.) for this patient. It cannot be undone.')) return;
+  chartData[idx] = {};
+  renderPrechart(idx);
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
+  if (typeof toast === 'function') toast('Cleared all fields for ' + name, 2500);
+}
+function clearOPDChart(idx) {
+  const name = (opdPatients[idx] && opdPatients[idx].name) ? opdPatients[idx].name : 'this patient';
+  if (!confirm('Clear ALL fields for ' + name + '?\n\nThis wipes everything you have entered for this OPD patient. It cannot be undone.')) return;
+  opdChartData[idx] = {};
+  renderOPDPrechart(idx);
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
+  if (typeof toast === 'function') toast('Cleared all fields for ' + name, 2500);
+}
+
 // Build the de-identified worklog text for clipboard
 function buildWorklogText() {
   // Compute today's day boundary from the most recent entry
@@ -4043,12 +4062,11 @@ function parseBiochem(idx, text) {
     .replace(/^[\s\-\u2022]+/gm, '')
     // Normalise comma-as-decimal-separator (e.g. European format CRP 0,2 → 0.2)
     .replace(/(\d),(\d)/g, '$1.$2')
-    // Lab TRENDS — when a result is written as a series "old --> new" (arrows
-    // -->, ->, →, >>, or " > "), keep only the LATEST value. Runs left-to-right
-    // so a chain (a-->b-->c) collapses to its final value. Requires a number on
-    // BOTH sides, so it never touches ">100,000", ranges (62-659), or free-text
-    // arrows like "haziness> consolidation".
-    .replace(/[0-9.\/]+\s*(?:[-–—]+>|→|>+)\s*(?=[0-9.\/])/g, '')
+    // Lab TRENDS — canonicalise any serial separator ("-->", "->", "→", ">>",
+    // " > ") to a single " → " so the analyte patterns capture the whole series
+    // (e.g. "CRP 0.3 → 6.13"). Requires a number on BOTH sides, so it never
+    // touches ">100,000", ranges (62-659), or free-text arrows ("haziness>").
+    .replace(/([0-9.\/]+)\s*(?:[-–—]+>|→|>+)\s*(?=[0-9.\/])/g, '$1 → ')
     // Strip Vesalius "VIEW PATIENT RESULTS CHART" noise
     .replace(/VIEW\s+PATIENT\s+RESULTS\s+CHART/gi, '');
   const src = normalise(text);
@@ -4136,12 +4154,12 @@ function parseBiochem(idx, text) {
     if (blockEnd > 0) investBlock = investBlock.slice(0, blockEnd);
     const s = investBlock.length > 80 ? investBlock : src;
 
-    const hbM  = s.match(/\bHb[b]?[:\s]+([0-9.]+(?:\s*->\s*[0-9.]+)*)/i);
-    const tcM  = s.match(/\bTC[:\s]+([0-9.]+(?:\s*->\s*[0-9.]+)*)/i) || s.match(/\bWBC[:\s]+([0-9.]+)/i);
-    const nlM  = s.match(/N\/L\/E[:\s]+([\d.]+\s*\/\s*[\d.]+\s*\/\s*[\d.]+)/i) || s.match(/N\/L[:\s]+([\d.]+\s*\/\s*[\d.]+)/i);
-    const pltM = s.match(/\bPlt(?:elet)?[:\s]+([0-9.]+(?:\s*->\s*[0-9.]+)*)/i);
-    const pcvM = s.match(/\bPCV[:\s]+([0-9.]+)/i);
-    const mcvM = s.match(/\bMCV[:\s]+([0-9.]+)/i);
+    const hbM  = s.match(/\bHb[b]?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const tcM  = s.match(/\bTC[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bWBC[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const nlM  = s.match(/N\/L\/E[:\s]+([\d.]+\s*\/\s*[\d.]+\s*\/\s*[\d.]+(?:\s*→\s*[\d.]+\s*\/\s*[\d.]+\s*\/\s*[\d.]+)*)/i) || s.match(/N\/L[:\s]+([\d.]+\s*\/\s*[\d.]+(?:\s*→\s*[\d.]+\s*\/\s*[\d.]+)*)/i);
+    const pltM = s.match(/\bPlt(?:elet)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const pcvM = s.match(/\bPCV[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const mcvM = s.match(/\bMCV[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
     const reticM = s.match(/\bRetic(?:ulocyte)?[:\s]+([0-9.]+[%]?)/i);
     const g6pdM  = s.match(/\bG6PD[:\s]+(\w+)/i);
     const bgM    = s.match(/\bBlood\s+[Gg]roup[:\s]+([A-BO\+\-\s]+)/i);
@@ -4156,9 +4174,9 @@ function parseBiochem(idx, text) {
     if (bgM)    fbc += `${fbc?', ':''}Blood group ${bgM[1].trim()}`;
     if (fbc) over(`hb_${idx}`, fbc);
 
-    const crpM = s.match(/\bCRP[:\s]+([0-9.]+(?:\s*->\s*[0-9.]+)*)/i);
-    const proM = s.match(/[Pp]rocalcitonin[:\s]+([0-9.]+)/i) || s.match(/\bProcal[:\s]+([0-9.]+)/i);
-    const esrM = s.match(/\bESR[:\s]+([0-9.]+)/i);
+    const crpM = s.match(/\bCRP[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const proM = s.match(/[Pp]rocalcitonin[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bProcal[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const esrM = s.match(/\bESR[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
     const ferM = s.match(/\bFerritin[:\s]+([0-9.]+)/i);
     const ldhM = s.match(/\bLDH[:\s]+([0-9.]+)/i);
     let inflam = '';
@@ -4169,12 +4187,12 @@ function parseBiochem(idx, text) {
     if (ldhM)  inflam += `${inflam?', ':''}LDH ${ldhM[1]}`;
     if (inflam) over(`crp_${idx}`, inflam);
 
-    const naM    = s.match(/\bNa\+?[:\s]+([0-9.]+)/i);
-    const kM     = s.match(/\bK[\s\+]*[:\s]+([0-9.]+)/i);
-    const ureaM  = s.match(/\bUrea[:\s]+([0-9.]+)/i);
-    const creatM = s.match(/\bCr(?:eat(?:inine)?)?n?[:\s]+([0-9.]+)/i);
-    const egfrM  = s.match(/\beGFR[:\s]+([0-9.]+)/i);
-    const phosM  = s.match(/\bPhos(?:phorus|phate)?[:\s]+([0-9.]+)/i);
+    const naM    = s.match(/\bNa\+?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const kM     = s.match(/\bK[\s\+]*[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const ureaM  = s.match(/\bUrea[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const creatM = s.match(/\bCr(?:eat(?:inine)?)?n?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const egfrM  = s.match(/\beGFR[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const phosM  = s.match(/\bPhos(?:phorus|phate)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
     let rft = '';
     if (naM)    rft += `Na ${naM[1]}`;
     if (kM)     rft += `${rft?', ':''}K ${kM[1]}`;
@@ -4186,10 +4204,10 @@ function parseBiochem(idx, text) {
     if (rftNorm && !rft) rft = 'RFT Normal';
     if (rft) over(`rft_${idx}`, rft);
 
-    const albM  = s.match(/\bAlb(?:umin)?[:\s]+([0-9.]+)/i);
-    const sgptM = s.match(/\bSGPT[:\s]*([0-9.]+)/i) || s.match(/\bALT[:\s]+([0-9.]+)/i) || s.match(/\bALT\/AST[:\s]+([0-9.]+)\/([0-9.]+)/i);
-    const sgotM = s.match(/\bSGOT[:\s]*([0-9.]+)/i) || s.match(/\bAST[:\s]+([0-9.]+)/i) || s.match(/\bALT\/AST[:\s]+[0-9.]+\/([0-9.]+)/i);
-    const bilM  = s.match(/\bBilirubin[:\s]+([0-9.]+)/i);
+    const albM  = s.match(/\bAlb(?:umin)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    const sgptM = s.match(/\bSGPT[:\s]*([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bALT[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bALT\/AST[:\s]+([0-9.]+)\/([0-9.]+)/i);
+    const sgotM = s.match(/\bSGOT[:\s]*([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bAST[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bALT\/AST[:\s]+[0-9.]+\/([0-9.]+)/i);
+    const bilM  = s.match(/\bBilirubin[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
     const lftNorm = /LFT[\s:-]+(?:WNL|Normal)/i.test(s);
     let lft = '';
     if (lftNorm) lft = 'LFT Normal';
@@ -4826,6 +4844,7 @@ function renderOPDPrechart(idx) {
         <button class="btn-ghost btn-small session-toggle" onclick="toggleSessionType(${idx},'opSt','opSessToggle_${idx}')" id="opSessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
         <button class="btn-primary btn-small hide-mobile" onclick="generateOPDNote(${idx})">Generate Note</button>
         <button class="btn-ghost btn-small ${seenSet.has(idx)?'btn-seen-active':''}" onclick="toggleSeen(${idx})" id="opSeenBtn_${idx}">${seenSet.has(idx)?'👁 Seen':'👁 Mark Seen'}</button>
+        <button class="btn-ghost btn-small" style="color:var(--warn);border-color:var(--warn)" onclick="clearOPDChart(${idx})" title="Clear all fields for this patient (asks first)">🗑 Clear all</button>
         ${(() => {
           const open = opdConsultLog.find(e => e.idx === idx && !e.endTime);
           if (open) {
@@ -5299,6 +5318,7 @@ function renderPrechart(idx) {
         <button class="btn-ghost btn-small session-toggle" onclick="toggleSessionType(${idx},'st','sessToggle_${idx}')" id="sessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
         <button class="btn-ghost btn-small hide-mobile ${noteDoneSet.has(idx)?'btn-seen-active':''}" onclick="markNoteDone(${idx})" id="noteDoneBtn_${idx}">${noteDoneSet.has(idx)?'✅ Done':'✅ Note Done'}</button>
         ${chartedSet.has(idx) ? `<button class="btn-ghost btn-small hide-mobile" onclick="unchart(${idx})" title="Remove from Charted (keeps your data)">✕ Uncharted</button>` : ''}
+        <button class="btn-ghost btn-small" style="color:var(--warn);border-color:var(--warn)" onclick="clearChart(${idx})" title="Clear all fields for this patient (asks first)">🗑 Clear all</button>
       </div>
   </div>
   <div class="prechart-wrap"><div class="prechart-content" id="pc${idx}">
