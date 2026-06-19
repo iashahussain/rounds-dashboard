@@ -1171,6 +1171,15 @@
     letter-spacing: .08em; text-transform: uppercase;
     margin-bottom: 6px;
   }
+  /* Break-aware "time on shift" summary (v78) */
+  .tt-shift { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 4px; }
+  .tt-shift-row { display: flex; justify-content: space-between; padding: 9px 14px; font-size: 13px; border-bottom: 1px solid var(--border-soft); }
+  .tt-shift-row:last-child { border-bottom: none; }
+  .tt-shift-total { font-weight: 700; background: var(--accent-light); color: var(--accent); font-size: 14px; }
+  .tt-brk-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); margin: 8px 0 6px; }
+  .tt-brk { border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); border-radius: 999px; padding: 4px 11px; font-size: 11px; cursor: pointer; font-family: var(--sans); font-weight: 600; }
+  .tt-brk.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
   .tt-table {
     width: 100%; border-collapse: collapse;
     font-size: 12px;
@@ -1673,6 +1682,39 @@ function clearOPDChart(idx) {
   if (typeof toast === 'function') toast('Cleared all fields for ' + name, 2500);
 }
 
+// ── Break-aware wall-clock "time on shift" (v78) ──────────────────────────
+// Counts the whole stretch you're working — chart focused OR not (incl. reading
+// in Vesalius, walking the ward) — and subtracts only idle gaps longer than the
+// break cutoff. This is the realistic "hours on task". It's the opposite of the
+// per-patient "active in-chart" numbers, which only count seconds the dashboard
+// panel was the focused window (and so badly undercount real effort).
+let _ttBreakMin = (function(){ const v = parseInt(localStorage.getItem('tth-ttbreak'), 10); return (v===5||v===8||v===10||v===15) ? v : 10; })();
+function setTtBreak(n){
+  _ttBreakMin = n;
+  try { localStorage.setItem('tth-ttbreak', String(n)); } catch(_){}
+  const m = document.getElementById('timeTrackingModal');
+  if (m && m.style.display !== 'none') renderTimeTrackingModal();
+}
+function _engagedMs(sessions, thrMin){
+  const s = sessions.filter(e => e.endTime && e.startTime).sort((a,b) => a.startTime - b.startTime);
+  if (!s.length) return 0;
+  const thr = thrMin * 60000;
+  let tot = s[s.length-1].endTime - s[0].startTime;
+  for (let k=1;k<s.length;k++){ const g = s[k].startTime - s[k-1].endTime; if (g > thr) tot -= g; }
+  return Math.max(0, tot);
+}
+function computeShiftSummary(dayBoundary, thrMin){
+  const ip  = panelOpenLog.filter(e => (e.endTime||0) >= dayBoundary);
+  const opd = opdConsultLog.filter(e => e.endTime && e.endTime >= dayBoundary);
+  return {
+    precharting: _engagedMs(ip.filter(e => e.phase === 'precharting'), thrMin),
+    rounds:      _engagedMs(ip.filter(e => e.phase === 'rounds'), thrMin),
+    finalising:  _engagedMs(ip.filter(e => e.phase === 'finalising'), thrMin),
+    opd:         _engagedMs(opd, thrMin),
+    day:         _engagedMs(ip.concat(opd), thrMin)
+  };
+}
+
 // Build the de-identified worklog text for clipboard
 function buildWorklogText() {
   // Compute today's day boundary from the most recent entry
@@ -1730,6 +1772,20 @@ function buildWorklogText() {
   lines.push(`Device: ${detectDevice()} · Phase detected: ${detectPhase()}`);
   lines.push('');
 
+  const shift = computeShiftSummary(dayBoundary, _ttBreakMin);
+  if (shift.day > 0) {
+    lines.push(`TIME ON SHIFT — wall-clock (breaks over ${_ttBreakMin} min removed)`);
+    if (shift.precharting) lines.push(`  Precharting: ${fmtDuration(shift.precharting)}`);
+    if (shift.rounds)      lines.push(`  Rounds: ${fmtDuration(shift.rounds)}`);
+    if (shift.finalising)  lines.push(`  Finalising: ${fmtDuration(shift.finalising)}`);
+    if (shift.opd)         lines.push(`  OPD: ${fmtDuration(shift.opd)}`);
+    lines.push(`  Day total: ${fmtDuration(shift.day)}`);
+    lines.push('');
+  }
+
+  if (ipRows.length || opdRows.length) {
+    lines.push(`ACTIVE IN-CHART TIME (focused dashboard only — undercounts true effort)`);
+  }
   if (ipRows.length) {
     lines.push(`INPATIENT (${ipRows.length} patient${ipRows.length===1?'':'s'} seen)`);
     let ipTotal = 0;
@@ -1764,7 +1820,7 @@ function buildWorklogText() {
   } else {
     const ipTotal = ipRows.reduce((a,r)=>a+r.total, 0);
     const opdTotal = opdRows.reduce((a,r)=>a+r.totalMs, 0);
-    lines.push(`Day total: ${fmtDuration(ipTotal + opdTotal)}`);
+    lines.push(`Active in-chart total (focused only): ${fmtDuration(ipTotal + opdTotal)}`);
   }
 
   return lines.join('\n');
@@ -1933,7 +1989,13 @@ function renderTimeTrackingModal() {
         </div>
       </div>
       <div class="tt-modal-body">
-        <div class="tt-section-label">Inpatient (filtered to Seen patients)</div>
+        <div class="tt-section-label">⏱ Time on shift — wall-clock</div>
+        <div class="tt-brk-row">Break cutoff: ${[5,8,10,15].map(n => `<button class="tt-brk${n===_ttBreakMin?' active':''}" onclick="setTtBreak(${n})">${n}m</button>`).join('')}</div>
+        ${(() => { const sum = computeShiftSummary(dayBoundary, _ttBreakMin); const row = (l,ms,strong) => `<div class="tt-shift-row${strong?' tt-shift-total':''}"><span>${l}</span><span>${fmtDuration(ms)}</span></div>`;
+          return `<div class="tt-shift">${row('Precharting', sum.precharting)}${row('Rounds', sum.rounds)}${row('Finalising', sum.finalising)}${sum.opd>0?row('OPD consults', sum.opd):''}${row('Day total', sum.day, true)}</div>`; })()}
+        <div style="font-size:11px;color:var(--text-muted);margin:6px 2px 0">Counts the whole time you're working (incl. reading in Vesalius / walking the ward); only gaps longer than ${_ttBreakMin} min are treated as breaks. Tune the cutoff above if a long bedside or a short break is mis-counted.</div>
+
+        <div class="tt-section-label" style="margin-top:18px">Active in-chart time per patient <span style="font-weight:400;color:var(--text-faint)">— focused dashboard only; undercounts true effort</span></div>
         ${ipHtml}
         <div class="tt-section-label" style="margin-top:18px">OPD consults</div>
         ${opdHtml}
