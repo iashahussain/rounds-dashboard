@@ -771,6 +771,26 @@
   .pes-trigger-row { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; flex-wrap: wrap; }
   @media (max-width: 768px) { .pes-overlay { padding: 0; } .pes-modal { max-height: 100%; height: 100%; width: 100%; border-radius: 0; } }
 
+  /* ── GROWTH / ASPEN PANEL (v83) ── */
+  .gv-inputs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .gv-inputs > div { flex: 1; min-width: 90px; }
+  .gv-inputs label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+  .gv-inputs input, .gv-inputs select { width: 100%; font-family: var(--sans); font-size: 13px; padding: 7px 9px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+  .gv-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .gv-row input { font-family: var(--sans); font-size: 13px; padding: 7px 8px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); width: 100%; }
+  .gv-row.gv-head { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 2px; }
+  .gv-del { background: transparent; border: 1px solid var(--border); color: var(--warn); border-radius: 7px; padding: 6px 0; font-size: 12px; cursor: pointer; }
+  .gv-ztable { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+  .gv-ztable th { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  .gv-ztable td { padding: 5px 6px; border-bottom: 1px solid var(--border-soft); font-family: var(--mono); }
+  .gv-ztable tr.gv-corr td { color: var(--text-muted); font-style: italic; font-size: 11px; }
+  .gv-aspen { border: 1.5px solid; border-radius: 10px; padding: 10px 12px; margin-top: 12px; background: var(--surface2); }
+  .gv-ind { margin: 6px 0 0; padding-left: 16px; font-size: 12px; line-height: 1.5; }
+  .gv-g { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; margin-left: 4px; }
+  .gv-g1 { background: #faeeda; color: #854f0b; } .gv-g2 { background: #faece7; color: #993c1d; } .gv-g3 { background: #fcebeb; color: #a32d2d; }
+  body.dark .gv-g1 { background: #241a08; color: #efaa3a; } body.dark .gv-g2 { background: #241208; color: #f0997b; } body.dark .gv-g3 { background: #241010; color: #f09595; }
+  .gv-insert { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
   /* ── COLLAPSIBLE SECTIONS ── */
   .section-header { cursor: pointer; user-select: none; }
   .section-header::after {
@@ -5766,8 +5786,10 @@ function renderPrechart(idx) {
               <input type="text" id="ga_${idx}" value="${esc(saved.ga||'')}" placeholder="e.g. 32+4" style="width:100%">
             </div>
             <button type="button" class="btn-primary btn-small" style="white-space:nowrap" onclick="calcGrowth(${idx})">📈 Calculate z-scores</button>
+            <button type="button" class="btn-ghost btn-small" style="white-space:nowrap" onclick="openGrowthModal(${idx})" title="Serial measurements + ASPEN malnutrition screen">📊 Serial / ASPEN…</button>
           </div>
-          <div id="growthResult_${idx}" class="hint" style="margin-top:6px;font-size:11.5px">Enter weight (+ height) above, then tap Calculate — uses ${p.sex==='F'?'girls':p.sex==='M'?'boys':'this child'}' age &amp; sex against WHO 0–2y / CDC 2–20y.</div>
+          <div id="growthResult_${idx}" class="hint" style="margin-top:6px;font-size:11.5px">Quick single z-scores → Calculate. Serial trend + malnutrition screen → Serial / ASPEN.</div>
+          <input type="hidden" id="growthData_${idx}" value="${esc(saved.growthData||'')}">
         </div>
 
         <div class="form-grid-3">
@@ -6629,6 +6651,226 @@ function calcGrowth(idx) {
   if (typeof toast === 'function') toast('Z-scores calculated ✓', 1600);
 }
 
+// ──────────────────────────────────────────
+//  SERIAL GROWTH + ASPEN MALNUTRITION PANEL (v83) — ported logic from paedigrowth v7
+// ──────────────────────────────────────────
+const GRADE_LBL = ['No malnutrition', 'Mild', 'Moderate', 'Severe'];
+function ageBetween(dob, md) {
+  if (!dob || !md || md < dob) return null;
+  let yr = md.getFullYear() - dob.getFullYear(), mo = md.getMonth() - dob.getMonth(), d = md.getDate() - dob.getDate();
+  if (d < 0) { mo--; d += new Date(md.getFullYear(), md.getMonth(), 0).getDate(); }
+  if (mo < 0) { yr--; mo += 12; }
+  return { yr, mo, d, total: yr * 12 + mo };
+}
+function _ageStr(a) { if (!a) return '—'; return a.total < 24 ? a.total + 'mo' : a.yr + 'y' + (a.mo ? a.mo + 'm' : ''); }
+function aspenZ(s) { if (s == null || s === '?') return null; const n = parseFloat(s); return isNaN(n) ? null : n; }
+function gradeFromZ(z) { if (z == null) return null; if (z <= -3) return 3; if (z <= -2) return 2; if (z <= -1) return 1; return 0; }
+function whoMedianWt(ageMo, sex) { // derived from the ported WHO wfa LMS (M column); <2y only
+  if (ageMo == null || ageMo > 24 || !LMSDATA.WHO.wfa[sex]) return null;
+  if (ageMo < 0) ageMo = 0; const l = lmsAt(LMSDATA.WHO.wfa[sex], ageMo); return l ? l[1] : null;
+}
+// ASPEN 2014 paediatric malnutrition screen. ENC = encounters (recent-first), each
+// {md, a, ageMo, parsed}. sex/intake/etiology passed in (no DOM coupling).
+function computeAspen(ENC, sex, intake, etiology) {
+  if (!ENC || !ENC.length) return null;
+  const series = [...ENC].sort((a, b) => a.md - b.md);
+  const recent = series[series.length - 1];
+  const age = recent.a ? recent.a.total : Math.round(recent.ageMo);
+  const multi = series.length >= 2;
+  const ind = []; let infantLoss = false;
+  if (age < 24 && recent.parsed.wtfs) { const z = aspenZ(recent.parsed.wtfs.z), g = gradeFromZ(z); if (g != null) ind.push({ name: 'Weight-for-length Z', grade: g, detail: `Z ${recent.parsed.wtfs.z} (${recent.parsed.wtfs.pct}%ile)` }); }
+  else if (age >= 24 && recent.parsed.bmi) { const z = aspenZ(recent.parsed.bmi.z), g = gradeFromZ(z); if (g != null) ind.push({ name: 'BMI-for-age Z', grade: g, detail: `Z ${recent.parsed.bmi.z} (${recent.parsed.bmi.pct}%ile)` }); }
+  if (recent.parsed.stature) { const z = aspenZ(recent.parsed.stature.z); if (z != null && z <= -3) ind.push({ name: 'Length/height-for-age Z ≤ -3 (stunting)', grade: 3, detail: `Z ${recent.parsed.stature.z}` }); }
+  let chronicity = null;
+  if (multi) {
+    const spanDays = Math.round((recent.md - series[0].md) / 86400000);
+    chronicity = spanDays >= 90 ? 'chronic' : 'acute';
+    const metric = age < 24 ? 'wtfs' : 'bmi';
+    const zPts = series.map(e => ({ z: aspenZ(e.parsed[metric] ? e.parsed[metric].z : null) })).filter(p => p.z != null);
+    if (zPts.length >= 2) {
+      const latest = zPts[zPts.length - 1].z, peakPrior = Math.max(...zPts.slice(0, -1).map(p => p.z)), drop = peakPrior - latest;
+      let g = 0; if (drop >= 3) g = 3; else if (drop >= 2) g = 2; else if (drop >= 1) g = 1;
+      if (g > 0) ind.push({ name: (metric === 'wtfs' ? 'WFL' : 'BMI') + ' Z deceleration', grade: g, detail: `drop of ${drop.toFixed(1)} (${peakPrior >= 0 ? '+' : ''}${peakPrior} → ${latest >= 0 ? '+' : ''}${latest})` });
+    }
+    let lossDetected = false;
+    const wPts = series.map(e => e.parsed.weight ? e.parsed.weight.val : null).filter(v => v != null && v > 0);
+    if (wPts.length >= 2) {
+      const ref = Math.max(...wPts.slice(0, -1)), cur = wPts[wPts.length - 1], lossPct = Math.round((ref - cur) / ref * 1000) / 10;
+      if (lossPct > 0.05) { lossDetected = true; let g = 0; if (lossPct >= 10) g = 3; else if (lossPct >= 7.5) g = 2; else if (lossPct >= 5) g = 1; if (g > 0) { ind.push({ name: 'Weight loss', grade: g, detail: `${lossPct.toFixed(1)}% of usual body weight (${ref} → ${cur} kg)` }); if (age < 24) infantLoss = true; } }
+    }
+    const recentAF = recent.ageMo;
+    if (sex && recentAF != null && recentAF < 24 && !lossDetected && series[0].parsed.weight && recent.parsed.weight) {
+      const exp = whoMedianWt(recentAF, sex) - whoMedianWt(series[0].ageMo, sex), act = recent.parsed.weight.val - series[0].parsed.weight.val;
+      if (exp > 0.001 && act > 0) { const pct = act / exp * 100; let g = 0; if (pct < 25) g = 3; else if (pct < 50) g = 2; else if (pct < 75) g = 1; if (g > 0) ind.push({ name: 'Weight gain velocity', grade: g, detail: `${pct.toFixed(0)}% of WHO 50th-%ile (gained ${Math.round(act * 1000)} g vs ${Math.round(exp * 1000)} g expected over ${Math.round((recent.md - series[0].md) / 86400000)} d)` }); }
+    }
+  }
+  if (intake != null && intake !== '') { const g = +intake, lbls = ['adequate (>75%)', '51–75%', '26–50%', '≤25%']; if (g > 0) ind.push({ name: 'Inadequate nutrient intake', grade: g, detail: lbls[g] + ' of estimated needs' }); }
+  const overall = ind.reduce((m, x) => Math.max(m, x.grade), 0);
+  const drivers = ind.filter(x => x.grade === overall && overall > 0);
+  const support = ind.filter(x => x.grade > 0 && x.grade < overall);
+  let emr;
+  if (overall === 0) emr = 'Nutrition Dx (ASPEN 2014): No malnutrition identified by available anthropometric indicators.';
+  else {
+    let head = `Nutrition Dx (ASPEN 2014): ${GRADE_LBL[overall]} malnutrition`; const tags = [];
+    if (chronicity) tags.push(chronicity); if (etiology) tags.push(etiology); if (tags.length) head += ', ' + tags.join(', ');
+    emr = head + '.';
+    if (drivers.length) emr += '\n  Driver: ' + drivers.map(d => `${d.name} — ${d.detail}`).join('; ');
+    if (support.length) emr += '\n  Support: ' + support.map(d => `${d.name} ${GRADE_LBL[d.grade].toLowerCase()} — ${d.detail}`).join('; ');
+  }
+  if (!multi && overall > 0) emr += '\n  Note: single data point — deceleration/velocity not assessed.';
+  if (infantLoss) emr += "\n  Note: <2y weight loss graded on the 2–20y % thresholds; ASPEN's formal <2y indicator is weight-gain velocity.";
+  return { overall, chronicity, indicators: ind, drivers, support, emr, multi };
+}
+
+// ── Growth panel state + modal ──
+let _growthVisits = [], _growthIdx = null, _growthLast = null, _growthEsc = null;
+function _growthPersist() {
+  if (_growthIdx == null) return;
+  const f = document.getElementById('growthData_' + _growthIdx);
+  if (f) { f.value = JSON.stringify({ dob: document.getElementById('gaDob')?.value || '', ga: document.getElementById('gaGa')?.value || '', intake: document.getElementById('aspenIntake')?.value || '', etio: document.getElementById('aspenEtio')?.value || '', visits: _growthVisits }); if (typeof scheduleAutosave === 'function') scheduleAutosave(); }
+}
+function growthSyncVisit(i, field, val) { if (_growthVisits[i]) { _growthVisits[i][field] = val; _growthPersist(); } }
+function growthAddVisit() { _growthVisits.push({ date: '', wt: '', ht: '' }); renderGrowthVisits(); _growthPersist(); }
+function growthDelVisit(i) { _growthVisits.splice(i, 1); renderGrowthVisits(); _growthPersist(); }
+function renderGrowthVisits() {
+  const b = document.getElementById('growthVisitsBody'); if (!b) return;
+  b.innerHTML = _growthVisits.map((v, i) => `<div class="gv-row">
+    <input type="date" value="${esc(v.date || '')}" onchange="growthSyncVisit(${i},'date',this.value)">
+    <input type="text" inputmode="decimal" value="${esc(v.wt || '')}" placeholder="wt kg" oninput="growthSyncVisit(${i},'wt',this.value)">
+    <input type="text" inputmode="decimal" value="${esc(v.ht || '')}" placeholder="ht cm" oninput="growthSyncVisit(${i},'ht',this.value)">
+    <button class="gv-del" onclick="growthDelVisit(${i})" aria-label="Remove visit">✕</button>
+  </div>`).join('') || '<div class="hint" style="padding:4px 0">No visits yet.</div>';
+}
+function openGrowthModal(idx) {
+  closeGrowthModal();
+  _growthIdx = idx; const p = patients[idx];
+  const saved = (() => { try { return JSON.parse((chartData[idx] || {}).growthData || '{}'); } catch (_) { return {}; } })();
+  _growthVisits = Array.isArray(saved.visits) && saved.visits.length ? saved.visits.map(v => ({ ...v }))
+    : [{ date: new Date().toISOString().slice(0, 10), wt: document.getElementById('wt_' + idx)?.value || '', ht: document.getElementById('ht_' + idx)?.value || '' }];
+  const sexWord = p.sex === 'F' ? 'F' : p.sex === 'M' ? 'M' : '—';
+  const ov = document.createElement('div'); ov.id = 'growthOverlay'; ov.className = 'pes-overlay';
+  ov.innerHTML = `<div class="pes-modal" role="dialog" aria-label="Growth and malnutrition assessment">
+    <div class="pes-head">
+      <div class="pes-headrow"><span style="font-size:14px;font-weight:700;flex:1">📊 Growth &amp; malnutrition (ASPEN)</span><button class="pes-close" onclick="closeGrowthModal()" aria-label="Close">✕</button></div>
+      <div class="gv-inputs">
+        <div><label>Date of birth</label><input type="date" id="gaDob" value="${esc(saved.dob || '')}" onchange="_growthPersist()"></div>
+        <div><label>GA at birth</label><input type="text" id="gaGa" value="${esc(saved.ga || '')}" placeholder="e.g. 32+4" onchange="_growthPersist()"></div>
+        <div><label>Sex</label><input type="text" value="${sexWord}" disabled style="opacity:.7"></div>
+      </div>
+    </div>
+    <div class="pes-list" style="padding:10px 12px">
+      <div class="tt-section-label" style="margin:0 0 4px">Measurements (most are optional except date + weight)</div>
+      <div class="gv-row gv-head"><span>Date</span><span>Weight</span><span>Height</span><span></span></div>
+      <div id="growthVisitsBody"></div>
+      <button class="btn-ghost btn-small" style="margin-top:6px" onclick="growthAddVisit()">＋ Add visit</button>
+
+      <div class="gv-inputs" style="margin-top:12px">
+        <div><label>Recent intake</label><select id="aspenIntake" onchange="_growthPersist()"><option value="">— not assessed —</option><option value="0">Adequate (&gt;75%)</option><option value="1">51–75%</option><option value="2">26–50%</option><option value="3">≤25%</option></select></div>
+        <div><label>Aetiology</label><select id="aspenEtio" onchange="_growthPersist()"><option value="">— optional —</option><option value="illness-related">illness-related</option><option value="non-illness/social">non-illness/social</option></select></div>
+      </div>
+      <button class="pes-done" style="margin-top:12px;width:100%" onclick="computeGrowthPanel()">Compute assessment</button>
+      <div id="growthResults" style="margin-top:12px"></div>
+    </div>
+  </div>`;
+  ov.addEventListener('mousedown', e => { if (e.target === ov) closeGrowthModal(); });
+  document.body.appendChild(ov);
+  const nav = document.getElementById('mobileFloatNav'); if (nav) nav.style.visibility = 'hidden';
+  // restore intake/etio
+  if (saved.intake) { const s = document.getElementById('aspenIntake'); if (s) s.value = saved.intake; }
+  if (saved.etio) { const s = document.getElementById('aspenEtio'); if (s) s.value = saved.etio; }
+  renderGrowthVisits();
+  _growthEsc = e => { if (e.key === 'Escape') closeGrowthModal(); };
+  document.addEventListener('keydown', _growthEsc);
+}
+function closeGrowthModal() {
+  const ov = document.getElementById('growthOverlay'); if (ov) ov.remove();
+  const nav = document.getElementById('mobileFloatNav'); if (nav) nav.style.visibility = '';
+  if (_growthEsc) { document.removeEventListener('keydown', _growthEsc); _growthEsc = null; }
+}
+function buildGrowthENC() {
+  const idx = _growthIdx, p = patients[idx];
+  const sex = p.sex === 'M' ? 'M' : p.sex === 'F' ? 'F' : '';
+  const dobStr = document.getElementById('gaDob')?.value;
+  const dob = dobStr ? new Date(dobStr + 'T00:00:00') : null;
+  const gaDays = ptParseGA(document.getElementById('gaGa')?.value || '');
+  const preterm = gaDays != null && gaDays < 280, corrDays = preterm ? (280 - gaDays) : 0;
+  const ENC = [];
+  _growthVisits.forEach(v => {
+    if (!v.date || !(parseFloat(v.wt) > 0)) return;
+    const md = new Date(v.date + 'T00:00:00'); if (isNaN(md)) return;
+    let ageMo, a;
+    if (dob) { a = ageBetween(dob, md); ageMo = (md - dob) / 86400000 / 30.4375; }
+    else { ageMo = (p.ageYears || 0) * 12; a = { total: Math.round(ageMo) }; }
+    if (ageMo == null || ageMo < 0) return;
+    const wt = parseFloat(v.wt), ht = parseFloat(v.ht);
+    const parsed = computeParsedSet(sex, ageMo, wt, ht > 0 ? ht : 0);
+    const e = { md, a, ageMo, parsed };
+    if (preterm) { const corrMo = ageMo - corrDays / 30.4375; if (corrMo >= 0) { e.parsedCorr = computeParsedSet(sex, corrMo, wt, ht > 0 ? ht : 0); e.correctedAgeMo = corrMo; e.gaLabel = ptGaWD(gaDays) + ' wk'; } }
+    if (parsed.weight || parsed.stature || parsed.bmi || parsed.wtfs) ENC.push(e);
+  });
+  ENC.sort((x, y) => y.md - x.md);
+  return { ENC, sex, dob, preterm };
+}
+function computeGrowthPanel() {
+  _growthPersist();
+  const out = document.getElementById('growthResults'); if (!out) return;
+  const dobStr = document.getElementById('gaDob')?.value;
+  if (_growthVisits.filter(v => v.date && parseFloat(v.wt) > 0).length > 1 && !dobStr) {
+    out.innerHTML = '<div class="pes-empty">Enter Date of birth — needed to age serial measurements correctly.</div>'; return;
+  }
+  const { ENC, sex, preterm } = buildGrowthENC();
+  if (!ENC.length) { out.innerHTML = '<div class="pes-empty">Add at least one visit with a date and weight.</div>'; return; }
+  const intake = document.getElementById('aspenIntake')?.value, etio = document.getElementById('aspenEtio')?.value;
+  const aspen = computeAspen(ENC, sex, intake, etio);
+  _growthLast = { idx: _growthIdx, ENC, aspen, preterm };
+  const zc = o => o ? `${o.z}/${o.pct}%` : '—';
+  let rows = ENC.map(e => {
+    const wfl = e.ageMo < 24 ? e.parsed.wtfs : e.parsed.bmi;
+    let main = `<tr><td>${e.md.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</td><td>${_ageStr(e.a)}</td><td>${zc(e.parsed.weight)}</td><td>${zc(e.parsed.stature)}</td><td>${zc(wfl)}</td></tr>`;
+    if (e.parsedCorr) { const cwfl = e.correctedAgeMo < 24 ? e.parsedCorr.wtfs : e.parsedCorr.bmi; main += `<tr class="gv-corr"><td>↳ corr</td><td>${e.correctedAgeMo.toFixed(1)}mo</td><td>${zc(e.parsedCorr.weight)}</td><td>${zc(e.parsedCorr.stature)}</td><td>${zc(cwfl)}</td></tr>`; }
+    return main;
+  }).join('');
+  const gradeColors = ['var(--text-muted)', '#854f0b', '#993c1d', '#a32d2d'];
+  out.innerHTML = `
+    <table class="gv-ztable"><thead><tr><th>Date</th><th>Age</th><th>Wt</th><th>Ht/Len</th><th>${ENC[0].ageMo < 24 ? 'WFL' : 'BMI'}</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="gv-aspen" style="border-color:${gradeColors[aspen.overall]}">
+      <div style="font-weight:700;color:${gradeColors[aspen.overall]};font-size:14px">${aspen.overall === 0 ? 'No malnutrition identified' : GRADE_LBL[aspen.overall] + ' malnutrition' + (aspen.chronicity ? ' · ' + aspen.chronicity : '')}</div>
+      ${aspen.indicators.length ? '<ul class="gv-ind">' + aspen.indicators.map(i => `<li><b>${esc(i.name)}</b> — ${esc(i.detail)} <span class="gv-g gv-g${i.grade}">${GRADE_LBL[i.grade]}</span></li>`).join('') + '</ul>' : '<div class="hint" style="margin-top:4px">No anthropometric malnutrition indicators triggered.</div>'}
+    </div>
+    <div class="gv-insert">
+      <button class="btn-ghost btn-small" onclick="growthInsertAnthro()">→ Anthro z-scores</button>
+      <button class="btn-ghost btn-small" onclick="growthInsertTrend()">→ Growth trend</button>
+      <button class="btn-primary btn-small" onclick="growthInsertDx()">→ Nutrition Diagnosis</button>
+    </div>`;
+}
+function _setField(id, val, append) {
+  const e = document.getElementById(id); if (!e || !val) return;
+  e.value = append && e.value.trim() ? (e.value.replace(/\s+$/, '') + '\n\n' + val) : val;
+  e.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(e);
+}
+function growthInsertAnthro() {
+  if (!_growthLast) return; const idx = _growthLast.idx, e = _growthLast.ENC[0]; // latest visit
+  const zc = o => o ? `${o.z} / ${o.pct}%` : '';
+  _setField('wtZ_' + idx, zc(e.parsed.weight)); _setField('htZ_' + idx, zc(e.parsed.stature));
+  const wfl = e.ageMo < 24 ? e.parsed.wtfs : e.parsed.bmi; _setField('bmiZ_' + idx, zc(wfl));
+  const gc = document.getElementById('growthChart_' + idx); if (gc) { gc.value = e.ageMo < 24 ? 'WHO' : 'CDC'; if (typeof updateGrowthChartLabel === 'function') updateGrowthChartLabel(idx); }
+  // serial summary → pediPaste
+  const lines = _growthLast.ENC.map(en => { const w = en.ageMo < 24 ? en.parsed.wtfs : en.parsed.bmi; return `${en.md.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })} (${_ageStr(en.a)}): Wt ${en.parsed.weight ? en.parsed.weight.z + '/' + en.parsed.weight.pct + '%' : '—'}${en.parsed.stature ? ', ' + (en.ageMo < 24 ? 'Len ' : 'Ht ') + en.parsed.stature.z + '/' + en.parsed.stature.pct + '%' : ''}${w ? ', ' + (en.ageMo < 24 ? 'WFL ' : 'BMI ') + w.z + '/' + w.pct + '%' : ''}${en.parsedCorr ? ' [corr ' + en.correctedAgeMo.toFixed(1) + 'mo: Wt ' + (en.parsedCorr.weight ? en.parsedCorr.weight.z : '—') + ']' : ''}`; });
+  _setField('pediPaste_' + idx, 'Growth (auto-calculated, WHO 0–2y / CDC 2–20y):\n' + lines.join('\n'));
+  if (typeof scheduleAutosave === 'function') scheduleAutosave(); if (typeof toast === 'function') toast('Z-scores → Anthropometry ✓', 1600);
+}
+function growthInsertTrend() {
+  if (!_growthLast || !_growthLast.aspen) return; const idx = _growthLast.idx;
+  const trend = _growthLast.aspen.indicators.filter(i => /deceleration|loss|velocity/i.test(i.name)).map(i => i.name + ': ' + i.detail);
+  _setField('growthTrend_' + idx, trend.length ? trend.join('\n') : 'No significant deceleration / loss / velocity concern', false);
+  if (typeof scheduleAutosave === 'function') scheduleAutosave(); if (typeof toast === 'function') toast('Trend → Growth trend ✓', 1600);
+}
+function growthInsertDx() {
+  if (!_growthLast || !_growthLast.aspen) return; const idx = _growthLast.idx;
+  _setField('nutDx_' + idx, _growthLast.aspen.emr, true);
+  if (typeof scheduleAutosave === 'function') scheduleAutosave(); if (typeof toast === 'function') toast('ASPEN dx → Nutrition Diagnosis ✓', 1800);
+}
+
 // Build a "Since last review" change summary by parsing the pasted previous note
 // (itself a past dashboard note, so it's structured) against today's values.
 // Returns '' if nothing reliable can be computed.
@@ -7018,7 +7260,7 @@ function saveChart(idx, silent) {
     labsPaste: g(`labsPaste_${idx}`),
     wt: g(`wt_${idx}`), wtSource: radio(`wtSource_${idx}`), wtDate: g(`wtDate_${idx}`), ht: g(`ht_${idx}`), bmi: g(`bmi_${idx}`),
     wtHx: g(`wtHx_${idx}`),
-    wtZ: g(`wtZ_${idx}`), htZ: g(`htZ_${idx}`), bmiZ: g(`bmiZ_${idx}`), ga: g(`ga_${idx}`),
+    wtZ: g(`wtZ_${idx}`), htZ: g(`htZ_${idx}`), bmiZ: g(`bmiZ_${idx}`), ga: g(`ga_${idx}`), growthData: g(`growthData_${idx}`),
     growthChart: g(`growthChart_${idx}`), growthTrend: g(`growthTrend_${idx}`),
     nutStatus: g(`nutStatus_${idx}`), pediPaste: g(`pediPaste_${idx}`),
     wtChg: g(`wtChg_${idx}`), sga: radio(`sga_${idx}`),
