@@ -792,6 +792,12 @@
   .gv-insert { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
   .growth-out-head { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin: 14px 0 4px; }
   .growth-out { font-family: var(--mono); font-size: 11.5px; line-height: 1.5; white-space: pre; overflow-x: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 0; color: var(--text); -webkit-overflow-scrolling: touch; }
+  /* Auto nutrition-priority (v84) */
+  .prio-badge { font-weight: 800; letter-spacing: .02em; }
+  .prio-badge.is-manual { box-shadow: inset 0 0 0 2px rgba(255,255,255,.55); }
+  .prio-reasons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+  .rchip { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border-soft); }
+  .stream-divider { margin: 16px 4px 8px; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: var(--text-muted); text-transform: uppercase; border-top: 1px dashed var(--border); padding-top: 11px; }
 
   /* ── COLLAPSIBLE SECTIONS ── */
   .section-header { cursor: pointer; user-select: none; }
@@ -2325,7 +2331,7 @@ function updateStats() {
   const nTod    = patients.filter(p=>p.ageGroup==='toddler').length;
   const nChi    = patients.filter(p=>p.ageGroup==='child').length;
   const nAdult  = patients.filter(p=>!p.isPaeds).length;
-  const nIcu    = patients.filter(p=>p.ward==='ICU').length;
+  const nIcu    = patients.filter(p=>/\b(icu|ccu|hdu)\b/i.test(p.ward||'')).length;
   const nTube   = patients.filter(p=>p.isTubeFed).length;
   const nO65    = patients.filter(p=>p.ageYears>=65).length;
   const nChart   = patients.filter((_,i)=>chartedSet.has(i)).length;
@@ -2367,6 +2373,77 @@ function setFilter(f, el) {
   renderList();
 }
 
+// ── AUTO NUTRITION-PRIORITY (v84) ───────────────────────────────────────
+// Scores each inpatient from imported data so the rounds list self-triages.
+// Weights are tunable — higher = should be seen sooner. Manual buttons override.
+const PRIO_WEIGHTS = {
+  newCrit: 100, crit: 55, cardiacCCU: 20,
+  malnutrition: 85, tube: 80, nbm: 75,
+  sepsis: 25, gi: 25, newWard: 18, overdue: 10
+};
+const AUTO_META = {
+  P1: { lbl: 'P1', col: '#c0392b' },
+  P2: { lbl: 'P2', col: '#b8860b' },
+  P3: { lbl: 'P3', col: '#6b7280' }
+};
+// Neonatal stream = Nursery / NICU / "B/O" newborns / age-in-days.
+function isNeonate(p) {
+  return /^\s*(b\/o|baby|bo)\b/i.test(p.name || '')
+      || /\b(nicu|nursery)\b/i.test(p.ward || '')
+      || /\b\d+\s*d\b/i.test(p.ageRaw || '');
+}
+function computeAutoPriority(p) {
+  const t = ((p.diagnosis || '') + ' ' + (p.comorbidities || '') + ' ' + (p.ward || '')).toLowerCase();
+  const W = PRIO_WEIGHTS, reasons = []; let s = 0;
+  const crit = /\b(icu|ccu|hdu)\b/i.test(p.ward || '');
+  // Post-cardiac-procedure CCU patients are low nutrition-risk — don't auto-P1 them.
+  const cardiac = /\b(cag|angiogram|angiograph|angioplasty|pci|stent|coronary|cabg|cath)\b/i.test(t);
+  const tube = /\b(peg|ngt|ng tube|nasogastric|nj tube|enteral|parenteral|tpn|tracheostomy)\b/i.test(t);
+  const nbm = /\b(nbm|nil by mouth|aspiration|dysphagia|swallow)\b/i.test(t);
+  const maln = /malnutrition|cachexia|faltering|failure to thrive|underweight|refeed|severe weight loss/i.test(t);
+  const sepsis = /sepsis|septic/i.test(t);
+  const gi = /pancreatit|gi bleed|bowel obstruction|ileus|fistula|short bowel|crohn|colitis|inflammatory bowel/i.test(t);
+  const ward = (p.ward || '').toUpperCase();
+  if (crit && cardiac) { s += W.cardiacCCU; reasons.push('Cardiac (' + ward + ')'); }
+  else if (crit && p.isNew) { s += W.newCrit; reasons.push('New ' + ward); }
+  else if (crit) { s += W.crit; reasons.push(ward); }
+  if (maln) { s += W.malnutrition; reasons.push('Malnutrition'); }
+  if (tube) { s += W.tube; reasons.push('Tube/TPN'); }
+  if (nbm) { s += W.nbm; reasons.push('NBM/dysph'); }
+  if (sepsis) { s += W.sepsis; reasons.push('Sepsis'); }
+  if (gi) { s += W.gi; reasons.push('GI'); }
+  if (p.isNew && !crit) { s += W.newWard; reasons.push('New'); }
+  if (p.daysSince !== 999 && p.daysSince >= 4 && !seenSet.has(patients.indexOf(p))) { s += W.overdue; reasons.push('Overdue ' + p.daysSince + 'd'); }
+  const tier = s >= 75 ? 'P1' : s >= 40 ? 'P2' : 'P3';
+  return { tier, score: s, reasons };
+}
+function computeNeonatePriority(p) {
+  const t = ((p.diagnosis || '') + ' ' + (p.comorbidities || '')).toLowerCase();
+  const reasons = []; let s = 0;
+  if (/pre.?term|premature|elbw|vlbw|\blbw\b|low birth|\b(2\d|3[0-6])\s*\+?\s*\d?\s*(?:weeks|wk)/i.test(t)) { s += 60; reasons.push('Preterm/LBW'); }
+  if (/tpn|parenteral|\bng\b|ngt|nasogastric|tube|nbm|nil by mouth/i.test(t)) { s += 50; reasons.push('Feeds'); }
+  if (/hypoglyc/i.test(t)) { s += 40; reasons.push('Hypoglycaemia'); }
+  if (/jaundice/i.test(t)) { s += 10; reasons.push('Jaundice'); }
+  if (!reasons.length && /term aga/i.test(t)) reasons.push('Well term');
+  const tier = s >= 50 ? 'P1' : s >= 25 ? 'P2' : 'P3';
+  return { tier, score: s, reasons };
+}
+// Manual override (referral / high / med / low) wins over the auto score.
+function effectivePriority(p) {
+  const idx = patients.indexOf(p);
+  const neo = isNeonate(p);
+  const auto = neo ? computeNeonatePriority(p) : computeAutoPriority(p);
+  const manual = priorityMap[idx];
+  const M = PRIO_META;
+  let band, badge;
+  if (manual === 'ref') { band = 0; badge = { lbl: '🔔 REF', col: M.ref.col, manual: true }; }
+  else if (manual === 'high') { band = 1; badge = { lbl: '⬆ HIGH', col: M.high.col, manual: true }; }
+  else if (manual === 'med') { band = 2; badge = { lbl: '● MED', col: M.med.col, manual: true }; }
+  else if (manual === 'low') { band = 3; badge = { lbl: '⬇ LOW', col: M.low.col, manual: true }; }
+  else { band = auto.tier === 'P1' ? 1 : auto.tier === 'P2' ? 2 : 3; badge = { lbl: AUTO_META[auto.tier].lbl, col: AUTO_META[auto.tier].col, manual: false }; }
+  return { band, badge, score: auto.score, reasons: auto.reasons, neo };
+}
+
 function renderList() {
   persistSession(); // structural changes (seen/done/priority/chart/import) flow through here
   const list = document.getElementById('patientList');
@@ -2379,7 +2456,7 @@ function renderList() {
   else if (currentFilter === 'child') visible = visible.filter(p=>p.ageGroup==='child');
   else if (currentFilter === 'adult') visible = visible.filter(p=>p.ageGroup==='adult');
   else if (currentFilter === 'icu') visible = visible.filter(p=>
-    /\bicu\b/i.test(p.ward) || /\bicu\b/i.test(p.diagnosis) || /\bicu\b/i.test(p.roomNo));
+    /\b(icu|ccu|hdu)\b/i.test(p.ward) || /\b(icu|ccu|hdu)\b/i.test(p.diagnosis) || /\b(icu|ccu|hdu)\b/i.test(p.roomNo));
   else if (currentFilter === 'tube') visible = visible.filter(p=>{
     const saved = chartData[patients.indexOf(p)];
     const hasTubeSaved = saved && saved.tube && saved.tube !== 'None';
@@ -2391,34 +2468,38 @@ function renderList() {
   else if (currentFilter === 'seen') visible = visible.filter(p=>seenSet.has(patients.indexOf(p)));
   else if (currentFilter === 'notedone') visible = visible.filter(p=>noteDoneSet.has(patients.indexOf(p)));
 
-  // ── Sort ──
-  // For <2y: B/O and NICU patients sink to bottom, rest oldest DOA first, then youngest age first
-  // For all other groups: oldest DOA first, then youngest to oldest age
-  visible.sort((a, b) => {
-    const isBO = p => /^b\/o\b|^baby\b|^b\.o\b|^bo\b/i.test(p.name) || /\bnicu\b/i.test(p.ward + ' ' + p.diagnosis);
-    if (a.ageGroup === 'infant' && b.ageGroup === 'infant') {
-      const aBO = isBO(a), bBO = isBO(b);
-      if (aBO !== bBO) return aBO ? 1 : -1; // B/O sink to bottom
-      return (b.daysSince === 999 ? -1 : b.daysSince) - (a.daysSince === 999 ? -1 : a.daysSince); // oldest DOA first
-    }
-    // Different age groups — sort by DOA oldest first, then age youngest first
+  // ── Priority triage (v84): auto nutrition-priority, manual buttons override ──
+  const prio = new Map();
+  visible.forEach(p => prio.set(p, effectivePriority(p)));
+  const byPriority = (a, b) => {
+    const pa = prio.get(a), pb = prio.get(b);
+    if (pa.band !== pb.band) return pa.band - pb.band;       // higher priority band first
+    if (pb.score !== pa.score) return pb.score - pa.score;   // then higher auto score
     const aDays = a.daysSince === 999 ? -1 : a.daysSince;
     const bDays = b.daysSince === 999 ? -1 : b.daysSince;
-    if (aDays !== bDays) return bDays - aDays; // oldest first (highest daysSince)
-    return a.ageYears - b.ageYears; // youngest first within same DOA
-  });
+    if (aDays !== bDays) return bDays - aDays;                // then oldest DOA
+    return a.ageYears - b.ageYears;                           // then youngest
+  };
+  // Neonates (Nursery / NICU / newborns) form a separate stream on the default view.
+  let mainList = visible, neoList = [];
+  if (currentFilter === 'all') {
+    neoList = visible.filter(p => prio.get(p).neo);
+    mainList = visible.filter(p => !prio.get(p).neo);
+  }
+  mainList.sort(byPriority);
+  neoList.sort(byPriority);
 
   if (!visible.length) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">No patients match filter</div>';
     return;
   }
 
-  list.innerHTML = '';
-  visible.forEach(p => {
+  const cardHTML = (p) => {
     const origIdx = patients.indexOf(p);
     const isActive = origIdx === activeIdx;
     const isCharted = chartedSet.has(origIdx);
     const isSeen = seenSet.has(origIdx);
+    const ep = prio.get(p);
     let classes = 'patient-card';
     if (isActive) classes += ' active';
     if (isSeen) classes += ' seen';
@@ -2431,13 +2512,14 @@ function renderList() {
     const doaStr = p.doa ? p.doa.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : (p.doaRaw || '?');
     const daysStr = p.daysSince === 999 ? '' : p.daysSince === 0 ? ' · Today' : p.daysSince === 1 ? ' · Yesterday' : ` · ${p.daysSince}d ago`;
     const ageStr = p.ageRaw || '?';
+    const prioTitle = ep.badge.manual ? 'Manual priority (overrides auto)' : (ep.reasons.length ? 'Auto: ' + ep.reasons.join(', ') : 'Auto priority');
 
-    list.innerHTML += `
+    return `
     <div class="${classes}" onclick="selectPatient(${origIdx})">
       <div class="card-top">
         <div class="patient-name">${esc(p.name)}</div>
         <div class="badges">
-          ${priorityMap[origIdx] ? `<span class="badge" style="background:${PRIO_META[priorityMap[origIdx]].col};color:#fff">${PRIO_META[priorityMap[origIdx]].short}</span>` : ''}
+          <span class="badge prio-badge${ep.badge.manual ? ' is-manual' : ''}" style="background:${ep.badge.col};color:#fff" title="${esc(prioTitle)}">${ep.badge.lbl}</span>
           ${p.isNew ? '<span class="badge badge-new">NEW</span>' : ''}
           <span class="badge ${badgeClass}">${badgeLabel}</span>
           ${isCharted ? '<span class="badge badge-charted">✓</span>' : ''}
@@ -2447,9 +2529,16 @@ function renderList() {
       </div>
       <div class="card-meta" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${p.ward||p.roomNo ? '<span style="background:var(--accent);color:white;font-weight:700;padding:2px 8px;border-radius:999px;font-size:10px;letter-spacing:.03em">'+[p.ward,p.roomNo].filter(Boolean).join(' ')+'</span> ' : ''}<span style="font-weight:800;color:var(--text);font-size:13px">${ageStr}</span> <span style="color:var(--text-muted)">${p.sex} · DOA ${doaStr}${daysStr}</span></div>
       <div class="card-dx">${esc(p.diagnosis.substring(0,100))}${p.diagnosis.length>100?'…':''}</div>
+      ${ep.reasons.length ? `<div class="prio-reasons">${ep.reasons.slice(0,3).map(r=>`<span class="rchip">${esc(r)}</span>`).join('')}</div>` : ''}
       <div style="font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:2px">PRN ${esc(p.prn)}</div>
     </div>`;
-  });
+  };
+
+  let html = mainList.map(cardHTML).join('');
+  if (neoList.length) {
+    html += `<div class="stream-divider">🍼 Neonatal — Nursery / NICU / newborns · ${neoList.length}</div>` + neoList.map(cardHTML).join('');
+  }
+  list.innerHTML = html;
 }
 
 // ──────────────────────────────────────────
@@ -2481,6 +2570,7 @@ function fmtAge(p) {
 // ──────────────────────────────────────────
 const priorityMap = {}; // patient idx -> 'high' | 'med' | 'low'
 const PRIO_META = {
+  ref:  { label: '🔔 Referral', short: '🔔 REF', col: '#7b2ff7' },
   high: { label: '🔴 High', short: '⬆ HIGH', col: '#c0392b' },
   med:  { label: '🟡 Med',  short: '● MED',  col: '#b8860b' },
   low:  { label: '🟢 Low',  short: '⬇ LOW',  col: '#1a8a4f' }
