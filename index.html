@@ -1324,6 +1324,9 @@
           <button class="filter-btn"        id="fb-toddler" data-f="toddler" onclick="setFilter('toddler',this)">2–5y</button>
           <button class="filter-btn"        id="fb-child" data-f="child"   onclick="setFilter('child',this)">5–18y</button>
           <button class="filter-btn"        id="fb-icu" data-f="icu"     onclick="setFilter('icu',this)">🏥 ICU</button>
+          <button class="filter-btn"        id="fb-w3" data-f="w3"       onclick="setFilter('w3',this)">🛏 Ward 3</button>
+          <button class="filter-btn"        id="fb-w4" data-f="w4"       onclick="setFilter('w4',this)">🛏 Ward 4</button>
+          <button class="filter-btn"        id="fb-w5" data-f="w5"       onclick="setFilter('w5',this)">🛏 Ward 5</button>
           <button class="filter-btn"        id="fb-tube" data-f="tube"    onclick="setFilter('tube',this)">🧪 Tube fed</button>
           <button class="filter-btn"        id="fb-over65" data-f="over65"  onclick="setFilter('over65',this)">65+</button>
           <button class="filter-btn"        id="fb-charted" data-f="charted" onclick="setFilter('charted',this)">✓ Charted</button>
@@ -1747,8 +1750,22 @@ function _engagedMs(sessions, thrMin){
   for (let k=1;k<s.length;k++){ const g = s[k].startTime - s[k-1].endTime; if (g > thr) tot -= g; }
   return Math.max(0, tot);
 }
+// Report-time phase fix (v85): desktop "precharting" work done AFTER the ward round has
+// begun, on a patient already marked Seen, is really note FINALISING. We reclassify here
+// (not at log time) because the live detector can't know rounds will follow. A patient
+// opened post-rounds who is NOT yet seen stays "precharting" (likely a new pick-up).
+function reclassifyFinalising(ipEntries) {
+  let roundsStart = Infinity;
+  ipEntries.forEach(e => { if (e.phase === 'rounds' && e.startTime < roundsStart) roundsStart = e.startTime; });
+  if (!isFinite(roundsStart)) return ipEntries;
+  return ipEntries.map(e =>
+    (e.phase === 'precharting' && e.startTime >= roundsStart && seenSet.has(e.idx))
+      ? Object.assign({}, e, { phase: 'finalising' })
+      : e
+  );
+}
 function computeShiftSummary(dayBoundary, thrMin){
-  const ip  = panelOpenLog.filter(e => (e.endTime||0) >= dayBoundary);
+  const ip  = reclassifyFinalising(panelOpenLog.filter(e => (e.endTime||0) >= dayBoundary));
   const opd = opdConsultLog.filter(e => e.endTime && e.endTime >= dayBoundary);
   return {
     precharting: _engagedMs(ip.filter(e => e.phase === 'precharting'), thrMin),
@@ -1777,8 +1794,7 @@ function buildWorklogText() {
 
   // ── Aggregate IP ──
   const ipBuckets = {};
-  panelOpenLog.forEach(e => {
-    if (e.endTime < dayBoundary) return;
+  reclassifyFinalising(panelOpenLog.filter(e => (e.endTime||0) >= dayBoundary)).forEach(e => {
     if (!seenSet.has(e.idx)) return;
     if (!ipBuckets[e.idx]) ipBuckets[e.idx] = { precharting: 0, rounds: 0, finalising: 0 };
     const dur = e.endTime - e.startTime;
@@ -1924,8 +1940,7 @@ function renderTimeTrackingModal() {
   }
 
   const ipBuckets = {};
-  panelOpenLog.forEach(e => {
-    if (e.endTime < dayBoundary) return;
+  reclassifyFinalising(panelOpenLog.filter(e => (e.endTime||0) >= dayBoundary)).forEach(e => {
     if (!seenSet.has(e.idx)) return;
     if (!ipBuckets[e.idx]) ipBuckets[e.idx] = { precharting: 0, rounds: 0, finalising: 0 };
     const dur = e.endTime - e.startTime;
@@ -2334,6 +2349,9 @@ function updateStats() {
   const nIcu    = patients.filter(p=>/\b(icu|ccu|hdu)\b/i.test(p.ward||'')).length;
   const nTube   = patients.filter(p=>p.isTubeFed).length;
   const nO65    = patients.filter(p=>p.ageYears>=65).length;
+  const nW3     = patients.filter(p=>wardRoomMatch(p,'3')).length;
+  const nW4     = patients.filter(p=>wardRoomMatch(p,'4')).length;
+  const nW5     = patients.filter(p=>wardRoomMatch(p,'5')).length;
   const nChart   = patients.filter((_,i)=>chartedSet.has(i)).length;
   const nSeen    = patients.filter((_,i)=>seenSet.has(i)).length;
   const nNoteDone= patients.filter((_,i)=>noteDoneSet.has(i)).length;
@@ -2348,6 +2366,9 @@ function updateStats() {
   set('fb-toddler', '2–5y',        nTod);
   set('fb-child',   '5–18y',       nChi);
   set('fb-icu',     '🏥 ICU',      nIcu);
+  set('fb-w3',      '🛏 Ward 3',   nW3);
+  set('fb-w4',      '🛏 Ward 4',   nW4);
+  set('fb-w5',      '🛏 Ward 5',   nW5);
   set('fb-tube',    '🧪 Tube fed', nTube);
   set('fb-over65',  '65+',         nO65);
   set('fb-charted',  '✓ Charted',   nChart);
@@ -2391,6 +2412,12 @@ function isNeonate(p) {
   return /^\s*(b\/o|baby|bo)\b/i.test(p.name || '')
       || /\b(nicu|nursery)\b/i.test(p.ward || '')
       || /\b\d+\s*d\b/i.test(p.ageRaw || '');
+}
+// Physical ward by room-number prefix: 3xx = Ward 3, 4xx = Ward 4, 5xx = Ward 5.
+// 3-digit minimum so single-digit ICU/CCU bed numbers ("3","4","5") don't match.
+function wardRoomMatch(p, d) {
+  const rn = (p.roomNo || '').trim();
+  return rn.length >= 3 && rn[0] === d;
 }
 function computeAutoPriority(p) {
   const t = ((p.diagnosis || '') + ' ' + (p.comorbidities || '') + ' ' + (p.ward || '')).toLowerCase();
@@ -2464,6 +2491,9 @@ function renderList() {
     return hasTubeSaved || hasTubeText;
   });
   else if (currentFilter === 'over65') visible = visible.filter(p=>p.ageYears >= 65);
+  else if (currentFilter === 'w3') visible = visible.filter(p=>wardRoomMatch(p,'3'));
+  else if (currentFilter === 'w4') visible = visible.filter(p=>wardRoomMatch(p,'4'));
+  else if (currentFilter === 'w5') visible = visible.filter(p=>wardRoomMatch(p,'5'));
   else if (currentFilter === 'charted') visible = visible.filter(p=>chartedSet.has(patients.indexOf(p)));
   else if (currentFilter === 'seen') visible = visible.filter(p=>seenSet.has(patients.indexOf(p)));
   else if (currentFilter === 'notedone') visible = visible.filter(p=>noteDoneSet.has(patients.indexOf(p)));
@@ -2480,11 +2510,14 @@ function renderList() {
     if (aDays !== bDays) return bDays - aDays;                // then oldest DOA
     return a.ageYears - b.ageYears;                           // then youngest
   };
-  // Neonates (Nursery / NICU / newborns) form a separate stream on the default view.
+  // Neonates (Nursery / NICU / newborns) form a separate stream on the default and <2y
+  // views — she doesn't routinely see them unless referred, so an UNFLAGGED neonate sinks
+  // to the neonatal section; one she's flagged (referral / High / Med / Low) stays up top.
   let mainList = visible, neoList = [];
-  if (currentFilter === 'all') {
-    neoList = visible.filter(p => prio.get(p).neo);
-    mainList = visible.filter(p => !prio.get(p).neo);
+  if (currentFilter === 'all' || currentFilter === 'infant') {
+    const sink = p => prio.get(p).neo && !priorityMap[patients.indexOf(p)];
+    neoList = visible.filter(sink);
+    mainList = visible.filter(p => !sink(p));
   }
   mainList.sort(byPriority);
   neoList.sort(byPriority);
