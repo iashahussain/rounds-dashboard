@@ -790,6 +790,8 @@
   .gv-g1 { background: #faeeda; color: #854f0b; } .gv-g2 { background: #faece7; color: #993c1d; } .gv-g3 { background: #fcebeb; color: #a32d2d; }
   body.dark .gv-g1 { background: #241a08; color: #efaa3a; } body.dark .gv-g2 { background: #241208; color: #f0997b; } body.dark .gv-g3 { background: #241010; color: #f09595; }
   .gv-insert { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .growth-out-head { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin: 14px 0 4px; }
+  .growth-out { font-family: var(--mono); font-size: 11.5px; line-height: 1.5; white-space: pre; overflow-x: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 0; color: var(--text); -webkit-overflow-scrolling: touch; }
 
   /* ── COLLAPSIBLE SECTIONS ── */
   .section-header { cursor: pointer; user-select: none; }
@@ -6805,11 +6807,90 @@ function buildGrowthENC() {
     const wt = parseFloat(v.wt), ht = parseFloat(v.ht);
     const parsed = computeParsedSet(sex, ageMo, wt, ht > 0 ? ht : 0);
     const e = { md, a, ageMo, parsed };
-    if (preterm) { const corrMo = ageMo - corrDays / 30.4375; if (corrMo >= 0) { e.parsedCorr = computeParsedSet(sex, corrMo, wt, ht > 0 ? ht : 0); e.correctedAgeMo = corrMo; e.gaLabel = ptGaWD(gaDays) + ' wk'; } }
+    if (preterm) { const corrMo = ageMo - corrDays / 30.4375; if (corrMo >= 0) { e.parsedCorr = computeParsedSet(sex, corrMo, wt, ht > 0 ? ht : 0); e.correctedAgeMo = corrMo; e.correctedAgeObj = ageBetween(dob, new Date(md.getTime() - corrDays * 86400000)); e.gaLabel = ptGaWD(gaDays) + ' wk'; } }
     if (parsed.weight || parsed.stature || parsed.bmi || parsed.wtfs) ENC.push(e);
   });
   ENC.sort((x, y) => y.md - x.md);
   return { ENC, sex, dob, preterm };
+}
+
+// ── Tool-style text output (column-aligned, paste-ready), ported from paedigrowth v7 ──
+const _MABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function _fmtDate(d) { if (!d) return '—'; return d.getDate() + ' ' + _MABB[d.getMonth()] + ' ' + String(d.getFullYear()).slice(-2); }
+function _ageShort(a) { if (!a) return '—'; return a.total < 24 ? a.total + 'm' : a.yr + 'y ' + a.mo + 'm'; }
+function _bmiCat(pct) { if (pct < 5) return 'Underweight'; if (pct < 85) return 'Healthy weight'; if (pct < 95) return 'Overweight'; return 'Obese'; }
+function whoMedianLen(ageMo, sex) { if (ageMo == null || ageMo > 24 || !LMSDATA.WHO.lfa[sex]) return null; if (ageMo < 0) ageMo = 0; const l = lmsAt(LMSDATA.WHO.lfa[sex], ageMo); return l ? l[1] : null; }
+function _buildBmiAssessment(ENC, sex) {
+  const e = ENC.find(x => x.parsed.bmi && x.a && x.a.total >= 24); if (!e) return '';
+  const b = e.parsed.bmi;
+  let s = '\n\nBMI ASSESSMENT (' + _ageShort(e.a) + ', ' + _fmtDate(e.md) + '):\n  BMI ' + b.val + ' = ' + b.pct + '%ile → ' + _bmiCat(b.pct);
+  const st = e.parsed.stature;
+  if (sex && st && st.val && e.ageMo != null) { const lms = lmsAt(LMSDATA.CDC.bmi[sex], e.ageMo); if (lms) { const w50 = lms[1] * Math.pow(st.val / 100, 2); s += '\n  Weight at 50th-%ile BMI: ' + (Math.round(w50 * 100) / 100) + ' kg'; } }
+  return s;
+}
+function _buildGrowthStatement(ENC, sex) {
+  if (!ENC || ENC.length < 2) return '';
+  const s = [...ENC].sort((a, b) => a.md - b.md), first = s[0], last = s[s.length - 1];
+  const days = Math.round((last.md - first.md) / 86400000); if (days <= 0) return '';
+  const lines = [];
+  if (first.parsed.weight && last.parsed.weight) {
+    const wEnc = s.filter(e => e.parsed.weight && e.parsed.weight.val > 0); let usual = wEnc[0];
+    wEnc.forEach(e => { if (e.parsed.weight.val > usual.parsed.weight.val) usual = e; });
+    const lostKg = usual.parsed.weight.val - last.parsed.weight.val;
+    if (lostKg > 0.0005) {
+      const ld = Math.round((last.md - usual.md) / 86400000) || days, lossPct = Math.round(lostKg / usual.parsed.weight.val * 1000) / 10;
+      lines.push(`Weight: lost ${lostKg.toFixed(2)} kg (${lossPct.toFixed(1)}% of usual weight, avg ${Math.round(lostKg * 1000 / ld)} g/day) over ${ld} days, ${_fmtDate(usual.md)} → ${_fmtDate(last.md)}.`);
+    } else {
+      const dg = last.parsed.weight.val - first.parsed.weight.val; let line = `Weight: gained ${dg.toFixed(2)} kg (avg ${Math.round(dg * 1000 / days)} g/day) over ${days} days, ${_fmtDate(first.md)} → ${_fmtDate(last.md)}`;
+      if (sex) { const m0 = whoMedianWt(first.ageMo, sex), m1 = whoMedianWt(last.ageMo, sex); if (m0 != null && m1 != null && (m1 - m0) > 0.001) { const exp = m1 - m0; line += ` — WHO 50th-%ile ~${Math.round(exp * 1000 / days)} g/day (${Math.round(dg / exp * 100)}% of expected)`; } }
+      lines.push(line + '.');
+    }
+  }
+  const ht = s.filter(e => e.parsed.stature && e.parsed.stature.val != null);
+  if (ht.length >= 2) {
+    const a = ht[0], b = ht[ht.length - 1], dmo = (b.md - a.md) / 86400000 / 30.4375, dcm = b.parsed.stature.val - a.parsed.stature.val;
+    if (dmo > 0) { let line = `Height/length: grew ${dcm.toFixed(1)} cm (avg ${(dcm / dmo).toFixed(1)} cm/month), ${_fmtDate(a.md)} → ${_fmtDate(b.md)}`; if (sex) { const m0 = whoMedianLen(a.ageMo, sex), m1 = whoMedianLen(b.ageMo, sex); if (m0 != null && m1 != null && (m1 - m0) > 0.01) { const exp = m1 - m0; line += ` — WHO 50th-%ile ~${(exp / dmo).toFixed(1)} cm/month (${Math.round(dcm / exp * 100)}% of expected)`; } } lines.push(line + '.'); }
+  }
+  return lines.length ? ('GROWTH TREND:\n' + lines.join('\n')) : '';
+}
+// Build the paste-ready ANTHROPOMETRY block exactly like the standalone tool.
+function buildGrowthText(ENC, sex) {
+  const NB = ' ', C = { lbl: 22, val: 8, pct: 8, z: 9, age: 8 };
+  const col = (s, n) => { const t = String(s == null ? '—' : s); return t.length >= n ? t.slice(0, n) : t + NB.repeat(n - t.length); };
+  const BLANK = NB.repeat(16);
+  const dual = ENC.some(e => e.parsedCorr);
+  const corrAgeShort = mo => { if (mo == null) return '—'; if (mo < 24) return Math.round(mo) + 'm'; const y = Math.floor(mo / 12), m = Math.round(mo % 12); return m ? y + 'y ' + m + 'm' : y + 'y'; };
+  const makeRow = (lbl, val, pct, z, e) => col(lbl, C.lbl) + col(val, C.val) + col(pct == null ? '—' : pct + '%', C.pct) + col(z, C.z) + col(_ageShort(e.a), C.age) + _fmtDate(e.md);
+  const hdr = col('', C.lbl) + col('Value', C.val) + col('%ile', C.pct) + col('Z-Score', C.z) + col('Age', C.age) + 'Date';
+  const sec = [];
+  const wE = ENC.filter(e => e.parsed.weight); if (wE.length) sec.push(wE.map((e, i) => { const w = e.parsed.weight; return makeRow(i === 0 ? 'Weight (kg)' : BLANK, w.val, w.pct, w.z, e); }).join('\n'));
+  const sE = ENC.filter(e => e.parsed.stature); if (sE.length) sec.push(sE.map((e, i) => { const s = e.parsed.stature; return makeRow(i === 0 ? (s.label || 'Length/Height') : BLANK, s.val, s.pct, s.z, e); }).join('\n'));
+  const fE = ENC.filter(e => e.parsed.wtfs); if (fE.length) sec.push(fE.map((e, i) => { const w = e.parsed.wtfs; return makeRow(i === 0 ? 'Wt-for-Length' : BLANK, null, w.pct, w.z, e); }).join('\n'));
+  const bE = ENC.filter(e => e.parsed.bmi); if (bE.length) sec.push(bE.map((e, i) => { const b = e.parsed.bmi; return makeRow(i === 0 ? 'BMI (kg/m²)' : BLANK, b.val, b.pct, b.z, e); }).join('\n'));
+  let out = 'ANTHROPOMETRY' + (dual ? ' (chronological age)' : '') + ':\n' + hdr + '\n\n' + sec.join('\n\n');
+  if (dual) {
+    const P = e => e.parsedCorr;
+    const mkCorr = (lbl, val, pct, z, e) => col(lbl, C.lbl) + col(val, C.val) + col(pct == null ? '—' : pct + '%', C.pct) + col(z, C.z) + col(corrAgeShort(e.correctedAgeMo), C.age) + col(_ageShort(e.a), C.age) + _fmtDate(e.md);
+    const cs = [];
+    const w2 = ENC.filter(e => P(e) && P(e).weight); if (w2.length) cs.push(w2.map((e, i) => { const w = P(e).weight; return mkCorr(i === 0 ? 'Weight (kg)' : BLANK, w.val, w.pct, w.z, e); }).join('\n'));
+    const s2 = ENC.filter(e => P(e) && P(e).stature); if (s2.length) cs.push(s2.map((e, i) => { const s = P(e).stature; return mkCorr(i === 0 ? (s.label || 'Length/Height') : BLANK, s.val, s.pct, s.z, e); }).join('\n'));
+    const f2 = ENC.filter(e => P(e) && P(e).wtfs); if (f2.length) cs.push(f2.map((e, i) => { const w = P(e).wtfs; return mkCorr(i === 0 ? 'Wt-for-Length' : BLANK, null, w.pct, w.z, e); }).join('\n'));
+    const b2 = ENC.filter(e => P(e) && P(e).bmi); if (b2.length) cs.push(b2.map((e, i) => { const b = P(e).bmi; return mkCorr(i === 0 ? 'BMI (kg/m²)' : BLANK, b.val, b.pct, b.z, e); }).join('\n'));
+    const ga = (ENC.find(e => e.gaLabel) || {}).gaLabel;
+    const chdr = col('', C.lbl) + col('Value', C.val) + col('%ile', C.pct) + col('Z-Score', C.z) + col('Cor.Age', C.age) + col('Age', C.age) + 'Date';
+    out += '\n\nANTHROPOMETRY (corrected age' + (ga ? ', born ' + ga : '') + '):\n' + chdr + '\n\n' + cs.join('\n\n');
+  }
+  const aENC = dual ? ENC.map(e => e.parsedCorr ? { ...e, parsed: e.parsedCorr, a: e.correctedAgeObj || e.a, ageMo: e.correctedAgeMo } : e) : ENC;
+  out += _buildBmiAssessment(aENC, sex);
+  const gs = _buildGrowthStatement(aENC, sex); if (gs) out += '\n\n' + gs;
+  out += '\n\nZ-scores: WHO 2006 (<2y) / CDC 2000 (≥2y), computed locally via LMS.' + (dual ? ' Assessment uses corrected age.' : '');
+  return out;
+}
+function copyGrowthText() {
+  if (!_growthLast) return;
+  const full = _growthLast.text + (_growthLast.aspen && _growthLast.aspen.emr ? '\n\n' + _growthLast.aspen.emr : '');
+  if (typeof copyNoteRich === 'function') copyNoteRich(full); else navigator.clipboard.writeText(full);
+  if (typeof toast === 'function') toast('Growth block copied ✓', 1600);
 }
 function computeGrowthPanel() {
   _growthPersist();
@@ -6822,23 +6903,19 @@ function computeGrowthPanel() {
   if (!ENC.length) { out.innerHTML = '<div class="pes-empty">Add at least one visit with a date and weight.</div>'; return; }
   const intake = document.getElementById('aspenIntake')?.value, etio = document.getElementById('aspenEtio')?.value;
   const aspen = computeAspen(ENC, sex, intake, etio);
-  _growthLast = { idx: _growthIdx, ENC, aspen, preterm };
-  const zc = o => o ? `${o.z}/${o.pct}%` : '—';
-  let rows = ENC.map(e => {
-    const wfl = e.ageMo < 24 ? e.parsed.wtfs : e.parsed.bmi;
-    let main = `<tr><td>${e.md.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</td><td>${_ageStr(e.a)}</td><td>${zc(e.parsed.weight)}</td><td>${zc(e.parsed.stature)}</td><td>${zc(wfl)}</td></tr>`;
-    if (e.parsedCorr) { const cwfl = e.correctedAgeMo < 24 ? e.parsedCorr.wtfs : e.parsedCorr.bmi; main += `<tr class="gv-corr"><td>↳ corr</td><td>${e.correctedAgeMo.toFixed(1)}mo</td><td>${zc(e.parsedCorr.weight)}</td><td>${zc(e.parsedCorr.stature)}</td><td>${zc(cwfl)}</td></tr>`; }
-    return main;
-  }).join('');
+  const text = buildGrowthText(ENC, sex);
+  _growthLast = { idx: _growthIdx, ENC, aspen, preterm, text };
   const gradeColors = ['var(--text-muted)', '#854f0b', '#993c1d', '#a32d2d'];
   out.innerHTML = `
-    <table class="gv-ztable"><thead><tr><th>Date</th><th>Age</th><th>Wt</th><th>Ht/Len</th><th>${ENC[0].ageMo < 24 ? 'WFL' : 'BMI'}</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="gv-aspen" style="border-color:${gradeColors[aspen.overall]}">
       <div style="font-weight:700;color:${gradeColors[aspen.overall]};font-size:14px">${aspen.overall === 0 ? 'No malnutrition identified' : GRADE_LBL[aspen.overall] + ' malnutrition' + (aspen.chronicity ? ' · ' + aspen.chronicity : '')}</div>
       ${aspen.indicators.length ? '<ul class="gv-ind">' + aspen.indicators.map(i => `<li><b>${esc(i.name)}</b> — ${esc(i.detail)} <span class="gv-g gv-g${i.grade}">${GRADE_LBL[i.grade]}</span></li>`).join('') + '</ul>' : '<div class="hint" style="margin-top:4px">No anthropometric malnutrition indicators triggered.</div>'}
     </div>
+    <div class="growth-out-head">Ready to paste — column-aligned</div>
+    <pre class="growth-out">${esc(text)}</pre>
     <div class="gv-insert">
-      <button class="btn-ghost btn-small" onclick="growthInsertAnthro()">→ Anthro z-scores</button>
+      <button class="btn-ghost btn-small" onclick="copyGrowthText()">📋 Copy block</button>
+      <button class="btn-ghost btn-small" onclick="growthInsertAnthro()">→ Anthropometry</button>
       <button class="btn-ghost btn-small" onclick="growthInsertTrend()">→ Growth trend</button>
       <button class="btn-primary btn-small" onclick="growthInsertDx()">→ Nutrition Diagnosis</button>
     </div>`;
@@ -6854,9 +6931,8 @@ function growthInsertAnthro() {
   _setField('wtZ_' + idx, zc(e.parsed.weight)); _setField('htZ_' + idx, zc(e.parsed.stature));
   const wfl = e.ageMo < 24 ? e.parsed.wtfs : e.parsed.bmi; _setField('bmiZ_' + idx, zc(wfl));
   const gc = document.getElementById('growthChart_' + idx); if (gc) { gc.value = e.ageMo < 24 ? 'WHO' : 'CDC'; if (typeof updateGrowthChartLabel === 'function') updateGrowthChartLabel(idx); }
-  // serial summary → pediPaste
-  const lines = _growthLast.ENC.map(en => { const w = en.ageMo < 24 ? en.parsed.wtfs : en.parsed.bmi; return `${en.md.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })} (${_ageStr(en.a)}): Wt ${en.parsed.weight ? en.parsed.weight.z + '/' + en.parsed.weight.pct + '%' : '—'}${en.parsed.stature ? ', ' + (en.ageMo < 24 ? 'Len ' : 'Ht ') + en.parsed.stature.z + '/' + en.parsed.stature.pct + '%' : ''}${w ? ', ' + (en.ageMo < 24 ? 'WFL ' : 'BMI ') + w.z + '/' + w.pct + '%' : ''}${en.parsedCorr ? ' [corr ' + en.correctedAgeMo.toFixed(1) + 'mo: Wt ' + (en.parsedCorr.weight ? en.parsedCorr.weight.z : '—') + ']' : ''}`; });
-  _setField('pediPaste_' + idx, 'Growth (auto-calculated, WHO 0–2y / CDC 2–20y):\n' + lines.join('\n'));
+  // full column-aligned block → pediPaste (the tool-style output she prefers)
+  _setField('pediPaste_' + idx, _growthLast.text || '');
   if (typeof scheduleAutosave === 'function') scheduleAutosave(); if (typeof toast === 'function') toast('Z-scores → Anthropometry ✓', 1600);
 }
 function growthInsertTrend() {
