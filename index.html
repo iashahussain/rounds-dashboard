@@ -2459,9 +2459,12 @@ function computeNeonatePriority(p) {
 function effectivePriority(p) {
   const idx = patients.indexOf(p);
   const neo = isNeonate(p);
-  const auto = neo ? computeNeonatePriority(p) : computeAutoPriority(p);
   const manual = priorityMap[idx];
   const M = PRIO_META;
+  // B/O / Nursery / NICU newborns are NOT triaged unless she's flagged them (she
+  // doesn't routinely see them) — no auto badge, no score, sinks to the bottom.
+  if (neo && !manual) return { band: 9, badge: null, score: 0, reasons: [], neo: true };
+  const auto = neo ? computeNeonatePriority(p) : computeAutoPriority(p);
   let band, badge;
   if (manual === 'ref') { band = 0; badge = { lbl: '🔔 REF', col: M.ref.col, manual: true }; }
   else if (manual === 'high') { band = 1; badge = { lbl: '⬆ HIGH', col: M.high.col, manual: true }; }
@@ -2545,14 +2548,14 @@ function renderList() {
     const doaStr = p.doa ? p.doa.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : (p.doaRaw || '?');
     const daysStr = p.daysSince === 999 ? '' : p.daysSince === 0 ? ' · Today' : p.daysSince === 1 ? ' · Yesterday' : ` · ${p.daysSince}d ago`;
     const ageStr = p.ageRaw || '?';
-    const prioTitle = ep.badge.manual ? 'Manual priority (overrides auto)' : (ep.reasons.length ? 'Auto: ' + ep.reasons.join(', ') : 'Auto priority');
+    const prioTitle = !ep.badge ? '' : (ep.badge.manual ? 'Manual priority (overrides auto)' : (ep.reasons.length ? 'Auto: ' + ep.reasons.join(', ') : 'Auto priority'));
 
     return `
     <div class="${classes}" onclick="selectPatient(${origIdx})">
       <div class="card-top">
         <div class="patient-name">${esc(p.name)}</div>
         <div class="badges">
-          <span class="badge prio-badge${ep.badge.manual ? ' is-manual' : ''}" style="background:${ep.badge.col};color:#fff" title="${esc(prioTitle)}">${ep.badge.lbl}</span>
+          ${ep.badge ? `<span class="badge prio-badge${ep.badge.manual ? ' is-manual' : ''}" style="background:${ep.badge.col};color:#fff" title="${esc(prioTitle)}">${ep.badge.lbl}</span>` : ''}
           ${p.isNew ? '<span class="badge badge-new">NEW</span>' : ''}
           <span class="badge ${badgeClass}">${badgeLabel}</span>
           ${isCharted ? '<span class="badge badge-charted">✓</span>' : ''}
@@ -3942,9 +3945,9 @@ function parseBiochemOPD(idx) {
   // Map OPD field IDs for the shared parseBiochem logic
   // We do a targeted mini-parse here for the OPD-specific IDs
   const over = (field, val) => { const el = document.getElementById(`op${field}_${idx}`); if (el && val) { el.value = val; el.classList.remove('from-prev'); if (el.tagName === 'TEXTAREA' && typeof autoExpand === 'function') autoExpand(el); } };
-  const s = text.replace(/^[\s\-•]+/gm,'');
-  const isVes = /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Creatinine|Sodium|Potassium|Chloride|Urea|Egfr)[\s,]+\d/i.test(text);
-  const vGet = label => { const m = text.match(new RegExp(label+'[\\s,]*:?[\\s,]*([0-9.]+)','i')); return m?m[1]:null; };
+  const s = text.replace(/^[\s\-•]+/gm,'').replace(/(\d),(\d)/g,'$1.$2').replace(/VIEW\s+PATIENT\s+RESULTS\s+CHART/gi,'');
+  const isVes = /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Creatinine|Sodium|Potassium|Chloride|Urea|Egfr)[\s,]+\d/i.test(s);
+  const vGet = label => { const m = s.match(new RegExp(label+'[\\s,]*:?[\\s,]*([0-9.]+)','i')); return m?m[1]:null; };
 
   let fbc = '';
   if (isVes) {
@@ -4318,10 +4321,11 @@ function parseBiochem(idx, text) {
   // Detect Vesalius full-name format — handles both space-separated AND the
   // comma-delimited export ("Urea, , 29.5, mg/dL, 15.0 - 40.0"). Includes
   // renal/electrolyte labels so a renal-only paste is still recognised.
-  const isVesalius = /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Total\s+Cholesterol|LDL\s+Cholesterol|Triglycerides|Creatinine|Sodium|Potassium|Chloride|Urea|Egfr)[\s,]+\d/i.test(text);
+  const isVesalius = /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Total\s+Cholesterol|LDL\s+Cholesterol|Triglycerides|Creatinine|Sodium|Potassium|Chloride|Urea|Egfr)[\s,]+\d/i.test(src);
   // vGet captures the FIRST number after the label, tolerating ", , " or ":" or
-  // whitespace between the label and its value.
-  const vGet = (label) => { const m = text.match(new RegExp(label + '[\\s,]*:?[\\s,]*([0-9.]+)', 'i')); return m ? m[1] : null; };
+  // whitespace between the label and its value. Runs on the normalised `src` (which has
+  // the "VIEW PATIENT RESULTS CHART" column stripped) so the value isn't hidden behind it.
+  const vGet = (label) => { const m = src.match(new RegExp(label + '[\\s,]*:?[\\s,]*([0-9.]+)', 'i')); return m ? m[1] : null; };
 
   let fbc = '';
   if (isVesalius) {
@@ -6860,7 +6864,7 @@ function growthDelVisit(i) { _growthVisits.splice(i, 1); renderGrowthVisits(); _
 function renderGrowthVisits() {
   const b = document.getElementById('growthVisitsBody'); if (!b) return;
   b.innerHTML = _growthVisits.map((v, i) => `<div class="gv-row">
-    <input type="date" value="${esc(v.date || '')}" onchange="growthSyncVisit(${i},'date',this.value)">
+    <input type="text" inputmode="text" autocomplete="off" value="${esc(v.date || '')}" placeholder="date e.g. 23/08/25" oninput="growthSyncVisit(${i},'date',this.value)">
     <input type="text" inputmode="decimal" value="${esc(v.wt || '')}" placeholder="wt kg" oninput="growthSyncVisit(${i},'wt',this.value)">
     <input type="text" inputmode="decimal" value="${esc(v.ht || '')}" placeholder="ht cm" oninput="growthSyncVisit(${i},'ht',this.value)">
     <button class="gv-del" onclick="growthDelVisit(${i})" aria-label="Remove visit">✕</button>
@@ -6878,7 +6882,7 @@ function openGrowthModal(idx) {
     <div class="pes-head">
       <div class="pes-headrow"><span style="font-size:14px;font-weight:700;flex:1">📊 Growth &amp; malnutrition (ASPEN)</span><button class="pes-close" onclick="closeGrowthModal()" aria-label="Close">✕</button></div>
       <div class="gv-inputs">
-        <div><label>Date of birth</label><input type="date" id="gaDob" value="${esc(saved.dob || '')}" onchange="_growthPersist()"></div>
+        <div><label>Date of birth</label><input type="text" id="gaDob" inputmode="text" autocomplete="off" value="${esc(saved.dob || '')}" placeholder="e.g. 23/08/2025 or 23-Aug-2025" oninput="_growthPersist()"></div>
         <div><label>GA at birth</label><input type="text" id="gaGa" value="${esc(saved.ga || '')}" placeholder="e.g. 32+4" onchange="_growthPersist()"></div>
         <div><label>Sex</label><input type="text" value="${sexWord}" disabled style="opacity:.7"></div>
       </div>
@@ -6912,17 +6916,35 @@ function closeGrowthModal() {
   const nav = document.getElementById('mobileFloatNav'); if (nav) nav.style.visibility = '';
   if (_growthEsc) { document.removeEventListener('keydown', _growthEsc); _growthEsc = null; }
 }
+// Flexible date parser (ported from the standalone growth tool) so DOB / measurement
+// dates can be typed or pasted in any common form instead of clicking a date picker:
+// 23/08/2017 · 23-08-2017 · 23.8.17 · 23-Aug-2017 · Aug 23 2017 · 2017-08-23 (day-first).
+const GMO = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11, january:0,february:1,march:2,april:3,june:5,july:6,august:7,september:8,october:9,november:10,december:11 };
+function gParseDate(s) {
+  if (!s || !String(s).trim()) return null;
+  s = String(s).trim().replace(/,/g, '');
+  let m;
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (m) { let y = +m[3]; if (y < 100) y += 2000; return new Date(y, +m[2] - 1, +m[1]); }
+  m = s.match(/^(\d{1,2})[\s\-]+([a-zA-Z]+)[\s\-]+(\d{2,4})$/);
+  if (m) { const mo = GMO[m[2].toLowerCase()]; if (mo === undefined) return null; let y = +m[3]; if (y < 100) y += 2000; return new Date(y, mo, +m[1]); }
+  m = s.match(/^([a-zA-Z]+)\s+(\d{1,2})\s+(\d{2,4})$/);
+  if (m) { const mo = GMO[m[1].toLowerCase()]; if (mo === undefined) return null; let y = +m[3]; if (y < 100) y += 2000; return new Date(y, mo, +m[2]); }
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  return null;
+}
 function buildGrowthENC() {
   const idx = _growthIdx, p = patients[idx];
   const sex = p.sex === 'M' ? 'M' : p.sex === 'F' ? 'F' : '';
   const dobStr = document.getElementById('gaDob')?.value;
-  const dob = dobStr ? new Date(dobStr + 'T00:00:00') : null;
+  const dob = gParseDate(dobStr);
   const gaDays = ptParseGA(document.getElementById('gaGa')?.value || '');
   const preterm = gaDays != null && gaDays < 280, corrDays = preterm ? (280 - gaDays) : 0;
   const ENC = [];
   _growthVisits.forEach(v => {
     if (!v.date || !(parseFloat(v.wt) > 0)) return;
-    const md = new Date(v.date + 'T00:00:00'); if (isNaN(md)) return;
+    const md = gParseDate(v.date); if (!md || isNaN(md)) return;
     let ageMo, a;
     if (dob) { a = ageBetween(dob, md); ageMo = (md - dob) / 86400000 / 30.4375; }
     else { ageMo = (p.ageYears || 0) * 12; a = { total: Math.round(ageMo) }; }
@@ -7021,6 +7043,13 @@ function computeGrowthPanel() {
   const dobStr = document.getElementById('gaDob')?.value;
   if (_growthVisits.filter(v => v.date && parseFloat(v.wt) > 0).length > 1 && !dobStr) {
     out.innerHTML = '<div class="pes-empty">Enter Date of birth — needed to age serial measurements correctly.</div>'; return;
+  }
+  if (dobStr && !gParseDate(dobStr)) {
+    out.innerHTML = '<div class="pes-empty">Couldn\'t read the date of birth "' + esc(dobStr) + '". Try 23/08/2025, 23-Aug-2025, or 2025-08-23.</div>'; return;
+  }
+  const badVisit = _growthVisits.find(v => v.date && parseFloat(v.wt) > 0 && !gParseDate(v.date));
+  if (badVisit) {
+    out.innerHTML = '<div class="pes-empty">Couldn\'t read the visit date "' + esc(badVisit.date) + '". Try 23/08/2025, 23-Aug-2025, or 2025-08-23.</div>'; return;
   }
   const { ENC, sex, preterm } = buildGrowthENC();
   if (!ENC.length) { out.innerHTML = '<div class="pes-empty">Add at least one visit with a date and weight.</div>'; return; }
