@@ -1075,9 +1075,10 @@
   #ipAwarenessBanner .ipb-phase { flex: none; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; font-size: 10.5px; background: rgba(255,255,255,.22); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
   #ipAwarenessBanner .ipb-room { flex: none; font-weight: 700; font-size: 11px; background: rgba(255,255,255,.2); padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
   #ipAwarenessBanner .ipb-name { min-width: 0; max-width: 46vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
-  #ipAwarenessBanner .ipb-age { flex: none; font-size: 12px; font-weight: 600; opacity: .92; white-space: nowrap; }
-  #ipAwarenessBanner .cb-time { font-family: var(--mono); font-weight: 700; flex: none; margin-left: auto; }
-  #ipAwarenessBanner .ipb-total { font-size: 10.5px; opacity: .85; white-space: nowrap; }
+  #ipAwarenessBanner .cb-time { font-family: var(--mono); font-weight: 700; font-size: 17px; flex: none; margin-left: auto; }
+  #ipAwarenessBanner .ipb-sub { display: flex; align-items: center; gap: 8px; }
+  #ipAwarenessBanner .ipb-age { flex: none; font-size: 12px; font-weight: 700; opacity: .95; white-space: nowrap; }
+  #ipAwarenessBanner .ipb-total { font-size: 10.5px; opacity: .82; white-space: nowrap; }
   @media (max-width: 768px) {
     #ipAwarenessBanner { left: 8px; right: 8px; transform: none; max-width: none; }
     #ipAwarenessBanner .ipb-name { max-width: none; flex: 1 1 auto; }
@@ -1301,10 +1302,12 @@
     <span class="ipb-phase" id="ipbPhase">Rounds</span>
     <span class="ipb-room" id="ipbRoom" style="display:none"></span>
     <span class="ipb-name" id="ipbName"></span>
-    <span class="ipb-age" id="ipbAge" style="display:none"></span>
     <span class="cb-time" id="ipbPer"></span>
   </div>
-  <div class="ipb-total" id="ipbTotal"></div>
+  <div class="ipb-sub">
+    <span class="ipb-age" id="ipbAge" style="display:none"></span>
+    <span class="ipb-total" id="ipbTotal"></span>
+  </div>
 </div>
 
 <header>
