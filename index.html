@@ -3942,51 +3942,55 @@ function parseBiochemOPD(idx) {
   const text = labsText || docText;
   if (!text.trim()) return;
 
-  // Map OPD field IDs for the shared parseBiochem logic
-  // We do a targeted mini-parse here for the OPD-specific IDs
-  const over = (field, val) => { const el = document.getElementById(`op${field}_${idx}`); if (el && val) { el.value = val; el.classList.remove('from-prev'); if (el.tagName === 'TEXTAREA' && typeof autoExpand === 'function') autoExpand(el); } };
+  // OPD biochem — same 10 clusters as IP plus a Thyroid panel (TSH / fT4 / fT3),
+  // built from one value-map serving both Vesalius pastes and abbreviated free-text.
+  const over = (field, val) => { const el = document.getElementById(`op${field}_${idx}`); if (el && val) { el.value = val; el.classList.remove('from-prev'); const fg = el.closest('.form-group'); if (fg) fg.style.display = ''; if (el.tagName === 'TEXTAREA' && typeof autoExpand === 'function') autoExpand(el); } };
   const s = text.replace(/^[\s\-•]+/gm,'').replace(/(\d),(\d)/g,'$1.$2').replace(/VIEW\s+PATIENT\s+RESULTS\s+CHART/gi,'');
-  const isVes = /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Creatinine|Sodium|Potassium|Chloride|Urea|Egfr)[\s,]+\d/i.test(s);
-  const vGet = label => { const m = s.match(new RegExp(label+'[\\s,]*:?[\\s,]*([0-9.]+)','i')); return m?m[1]:null; };
-
-  let fbc = '';
+  const isVes = /VIEW\s+PATIENT\s+RESULTS\s+CHART/i.test(text)
+    || /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Total\s+Cholesterol|LDL\s+Cholesterol|Alkaline\s+Phosphatase|Aminotransferase)[\s,]+\d/i.test(s);
+  const vGet = label => { const m = s.match(new RegExp(label+'[\\s,]*:?[\\s,]*([0-9.]+)','i')); return m?m[1].replace(/\.$/,''):null; };
+  const V = {}; const otherParts = [];
   if (isVes) {
-    const hbV=vGet('Hemoglobin'), wbcV=vGet('White Blood Cell'), pltV=vGet('Platelet Count'), rbcV=vGet('Red Blood Cell');
-    const neutV=vGet('Neutrophil %'), lymphV=vGet('Lymphocyte %'), pcvV=vGet('Packed Cell Volume');
-    const mcvV=vGet('MCV'), mchV=vGet('MCH'), mchcV=vGet('MCHC');
-    if (hbV) fbc+=`Hb ${hbV}`; if (wbcV) fbc+=`${fbc?', ':''}WBC ${wbcV}`;
-    if (neutV&&lymphV) fbc+=`${fbc?', ':''}N/L ${neutV}/${lymphV}`; if (pltV) fbc+=`${fbc?', ':''}Plt ${pltV}`;
-    if (rbcV) fbc+=`${fbc?', ':''}RBC ${rbcV}`;
-    if (pcvV) fbc+=`${fbc?', ':''}PCV ${pcvV}`;
-    if (mcvV) fbc+=`${fbc?', ':''}MCV ${mcvV}`; if (mchV) fbc+=`${fbc?', ':''}MCH ${mchV}`; if (mchcV) fbc+=`${fbc?', ':''}MCHC ${mchcV}`;
-    if (fbc) over('Hb', fbc);
-    const altV=vGet('Alanine Aminotransferase')||vGet('ALT'), astV=vGet('Aspartate Aminotransferase')||vGet('AST'), albV=vGet('Albumin');
-    let lft=''; if (altV) lft+=`ALT ${altV}`; if (astV) lft+=`${lft?', ':''}AST ${astV}`; if (albV) lft+=`${lft?', ':''}Alb ${albV}`;
-    if (lft) over('Lft', lft);
-    const naV=vGet('Sodium'),kV=vGet('Potassium'),clV=vGet('Chloride'),ureaV=vGet('Urea'),crV=vGet('Creatinine'),egfrV=vGet('Egfr')||vGet('eGFR');
-    let rft=''; if (naV) rft+=`Na ${naV}`; if (kV) rft+=`${rft?', ':''}K ${kV}`; if (clV) rft+=`${rft?', ':''}Cl ${clV}`; if (ureaV) rft+=`${rft?', ':''}Urea ${ureaV}`; if (crV) rft+=`${rft?', ':''}Cr ${crV}`; if (egfrV) rft+=`${rft?', ':''}eGFR ${egfrV}`;
-    if (rft) over('Rft', rft);
+    V.na=vGet('Sodium'); V.k=vGet('Potassium'); V.cl=vGet('Chloride'); V.hco3=vGet('Bicarbonate')||vGet('Total CO2')||vGet('CO2');
+    V.ca=vGet('Calcium'); V.mg=vGet('Magnesium'); V.po4=vGet('Phosphorus')||vGet('Phosphate');
+    V.urea=vGet('Urea'); V.cr=vGet('Creatinine'); V.egfr=vGet('Egfr')||vGet('eGFR');
+    V.hb=vGet('Hemoglobin'); V.alb=vGet('Albumin'); V.crp=vGet('C.Reactive Protein')||vGet('CRP'); V.esr=vGet('ESR');
+    V.alt=vGet('Alanine Aminotransferase')||vGet('ALT'); V.ast=vGet('Aspartate Aminotransferase')||vGet('AST'); V.alp=vGet('Alkaline Phosphatase'); V.ggt=vGet('Gamma Glutamyl')||vGet('GGT'); V.bili=vGet('Bilirubin');
+    V.glu=vGet('Glucose'); V.hba1c=vGet('HbA1c')||vGet('Glycated');
+    V.tc=vGet('Total Cholesterol')||vGet('Cholesterol'); V.ldl=vGet('LDL Cholesterol')||vGet('LDL'); V.hdl=vGet('HDL Cholesterol')||vGet('HDL'); V.tg=vGet('Triglycerides')||vGet('Triglyceride');
+    V.ferritin=vGet('Ferritin'); V.iron=vGet('Serum Iron')||vGet('Iron'); V.tibc=vGet('TIBC')||vGet('Total Iron Binding'); V.tsat=vGet('Transferrin Saturation')||vGet('Transferrin Sat');
+    V.b12=vGet('Vitamin B12')||vGet('Cobalamin')||vGet('B12'); V.folate=vGet('Folate')||vGet('Folic Acid'); V.vitd=vGet('Vitamin D')||vGet('25-Hydroxy')||vGet('25 Hydroxy'); V.zinc=vGet('Zinc');
+    V.tsh=vGet('TSH')||vGet('Thyroid Stimulating'); V.ft4=vGet('Free T4')||vGet('FT4'); V.ft3=vGet('Free T3')||vGet('FT3');
+    V.wbc=vGet('White Blood Cell'); V.plt=vGet('Platelet Count'); V.mcv=vGet('MCV'); V.mch=vGet('MCH'); V.mchc=vGet('MCHC'); V.rbc=vGet('Red Blood Cell'); V.pcv=vGet('Packed Cell Volume'); V.neut=vGet('Neutrophil %'); V.lymph=vGet('Lymphocyte %');
   } else {
-    const hbM=s.match(/\bHb[:\s]+([0-9.]+)/i), tcM=s.match(/\bTC[:\s]+([0-9.]+)/i), pltM=s.match(/\bPlt[:\s]+([0-9.]+)/i), nlM=s.match(/N\/L[:\s]+([\d.]+\/[\d.]+)/i);
-    if (hbM) fbc+=`Hb ${hbM[1]}`; if (tcM) fbc+=`${fbc?', ':''}TC ${tcM[1]}`; if (nlM) fbc+=`${fbc?', ':''}N/L ${nlM[1]}`; if (pltM) fbc+=`${fbc?', ':''}Plt ${pltM[1]}`;
-    if (fbc) over('Hb', fbc);
-    const crpM=s.match(/\bCRP[:\s]+([0-9.]+)/i), ferM=s.match(/\bFerritin[:\s]+([0-9.]+)/i);
-    let inflam=''; if (crpM) inflam+=`CRP ${crpM[1]}`; if (ferM) inflam+=`${inflam?', ':''}Ferritin ${ferM[1]}`; if (inflam) over('Crp', inflam);
-    const naM=s.match(/\bNa[:\s]+([0-9.]+)/i), kM=s.match(/\bK[:\s]+([0-9.]+)/i), ureaM=s.match(/\bUrea[:\s]+([0-9.]+)/i), crM=s.match(/\bCr[:\s]+([0-9.]+)/i);
-    const rftN=/RFT[\s:-]+Normal/i.test(s); let rft=rftN?'RFT Normal':'';
-    if (naM) rft+=`${rft?', ':''}Na ${naM[1]}`; if (kM) rft+=`${rft?', ':''}K ${kM[1]}`; if (ureaM) rft+=`${rft?', ':''}Urea ${ureaM[1]}`; if (crM) rft+=`${rft?', ':''}Cr ${crM[1]}`;
-    if (rft) over('Rft', rft);
-    const albM=s.match(/\bAlb[:\s]+([0-9.]+)/i), altM=s.match(/\bALT[:\s]+([0-9.]+)/i)||s.match(/\bSGPT[:\s]+([0-9.]+)/i), astM=s.match(/\bAST[:\s]+([0-9.]+)/i)||s.match(/\bSGOT[:\s]+([0-9.]+)/i);
-    const lftN=/LFT[\s:-]+Normal/i.test(s); let lft=lftN?'LFT Normal':'';
-    if (altM) lft+=`${lft?', ':''}ALT ${altM[1]}`; if (astM) lft+=`${lft?', ':''}AST ${astM[1]}`; if (albM) lft+=`${lft?', ':''}Alb ${albM[1]}`;
-    if (lft) over('Lft', lft);
-    const vitDM=s.match(/Vit\.?D[:\s]+([0-9.]+)/i), ironM=s.match(/\bIron[:\s]+([0-9.]+)/i), hba1cM=s.match(/HbA1c[:\s]+([0-9.]+)/i);
-    const ferM2=s.match(/\bFerritin[:\s]+([0-9.]+)/i), dengueM=s.match(/Dengue[^:]*:[:\s]+(\w+)/i);
-    let other='';
-    if (vitDM) other+=`Vit D ${vitDM[1]}`; if (ironM) other+=`${other?', ':''}Iron ${ironM[1]}`; if (hba1cM) other+=`${other?', ':''}HbA1c ${hba1cM[1]}`;
-    if (!ferM && ferM2) other+=`${other?', ':''}Ferritin ${ferM2[1]}`; if (dengueM) other+=`${other?', ':''}Dengue ${dengueM[1]}`;
-    if (other) over('OtherLabs', other);
+    const gm=(re)=>{const m=s.match(re);return m?(m[1]||'').trim().replace(/\.$/,''):null;};
+    const TR='(?:\\s*→\\s*[\\d.\\/]+)*'; const num=lbl=>gm(new RegExp('\\b'+lbl+'[:\\s]+([0-9.]+'+TR+')','i'));
+    V.na=gm(/\bNa\+?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.k=gm(/\bK[\s\+]*[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.cl=num('Cl(?:oride)?'); V.hco3=gm(/\b(?:HCO3|Bicarb(?:onate)?)[:\s]+([0-9.]+)/i);
+    V.ca=gm(/\bCa(?:lcium)?[:\s]+([0-9.]+)/i); V.mg=gm(/\bMg(?:nesium)?[:\s]+([0-9.]+)/i)||gm(/\bMagnesium[:\s]+([0-9.]+)/i); V.po4=gm(/\bPhos(?:phorus|phate)?[:\s]+([0-9.]+)/i)||gm(/\bPO4[:\s]+([0-9.]+)/i);
+    V.urea=num('Urea'); V.cr=gm(/\bCr(?:eat(?:inine)?)?n?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.egfr=num('eGFR');
+    V.hb=gm(/\bHb[b]?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.alb=gm(/\bAlb(?:umin)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.crp=num('CRP'); V.esr=num('ESR');
+    V.alt=gm(/\bSGPT[:\s]*([0-9.]+)/i)||num('ALT'); V.ast=gm(/\bSGOT[:\s]*([0-9.]+)/i)||num('AST'); V.alp=num('ALP')||gm(/\bAlkaline\s+Phosphatase[:\s]+([0-9.]+)/i); V.ggt=num('GGT'); V.bili=num('Bilirubin');
+    V.glu=gm(/\b(?:RBS|FBS|RBG|Glucose|BSL)[:\s]+([0-9.]+)/i); V.hba1c=gm(/\bHbA1c[:\s]+([0-9.]+%?)/i);
+    V.tc=gm(/\bT\.?\s*Chol(?:esterol)?[:\s]+([0-9.]+)/i)||gm(/\bTotal\s+Cholesterol\s+([0-9.]+)/i)||gm(/\bChol(?:esterol)?[:\s]+([0-9.]+)/i); V.ldl=gm(/\bLDL(?:\s+Cholesterol)?\s*[:\s]+([0-9.]+)/i); V.hdl=gm(/\bHDL(?:\s+Cholesterol)?\s*[:\s]+([0-9.]+)/i); V.tg=num('TG')||gm(/\bTriglycerides?[:\s]+([0-9.]+)/i);
+    V.ferritin=gm(/\bFerritin[:\s]+([0-9.]+)/i); V.iron=gm(/\bIron[:\s]+([0-9.]+)/i); V.tibc=num('TIBC')||gm(/\bTransferrin[:\s]+([0-9.]+)/i); V.tsat=gm(/\bTransferrin\s+sat(?:uration)?[:\s]+([0-9.]+)/i);
+    V.b12=gm(/\bB\.?12[:\s]+([0-9.]+)/i)||gm(/\bVitamin\s*B\.?12[:\s]+([0-9.]+)/i); V.folate=num('Folate')||gm(/\bFolic\s+Acid[:\s]+([0-9.]+)/i); V.vitd=gm(/\bVitamin\s*D[:\s]+([0-9.]+)/i)||gm(/\bVit\.?\s*D[:\s]+([0-9.]+)/i)||num('VD'); V.zinc=num('Zinc');
+    V.tsh=num('TSH'); V.ft4=gm(/\bF(?:ree\s*)?T4[:\s]+([0-9.]+)/i); V.ft3=gm(/\bF(?:ree\s*)?T3[:\s]+([0-9.]+)/i);
+    V.wbc=gm(/\b(?:TC|WBC)[:\s]+([0-9.]+)/i); V.plt=gm(/\bPlt(?:elet)?[:\s]+([0-9.]+)/i); V.pcv=num('PCV'); V.mcv=num('MCV');
+    const nlM=s.match(/N\/L[:\s]+([\d.]+\/[\d.]+)/i); if(nlM) V.nl=nlM[1];
+    const dengueM=s.match(/Dengue[^:]*[:\s]+(\w+)/i); if(dengueM) otherParts.push(`Dengue ${dengueM[1]}`);
   }
+  const J=arr=>arr.filter(Boolean).join(', ');
+  over('Elytes', J([V.na&&`Na ${V.na}`, V.k&&`K ${V.k}`, V.cl&&`Cl ${V.cl}`, V.hco3&&`HCO₃ ${V.hco3}`, V.ca&&`Ca ${V.ca}`, V.mg&&`Mg ${V.mg}`, V.po4&&`PO₄ ${V.po4}`]));
+  over('Renal', J([V.urea&&`Urea ${V.urea}`, V.cr&&`Cr ${V.cr}`, V.egfr&&`eGFR ${V.egfr}`]));
+  over('Status', J([V.hb&&`Hb ${V.hb}`, V.alb&&`Alb ${V.alb}`, V.crp&&`CRP ${V.crp}`, V.esr&&`ESR ${V.esr}`]));
+  over('Lft', J([V.alt&&`ALT ${V.alt}`, V.ast&&`AST ${V.ast}`, V.alp&&`ALP ${V.alp}`, V.ggt&&`GGT ${V.ggt}`, V.bili&&`Bili ${V.bili}`]));
+  over('Glyc', J([V.glu&&`Glucose ${V.glu}`, V.hba1c&&`HbA1c ${V.hba1c}`]));
+  over('Lipids', J([V.tc&&`Chol ${V.tc}`, V.ldl&&`LDL ${V.ldl}`, V.hdl&&`HDL ${V.hdl}`, V.tg&&`TG ${V.tg}`]));
+  over('Iron', J([V.ferritin&&`Ferritin ${V.ferritin}`, V.iron&&`Iron ${V.iron}`, V.tibc&&`TIBC ${V.tibc}`, V.tsat&&`T.sat ${V.tsat}`]));
+  over('Micros', J([V.b12&&`B12 ${V.b12}`, V.folate&&`Folate ${V.folate}`, V.vitd&&`Vit D ${V.vitd}`, V.zinc&&`Zinc ${V.zinc}`]));
+  over('Thyroid', J([V.tsh&&`TSH ${V.tsh}`, V.ft4&&`fT4 ${V.ft4}`, V.ft3&&`fT3 ${V.ft3}`]));
+  over('Fbc', J([V.wbc&&`WBC ${V.wbc}`, (V.neut&&V.lymph)?`N/L ${V.neut}/${V.lymph}`:(V.nl&&`N/L ${V.nl}`), V.plt&&`Plt ${V.plt}`, V.rbc&&`RBC ${V.rbc}`, V.pcv&&`PCV ${V.pcv}`, V.mcv&&`MCV ${V.mcv}`, V.mch&&`MCH ${V.mch}`, V.mchc&&`MCHC ${V.mchc}`]));
+  over('Other', otherParts.filter(Boolean).join(', '));
   const banner = document.getElementById(`opLabsBanner_${idx}`);
   if (banner) { banner.style.display='block'; banner.textContent='✓ Labs parsed — review below.'; banner.style.background='var(--accent-light)'; banner.style.borderColor='var(--accent)'; banner.style.color='var(--accent)'; }
 }
@@ -4033,8 +4037,9 @@ function saveOPDChart(idx, silent) {
     growthChart: g(`opGrowthChart_${idx}`), growthTrend: g(`opGrowthTrend_${idx}`),
     nutStatus: g(`opNutStatus_${idx}`), wtChg: g(`opWtChg_${idx}`),
     pediPaste: g(`opPediPaste_${idx}`),
-    hb: g(`opHb_${idx}`), crp: g(`opCrp_${idx}`), rft: g(`opRft_${idx}`),
-    lft: g(`opLft_${idx}`), otherLabs: g(`opOtherLabs_${idx}`), bgl: g(`opBgl_${idx}`),
+    elytes: g(`opElytes_${idx}`), renal: g(`opRenal_${idx}`), status: g(`opStatus_${idx}`),
+    lft: g(`opLft_${idx}`), glyc: g(`opGlyc_${idx}`), lipids: g(`opLipids_${idx}`),
+    iron: g(`opIron_${idx}`), micros: g(`opMicros_${idx}`), thyroid: g(`opThyroid_${idx}`), fbc: g(`opFbc_${idx}`), other: g(`opOther_${idx}`),
     appetite: radio(`opAppetite_${idx}`), appetiteTrend: radio(`opAppetiteTrend_${idx}`),
     appetiteDetail: g(`opAppetiteDetail_${idx}`),
     swallow: radio(`opSwallow_${idx}`), swallowDetail: g(`opSwallowDetail_${idx}`),
@@ -4085,7 +4090,7 @@ function generateOPDNote(idx) {
   const wtHx=g(`opWtHx_${idx}`), wtZ=g(`opWtZ_${idx}`), htZ=g(`opHtZ_${idx}`), bmiZ=g(`opBmiZ_${idx}`);
   const growthChart=g(`opGrowthChart_${idx}`), growthTrend=g(`opGrowthTrend_${idx}`), nutStatus=g(`opNutStatus_${idx}`);
   const wtChg=g(`opWtChg_${idx}`), pediPaste=g(`opPediPaste_${idx}`);
-  const hb=g(`opHb_${idx}`), crp=g(`opCrp_${idx}`), rft=g(`opRft_${idx}`), lft=g(`opLft_${idx}`), otherLabs=g(`opOtherLabs_${idx}`), bgl=g(`opBgl_${idx}`);
+  const elytes=g(`opElytes_${idx}`), renal=g(`opRenal_${idx}`), statusLabs=g(`opStatus_${idx}`), lft=g(`opLft_${idx}`), glyc=g(`opGlyc_${idx}`), lipids=g(`opLipids_${idx}`), iron=g(`opIron_${idx}`), micros=g(`opMicros_${idx}`), thyroid=g(`opThyroid_${idx}`), fbc=g(`opFbc_${idx}`), otherLabs=g(`opOther_${idx}`);
   const appetite=radio(`opAppetite_${idx}`), appetiteTrend=radio(`opAppetiteTrend_${idx}`), appetiteDetail=g(`opAppetiteDetail_${idx}`);
   const swallow=radio(`opSwallow_${idx}`), swallowDetail=g(`opSwallowDetail_${idx}`);
   const chewing=radio(`opChewing_${idx}`), chewingDetail=g(`opChewingDetail_${idx}`);
@@ -4159,7 +4164,7 @@ function generateOPDNote(idx) {
 
   // Since last review (review patients with a previous note pasted)
   if (/review/i.test(sessionTypeOP)) {
-    note += sinceLastReviewBlock(g(`opPrevPlan_${idx}`), { wt, crp, lft });
+    note += sinceLastReviewBlock(g(`opPrevPlan_${idx}`), { wt, crp: statusLabs, alb: statusLabs, lft });
   }
 
   // Anthropometry
@@ -4201,10 +4206,22 @@ function generateOPDNote(idx) {
   }
 
   // Biochemistry & Investigations
-  const labs = [hb, crp, rft, lft, otherLabs, bgl].filter(Boolean);
+  const labs = [elytes, renal, statusLabs, lft, glyc, lipids, iron, micros, thyroid, fbc, otherLabs].filter(Boolean);
   if (labs.length || investigations) {
     note += `BIOCHEMISTRY & INVESTIGATIONS\n`;
-    if (labs.length) note += labs.join(' | ') + `\n`;
+    const lp = [];
+    if (elytes) lp.push(`Electrolytes: ${elytes}`);
+    if (renal) lp.push(`Renal: ${renal}`);
+    if (statusLabs) lp.push(statusLabs);
+    if (lft) lp.push(`LFT: ${lft}`);
+    if (glyc) lp.push(`Glucose/HbA1c: ${glyc}`);
+    if (lipids) lp.push(`Lipids: ${lipids}`);
+    if (iron) lp.push(`Iron: ${iron}`);
+    if (micros) lp.push(`Micronutrients: ${micros}`);
+    if (thyroid) lp.push(`Thyroid: ${thyroid}`);
+    if (fbc) lp.push(`FBC: ${fbc}`);
+    if (otherLabs) lp.push(otherLabs);
+    if (lp.length) note += lp.join(' | ') + `\n`;
     if (investigations) {
       investigations.split('\n').filter(Boolean).forEach(l => note += `  ${l}\n`);
     }
@@ -4343,7 +4360,7 @@ function parseBiochem(idx, text) {
   // vGet captures the FIRST number after the label, tolerating ", , " or ":" or
   // whitespace between the label and its value. Runs on the normalised `src` (which has
   // the "VIEW PATIENT RESULTS CHART" column stripped) so the value isn't hidden behind it.
-  const vGet = (label) => { const m = src.match(new RegExp(label + '[\\s,]*:?[\\s,]*([0-9.]+)', 'i')); return m ? m[1] : null; };
+  const vGet = (label) => { const m = src.match(new RegExp(label + '[\\s,]*:?[\\s,]*([0-9.]+)', 'i')); return m ? m[1].replace(/\.$/, '') : null; };
 
   // ── Pull every analyte into one value-map V, then assemble the 10 clusters once. ──
   const V = {};        // numeric analytes
@@ -4372,7 +4389,7 @@ function parseBiochem(idx, text) {
     if (blockEnd > 0) investBlock = investBlock.slice(0, blockEnd);
     const s = investBlock.length > 80 ? investBlock : src;
     const TR = '(?:\\s*→\\s*[\\d.\\/]+)*';
-    const gm = (re, i2) => { const m = s.match(re); return m ? (m[i2 || 1] || '').toString().trim() : null; };
+    const gm = (re, i2) => { const m = s.match(re); return m ? (m[i2 || 1] || '').toString().trim().replace(/\.$/, '') : null; };
     const num = lbl => gm(new RegExp('\\b' + lbl + '[:\\s]+([0-9.]+' + TR + ')', 'i'));
     V.na = gm(/\bNa\+?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
     V.k = gm(/\bK[\s\+]*[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
@@ -5055,13 +5072,19 @@ function renderOPDPrechart(idx) {
               <button class="btn-ghost btn-small" onclick="parseBiochemOPD(${idx})" style="font-size:11px;padding:3px 10px;margin-top:4px">↻ Re-parse from doctor's notes</button>
             </div>
             <div class="form-grid">
-              <div class="form-group"><label>Hb / FBC</label><input type="text" id="opHb_${idx}" inputmode="decimal" value="${esc(saved.hb||'')}" placeholder="e.g. Hb 11.2, Plt 320"></div>
-              <div class="form-group"><label>CRP / Inflammatory</label><input type="text" id="opCrp_${idx}" value="${esc(saved.crp||'')}" placeholder="e.g. CRP 1.2"></div>
-              <div class="form-group"><label>RFT</label><input type="text" id="opRft_${idx}" value="${esc(saved.rft||'')}" placeholder="e.g. Na 138, K 4.0"></div>
-              <div class="form-group"><label>LFT / Albumin</label><input type="text" id="opLft_${idx}" value="${esc(saved.lft||'')}" placeholder="e.g. LFT Normal, Alb 4.1"></div>
-              <div class="form-group"><label>Other labs</label><textarea class="field auto-detail" id="opOtherLabs_${idx}" placeholder="e.g. Vit D 12, Iron 28" style="min-height:38px">${esc(saved.otherLabs||'')}</textarea></div>
-              <div class="form-group"><label>Glucose / BGLs</label><textarea class="field auto-detail" id="opBgl_${idx}" inputmode="decimal" placeholder="e.g. FBG 5.4" style="min-height:38px">${esc(saved.bgl||'')}</textarea></div>
+              <div class="form-group"><label>⚡ Electrolytes &amp; minerals</label><input type="text" id="opElytes_${idx}" value="${esc(saved.elytes||'')}" placeholder="Na, K, Cl, HCO₃, Ca, Mg, PO₄"></div>
+              <div class="form-group"><label>🫘 Renal (Urea / Cr / eGFR)</label><input type="text" id="opRenal_${idx}" value="${esc(saved.renal||saved.rft||'')}" placeholder="Urea, Cr, eGFR"></div>
+              <div class="form-group"><label>🩸 Status (Hb / Alb / CRP)</label><input type="text" id="opStatus_${idx}" value="${esc(saved.status||[saved.hb,saved.crp].filter(Boolean).join(', '))}" placeholder="Hb, Albumin, CRP"></div>
+              <div class="form-group lab-occasional" style="display:${saved.lft?'':'none'}"><label>LFTs</label><input type="text" id="opLft_${idx}" value="${esc(saved.lft||'')}" placeholder="ALT, AST, ALP, GGT, Bili"></div>
+              <div class="form-group lab-occasional" style="display:${(saved.glyc||saved.bgl)?'':'none'}"><label>Glucose / HbA1c</label><input type="text" id="opGlyc_${idx}" value="${esc(saved.glyc||saved.bgl||'')}" placeholder="Glucose, HbA1c"></div>
+              <div class="form-group lab-occasional" style="display:${saved.lipids?'':'none'}"><label>Lipids</label><input type="text" id="opLipids_${idx}" value="${esc(saved.lipids||'')}" placeholder="Chol, LDL, HDL, TG"></div>
+              <div class="form-group lab-occasional" style="display:${saved.iron?'':'none'}"><label>Iron studies</label><input type="text" id="opIron_${idx}" value="${esc(saved.iron||'')}" placeholder="Ferritin, Iron, TIBC, T.sat"></div>
+              <div class="form-group lab-occasional" style="display:${saved.micros?'':'none'}"><label>Vitamins / micronutrients</label><input type="text" id="opMicros_${idx}" value="${esc(saved.micros||'')}" placeholder="Vit D, B12, Folate, Zinc"></div>
+              <div class="form-group lab-occasional" style="display:${saved.thyroid?'':'none'}"><label>Thyroid panel</label><input type="text" id="opThyroid_${idx}" value="${esc(saved.thyroid||'')}" placeholder="TSH, fT4, fT3"></div>
+              <div class="form-group lab-occasional" style="display:${saved.fbc?'':'none'}"><label>FBC (WBC / Plt / MCV)</label><input type="text" id="opFbc_${idx}" value="${esc(saved.fbc||'')}" placeholder="WBC, Plt, MCV, diff"></div>
+              <div class="form-group lab-occasional" style="display:${(saved.other||saved.otherLabs)?'':'none'}"><label>Other labs</label><textarea class="field auto-detail" id="opOther_${idx}" placeholder="coags, glucose tables…" style="min-height:38px">${esc(saved.other||saved.otherLabs||'')}</textarea></div>
             </div>
+            <button class="btn-ghost btn-small" onclick="toggleMoreLabs(${idx},this)" style="margin-top:8px;font-size:11px;padding:3px 10px">➕ More lab groups</button>
             <div class="form-group" style="margin-top:10px">
               <label>Investigations <span style="font-weight:400;color:var(--text-muted)">(imaging, cultures, swallow assessment)</span></label>
               <textarea class="field field-sm" id="opInvestigations_${idx}" placeholder="e.g. CXR: Normal&#10;USG: Grade 1 fatty liver&#10;Blood culture: pending">${esc(saved.investigations||'')}</textarea>
@@ -6134,7 +6157,7 @@ function importPrevNote(idx, cfg) {
     if (cfg.labMode === 'clusters') {
       // IP — new 10-cluster fields. Handles both the new label format ("Electrolytes: …",
       // "Renal: …", "LFT: …") and legacy/unlabelled pieces routed by analyte keyword.
-      const b = { elytes:[], renal:[], status:[], lft:[], glyc:[], lipids:[], iron:[], micros:[], fbc:[], other:[] };
+      const b = { elytes:[], renal:[], status:[], lft:[], glyc:[], lipids:[], iron:[], micros:[], thyroid:[], fbc:[], other:[] };
       pieces.forEach(pc => {
         const m = pc.match(/^([^:]+):\s*(.*)$/);
         const lbl = m ? m[1].trim().toLowerCase() : '';
@@ -6146,6 +6169,7 @@ function importPrevNote(idx, cfg) {
         else if (/^lipid/.test(lbl)) b.lipids.push(body);
         else if (/^iron/.test(lbl)) b.iron.push(body);
         else if (/micronutrient/.test(lbl)) b.micros.push(body);
+        else if (/^thyroid/.test(lbl)) b.thyroid.push(body);
         else if (/^fbc/.test(lbl)) b.fbc.push(body);
         else if (/\b(Na|K|Cl|HCO|Bicarb|Calcium|Magnesium|\bCa\b|\bMg\b|PO4|PO₄|Phos)\b/i.test(pc)) b.elytes.push(pc);
         else if (/\b(Urea|Creat|Cr|eGFR)\b/i.test(pc)) b.renal.push(pc);
@@ -6154,6 +6178,7 @@ function importPrevNote(idx, cfg) {
         else if (/\b(Glucose|HbA1c|CBG|RBS|FBS|BSL)\b/i.test(pc)) b.glyc.push(pc);
         else if (/\b(Chol|LDL|HDL|TG|Triglyceride)\b/i.test(pc)) b.lipids.push(pc);
         else if (/\b(Ferritin|Iron|TIBC|Transferrin)\b/i.test(pc)) b.iron.push(pc);
+        else if (/\b(TSH|fT4|fT3|FT4|FT3|Thyroid)\b/i.test(pc)) b.thyroid.push(pc);
         else if (/\b(B12|Folate|Vit\s*D|Vitamin|Zinc)\b/i.test(pc)) b.micros.push(pc);
         else if (/\b(WBC|Plt|Platelet|MCV|MCH|MCHC|PCV|RBC|N\/L)\b/i.test(pc)) b.fbc.push(pc);
         else b.other.push(pc);
@@ -6227,11 +6252,12 @@ function parsePrevPlan(idx) {
 // OPD import — same logic, outpatient field set (no fluid field; "Estimated intake:" label).
 function parseOPDPrevPlan(idx) {
   importPrevNote(idx, {
-    prevId: 'opPrevPlan', banner: 'opLabsBanner', labMode: 'legacy',
+    prevId: 'opPrevPlan', banner: 'opLabsBanner', labMode: 'clusters',
     intakeLabel: 'Estimated intake:',
     fields: { pmh:'opPmhText', social:'opSocialHx', wt:'opWt', ht:'opHt', bmi:'opBmi',
       wtChg:'opWtChg', wtHx:'opWtHx', nutStatus:'opNutStatus',
-      hb:'opHb', crp:'opCrp', rft:'opRft', lft:'opLft', other:'opOtherLabs', bgl:'opBgl',
+      elytes:'opElytes', renal:'opRenal', status:'opStatus', lft:'opLft', glyc:'opGlyc',
+      lipids:'opLipids', iron:'opIron', micros:'opMicros', thyroid:'opThyroid', fbc:'opFbc', other:'opOther',
       eer:'opEer', epr:'opEpr', efr:null, intakePct:'opIntakePct',
       nutDx:'opNutDx', goals:'opGoals', intervention:'opIntervention', monitoring:'opMonitoring',
       clinical:'opClinicalNotes' },
