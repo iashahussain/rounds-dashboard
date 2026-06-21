@@ -798,6 +798,20 @@
   .prio-reasons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
   .rchip { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border-soft); }
   .stream-divider { margin: 16px 4px 8px; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: var(--text-muted); text-transform: uppercase; border-top: 1px dashed var(--border); padding-top: 11px; }
+  /* Card triage chips + copy-PRN (v90) */
+  .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 7px; flex-wrap: wrap; }
+  .prn-copy { font-family: var(--mono); font-size: 10px; color: var(--text-muted); background: var(--surface2); border: 1px solid var(--border-soft); border-radius: 6px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
+  .prn-copy:active { background: var(--accent-faint); color: var(--accent); }
+  .triage-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+  .tchip { font-size: 11px; font-weight: 700; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+  .tchip:active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tchip-ref { border-color: #7b2ff7; color: #7b2ff7; }
+  .tchip-ref:active { background: #7b2ff7; color: #fff; }
+  .ses-badge { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 999px; cursor: pointer; }
+  .ses-r { background: #e3f0ff; color: #1f5fa8; }
+  .ses-a { background: #ede0ff; color: #6b29c7; }
+  body.dark .ses-r { background: #10243a; color: #76b2f0; }
+  body.dark .ses-a { background: #1e1233; color: #c39cf5; }
 
   /* ── COLLAPSIBLE SECTIONS ── */
   .section-header { cursor: pointer; user-select: none; }
@@ -1540,6 +1554,19 @@ function savePrechartTotal() {
 }
 function prechartTotalMs() { return _prechartAccumMs + (_prechartRunStart ? Date.now() - _prechartRunStart : 0); }
 
+// ── SET-UP TIME (v90) ── the triage pass: going through the imported list deciding
+// review/assessment/referral + copying PRNs into Vesalius, before pre-charting begins.
+// Armed by the first triage tap; accumulates while on the IP list; ends for good when
+// the first patient chart is opened to pre-chart.
+let _setupAccumMs = 0, _setupRunStart = 0, _setupArmed = false, _setupDone = false;
+(function restoreSetup() {
+  try { const o = JSON.parse(localStorage.getItem('tth-setup') || 'null'); if (o && o.date === new Date().toDateString()) { _setupAccumMs = o.ms || 0; _setupDone = !!o.done; _setupArmed = (o.ms > 0) || !!o.done; } } catch(_) {}
+})();
+function saveSetup() { try { localStorage.setItem('tth-setup', JSON.stringify({ ms: _setupAccumMs, done: _setupDone, date: new Date().toDateString() })); } catch(_) {} }
+function armSetup() { if (!_setupDone) _setupArmed = true; }
+function setupTotalMs() { return _setupAccumMs + (_setupRunStart ? Date.now() - _setupRunStart : 0); }
+function endSetup() { if (_setupDone) return; if (_setupRunStart) { _setupAccumMs += Date.now() - _setupRunStart; _setupRunStart = 0; } _setupDone = true; saveSetup(); }
+
 function fmtClock(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
@@ -1588,6 +1615,12 @@ function updateAwarenessTimers() {
     }
   }
 
+  // Set-up accumulator — runs while triaging the IP list (armed, not yet pre-charting,
+  // on the list with no chart open, tab visible).
+  const setupRunning = _setupArmed && !_setupDone && currentMode === 'ip' && activeIdx === null && document.visibilityState !== 'hidden' && patients.length;
+  if (setupRunning && !_setupRunStart) _setupRunStart = Date.now();
+  if (!setupRunning && _setupRunStart) { _setupAccumMs += Date.now() - _setupRunStart; _setupRunStart = 0; saveSetup(); }
+
   updateIPBanner();
 }
 
@@ -1618,6 +1651,15 @@ function updateIPBanner() {
   const banner = document.getElementById('ipAwarenessBanner');
   if (!banner) return;
   const opdOpen = (typeof opdConsultLog !== 'undefined') && opdConsultLog.some(e => !e.endTime);
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  // Set-up / triage: show a Set-up timer while she's working the list before pre-charting.
+  if (!opdOpen && currentMode === 'ip' && _setupArmed && !_setupDone && _focusIdx === null && patients.length) {
+    banner.classList.remove('ipb-amber', 'ipb-red');
+    set('ipbPhase', 'Set-up'); set('ipbName', ''); set('ipbPer', fmtClock(setupTotalMs())); set('ipbTotal', 'triaging list');
+    const nw = document.getElementById('ipbNameWrap'); if (nw) nw.style.display = 'none';
+    banner.style.display = 'flex';
+    return;
+  }
   const phase = livePhase();
   const hasPatient = _focusIdx !== null && patients[_focusIdx];
   const phaseMs = ipPhaseTotalMs(phase);
@@ -1625,7 +1667,6 @@ function updateIPBanner() {
   if (!active) { banner.style.display = 'none'; return; }
   const phaseLabel = phase === 'rounds' ? 'Rounds' : phase === 'finalising' ? 'Finalising' : 'Pre-charting';
   const perMs = hasPatient ? Date.now() - _focusStart : 0, mins = perMs / 60000;
-  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
   set('ipbPhase', phaseLabel);
   const nameWrap = document.getElementById('ipbNameWrap'); if (nameWrap) nameWrap.style.display = hasPatient ? '' : 'none';
   set('ipbName', hasPatient ? patients[_focusIdx].name : '');
@@ -1647,6 +1688,7 @@ function updateIPBanner() {
 window.addEventListener('DOMContentLoaded', ensureAwarenessLoop);
 
 function openIPPanelLog(idx) {
+  endSetup(); // opening a chart to pre-chart ends the set-up/triage phase for the day
   closeIPPanelLog();
   // v80: the session now runs continuously from open until you LEAVE the patient
   // (switch / back-to-list / Mark Seen / Note Done) — it no longer pauses when the
@@ -1789,6 +1831,29 @@ function unchart(idx) {
   toast('Removed from Charted ✓');
 }
 
+// One-tap copy of the PRN straight from the list card — so building the Vesalius
+// patient list no longer means opening each chart.
+function copyPRN(prn, btn) {
+  const done = () => { if (btn) { const o = btn.innerHTML; btn.innerHTML = '✓ Copied'; setTimeout(() => { btn.innerHTML = o; }, 1100); } if (typeof toast === 'function') toast('PRN ' + prn + ' copied'); };
+  const fb = () => { const ta = document.createElement('textarea'); ta.value = prn; ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0'; document.body.appendChild(ta); ta.focus(); ta.select(); try { document.execCommand('copy'); } catch (_) {} document.body.removeChild(ta); done(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(prn).then(done).catch(fb);
+  else fb();
+}
+
+// One-tap triage from the list card: set session type, add to the Charted worklist,
+// (Referral = Assessment + 🔔 pin), and arm the Set-up timer — no panel open needed.
+function triagePatient(idx, type) {
+  if (!chartData[idx]) chartData[idx] = {};
+  if (type === 'referral') { chartData[idx].sessionType = 'Dietetic Assessment'; priorityMap[idx] = 'ref'; }
+  else chartData[idx].sessionType = (type === 'review') ? 'Dietetic Review' : 'Dietetic Assessment';
+  delete unchartCooldown[idx];   // clear any recent unchart cooldown so it charts now
+  chartedSet.add(idx);
+  if (typeof armSetup === 'function') armSetup();
+  if (typeof persistSession === 'function') persistSession();
+  updateStats(); renderList();
+  toast((type === 'referral' ? '🔔 Referral + Assessment' : type === 'review' ? 'Review' : 'Assessment') + ' · added to worklist');
+}
+
 // Clear ALL charted fields for one patient (e.g. after pasting the wrong note).
 // Confirms first; wipes the saved data and re-renders the panel blank.
 function clearChart(idx) {
@@ -1846,12 +1911,14 @@ function reclassifyFinalising(ipEntries) {
 function computeShiftSummary(dayBoundary, thrMin){
   const ip  = reclassifyFinalising(panelOpenLog.filter(e => (e.endTime||0) >= dayBoundary));
   const opd = opdConsultLog.filter(e => e.endTime && e.endTime >= dayBoundary);
+  const setup = (typeof setupTotalMs === 'function') ? setupTotalMs() : 0;
   return {
+    setup,
     precharting: _engagedMs(ip.filter(e => e.phase === 'precharting'), thrMin),
     rounds:      _engagedMs(ip.filter(e => e.phase === 'rounds'), thrMin),
     finalising:  _engagedMs(ip.filter(e => e.phase === 'finalising'), thrMin),
     opd:         _engagedMs(opd, thrMin),
-    day:         _engagedMs(ip.concat(opd), thrMin)
+    day:         _engagedMs(ip.concat(opd), thrMin) + setup
   };
 }
 
@@ -1914,6 +1981,7 @@ function buildWorklogText() {
   const shift = computeShiftSummary(dayBoundary, _ttBreakMin);
   if (shift.day > 0) {
     lines.push(`TIME ON SHIFT — wall-clock (breaks over ${_ttBreakMin} min removed)`);
+    if (shift.setup) lines.push(`  Set-up (triage): ${fmtDuration(shift.setup)}`);
     if (shift.precharting) lines.push(`  Precharting: ${fmtDuration(shift.precharting)}`);
     if (shift.rounds)      lines.push(`  Rounds: ${fmtDuration(shift.rounds)}`);
     if (shift.finalising)  lines.push(`  Finalising: ${fmtDuration(shift.finalising)}`);
@@ -2130,7 +2198,7 @@ function renderTimeTrackingModal() {
         <div class="tt-section-label">⏱ Time on shift — wall-clock</div>
         <div class="tt-brk-row">Break cutoff: ${[5,8,10,15].map(n => `<button class="tt-brk${n===_ttBreakMin?' active':''}" onclick="setTtBreak(${n})">${n}m</button>`).join('')}</div>
         ${(() => { const sum = computeShiftSummary(dayBoundary, _ttBreakMin); const row = (l,ms,strong) => `<div class="tt-shift-row${strong?' tt-shift-total':''}"><span>${l}</span><span>${fmtDuration(ms)}</span></div>`;
-          return `<div class="tt-shift">${row('Precharting', sum.precharting)}${row('Rounds', sum.rounds)}${row('Finalising', sum.finalising)}${sum.opd>0?row('OPD consults', sum.opd):''}${row('Day total', sum.day, true)}</div>`; })()}
+          return `<div class="tt-shift">${sum.setup>0?row('Set-up (triage)', sum.setup):''}${row('Precharting', sum.precharting)}${row('Rounds', sum.rounds)}${row('Finalising', sum.finalising)}${sum.opd>0?row('OPD consults', sum.opd):''}${row('Day total', sum.day, true)}</div>`; })()}
         <div style="font-size:11px;color:var(--text-muted);margin:6px 2px 0">Counts the whole time you're working (incl. reading in Vesalius / walking the ward); only gaps longer than ${_ttBreakMin} min are treated as breaks. Tune the cutoff above if a long bedside or a short break is mis-counted.</div>
 
         <div class="tt-section-label" style="margin-top:18px">Active in-chart time per patient <span style="font-weight:400;color:var(--text-faint)">— focused dashboard only; undercounts true effort</span></div>
@@ -2645,7 +2713,16 @@ function renderList() {
       <div class="card-meta" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${p.ward||p.roomNo ? '<span style="background:var(--accent);color:white;font-weight:700;padding:2px 8px;border-radius:999px;font-size:10px;letter-spacing:.03em">'+[p.ward,p.roomNo].filter(Boolean).join(' ')+'</span> ' : ''}<span style="font-weight:800;color:var(--text);font-size:13px">${ageStr}</span> <span style="color:var(--text-muted)">${p.sex} · DOA ${doaStr}${daysStr}</span></div>
       <div class="card-dx">${esc(p.diagnosis.substring(0,100))}${p.diagnosis.length>100?'…':''}</div>
       ${ep.reasons.length ? `<div class="prio-reasons">${ep.reasons.slice(0,3).map(r=>`<span class="rchip">${esc(r)}</span>`).join('')}</div>` : ''}
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:2px">PRN ${esc(p.prn)}</div>
+      <div class="card-foot">
+        <button class="prn-copy" onclick="event.stopPropagation();copyPRN('${esc(p.prn)}',this)" title="Copy PRN for Vesalius">⧉ PRN ${esc(p.prn)}</button>
+        ${isCharted
+          ? `<span class="ses-badge ${/assess/i.test((chartData[origIdx]||{}).sessionType||'')?'ses-a':'ses-r'}" onclick="event.stopPropagation();unchart(${origIdx})" title="On worklist — tap to remove">${/assess/i.test((chartData[origIdx]||{}).sessionType||'')?'Assessment':'Review'}</span>`
+          : `<span class="triage-chips">
+               <button class="tchip" onclick="event.stopPropagation();triagePatient(${origIdx},'review')">Review</button>
+               <button class="tchip" onclick="event.stopPropagation();triagePatient(${origIdx},'assessment')">Assess</button>
+               <button class="tchip tchip-ref" onclick="event.stopPropagation();triagePatient(${origIdx},'referral')">🔔 Ref</button>
+             </span>`}
+      </div>
     </div>`;
   };
 
