@@ -1073,12 +1073,15 @@
   #ipAwarenessBanner.ipb-red { background: #c0392b; animation: cbpulse 1.4s ease-in-out infinite; }
   #ipAwarenessBanner .ipb-row { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; }
   #ipAwarenessBanner .ipb-phase { flex: none; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; font-size: 10.5px; background: rgba(255,255,255,.22); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  #ipAwarenessBanner .ipb-room { flex: none; font-weight: 700; font-size: 11px; background: rgba(255,255,255,.2); padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
   #ipAwarenessBanner .ipb-name { min-width: 0; max-width: 46vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+  #ipAwarenessBanner .ipb-age { flex: none; font-size: 12px; font-weight: 600; opacity: .92; white-space: nowrap; }
   #ipAwarenessBanner .cb-time { font-family: var(--mono); font-weight: 700; flex: none; margin-left: auto; }
   #ipAwarenessBanner .ipb-total { font-size: 10.5px; opacity: .85; white-space: nowrap; }
   @media (max-width: 768px) {
     #ipAwarenessBanner { left: 8px; right: 8px; transform: none; max-width: none; }
     #ipAwarenessBanner .ipb-name { max-width: none; flex: 1 1 auto; }
+    .clear-all-btn { display: none !important; }   /* not needed at the bedside on rounds */
   }
 
   /* ── LIVE PER-PATIENT FOCUS TIMER (rounds & finalising) ── */
@@ -1296,7 +1299,9 @@
 <div id="ipAwarenessBanner" style="display:none" onclick="ipBannerTap()" title="Go to current patient">
   <div class="ipb-row">
     <span class="ipb-phase" id="ipbPhase">Rounds</span>
+    <span class="ipb-room" id="ipbRoom" style="display:none"></span>
     <span class="ipb-name" id="ipbName"></span>
+    <span class="ipb-age" id="ipbAge" style="display:none"></span>
     <span class="cb-time" id="ipbPer"></span>
   </div>
   <div class="ipb-total" id="ipbTotal"></div>
@@ -1589,24 +1594,8 @@ function updateAwarenessTimers() {
   const phase = detectPhase();
   if (currentPanelOpen) currentPanelOpen.lastActive = Date.now(); // v80: heartbeat for crash recovery
 
-  // Per-patient focus timer — runs whenever a patient's chart is open (all phases:
-  // precharting, rounds, finalising). Normal state is BLUE so it stands out from
-  // the app's green accent; amber/red as it climbs.
-  const fEl = document.getElementById('focusTimer');
-  if (fEl) {
-    const show = _focusIdx !== null && document.querySelector('#prechartPanel .sticky-patient-hdr');
-    if (show) {
-      const ms = Date.now() - _focusStart, mins = ms / 60000;
-      fEl.style.display = 'inline-flex';
-      const t = fEl.querySelector('.ft-time'); if (t) t.textContent = fmtClock(ms);
-      const l = fEl.querySelector('.ft-label');
-      if (l) l.textContent = phase === 'rounds' ? 'this patient' : phase === 'finalising' ? 'finalising' : 'precharting';
-      fEl.classList.remove('ft-blue', 'ft-amber', 'ft-red');
-      fEl.classList.add(mins >= FOCUS_RED_MIN ? 'ft-red' : mins >= FOCUS_AMBER_MIN ? 'ft-amber' : 'ft-blue');
-    } else {
-      fEl.style.display = 'none';
-    }
-  }
+  // (The old per-patient focus timer in the chart header was removed in v90 —
+  //  the always-on awareness banner now carries the per-patient time, room and age.)
 
   // Precharting cumulative total (runs only in precharting + IP + visible → pauses during OPD)
   const running = phase === 'precharting' && currentMode === 'ip' && document.visibilityState !== 'hidden';
@@ -1664,6 +1653,8 @@ function updateIPBanner() {
   if (!opdOpen && currentMode === 'ip' && _setupArmed && !_setupDone && _focusIdx === null && patients.length) {
     banner.classList.remove('ipb-amber', 'ipb-red');
     set('ipbPhase', 'Set-up'); set('ipbName', 'triaging list'); set('ipbPer', fmtClock(setupTotalMs())); set('ipbTotal', '');
+    const r0 = document.getElementById('ipbRoom'); if (r0) r0.style.display = 'none';
+    const a0 = document.getElementById('ipbAge'); if (a0) a0.style.display = 'none';
     banner.style.display = 'flex';
     return;
   }
@@ -1676,6 +1667,11 @@ function updateIPBanner() {
   const perMs = hasPatient ? Date.now() - _focusStart : 0, mins = perMs / 60000;
   set('ipbPhase', phaseLabel);
   set('ipbName', hasPatient ? patients[_focusIdx].name : '');
+  const room = hasPatient ? (patients[_focusIdx].roomNo || '') : '';
+  const ageR = hasPatient ? String(patients[_focusIdx].ageRaw || '').trim() : '';
+  const ageTxt = ageR ? (/^\d+$/.test(ageR) ? ageR + 'y' : ageR) : '';
+  const rEl = document.getElementById('ipbRoom'); if (rEl) { rEl.textContent = room ? ('🛏 ' + room) : ''; rEl.style.display = room ? '' : 'none'; }
+  const aEl = document.getElementById('ipbAge'); if (aEl) { aEl.textContent = ageTxt; aEl.style.display = ageTxt ? '' : 'none'; }
   set('ipbPer', hasPatient ? fmtClock(perMs) : '');
   set('ipbTotal', `${phaseLabel} total ${fmtMins(phaseMs)}`);
   banner.classList.remove('ipb-amber', 'ipb-red');
@@ -5181,7 +5177,7 @@ function renderOPDPrechart(idx) {
         <button class="btn-ghost btn-small session-toggle" onclick="toggleSessionType(${idx},'opSt','opSessToggle_${idx}')" id="opSessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
         <button class="btn-primary btn-small hide-mobile" onclick="generateOPDNote(${idx})">Generate Note</button>
         <button class="btn-ghost btn-small ${seenSet.has(idx)?'btn-seen-active':''}" onclick="toggleSeen(${idx})" id="opSeenBtn_${idx}">${seenSet.has(idx)?'👁 Seen':'👁 Mark Seen'}</button>
-        <button class="btn-ghost btn-small" style="color:var(--warn);border-color:var(--warn)" onclick="clearOPDChart(${idx})" title="Clear all fields for this patient (asks first)">🗑 Clear all</button>
+        <button class="btn-ghost btn-small clear-all-btn" style="color:var(--warn);border-color:var(--warn)" onclick="clearOPDChart(${idx})" title="Clear all fields for this patient (asks first)">🗑 Clear all</button>
         ${(() => {
           const open = opdConsultLog.find(e => e.idx === idx && !e.endTime);
           if (open) {
@@ -5649,7 +5645,6 @@ function renderPrechart(idx) {
         <h2>${esc(p.name)}${prioDotHTML(idx)}</h2>
         <div class="sub">${p.ward||p.roomNo ? '<span class="room-chip">'+[p.ward,p.roomNo].filter(Boolean).join(' ')+'</span>' : ''}PRN ${esc(p.prn)} · <span class="hi">${esc(fmtAge(p))}</span> · ${p.sex} · DOA: ${doaStr}</div>
         <div class="sub-dx">${esc(p.diagnosis.substring(0,120))}</div>
-        <span id="focusTimer" class="focus-timer" style="display:none;margin-top:7px"><span class="ft-clock">⏱</span> <span class="ft-time">0:00</span> <span class="ft-label"></span></span>
         ${priorityRowHTML(idx)}
         <div class="radio-group sessiontype" style="margin-top:8px">
           ${['Dietetic Review','Dietetic Assessment'].map(v => `<input type="radio" name="sessionType_${idx}" class="radio-opt" id="st${v.replace(/\s/g,'')}_${idx}" value="${v}" ${(saved.sessionType||'Dietetic Review')===v?'checked':''}><label class="radio-label" for="st${v.replace(/\s/g,'')}_${idx}" style="font-size:11px">${v}</label>`).join('')}
@@ -5661,7 +5656,7 @@ function renderPrechart(idx) {
         <button class="btn-ghost btn-small session-toggle" onclick="toggleSessionType(${idx},'st','sessToggle_${idx}')" id="sessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
         <button class="btn-ghost btn-small hide-mobile ${noteDoneSet.has(idx)?'btn-seen-active':''}" onclick="markNoteDone(${idx})" id="noteDoneBtn_${idx}">${noteDoneSet.has(idx)?'✅ Done':'✅ Note Done'}</button>
         ${chartedSet.has(idx) ? `<button class="btn-ghost btn-small hide-mobile" onclick="unchart(${idx})" title="Remove from Charted (keeps your data)">✕ Uncharted</button>` : ''}
-        <button class="btn-ghost btn-small" style="color:var(--warn);border-color:var(--warn)" onclick="clearChart(${idx})" title="Clear all fields for this patient (asks first)">🗑 Clear all</button>
+        <button class="btn-ghost btn-small clear-all-btn" style="color:var(--warn);border-color:var(--warn)" onclick="clearChart(${idx})" title="Clear all fields for this patient (asks first)">🗑 Clear all</button>
       </div>
   </div>
   <div class="prechart-wrap"><div class="prechart-content" id="pc${idx}">
