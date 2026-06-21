@@ -4293,6 +4293,19 @@ function parseLabsPaste(idx) {
   if (!text.trim()) return;
   parseBiochem(idx, text);
 }
+// Show/hide the occasional lab clusters (LFT/Glucose/Lipids/Iron/Micros/FBC/Other).
+// Expand reveals all; collapse hides the empty ones but keeps any that hold a value.
+function toggleMoreLabs(idx, btn) {
+  const grid = btn.previousElementSibling;
+  if (!grid) return;
+  const expand = btn.dataset.exp !== '1';
+  grid.querySelectorAll('.lab-occasional').forEach(fg => {
+    if (expand) fg.style.display = '';
+    else { const f = fg.querySelector('input, textarea'); fg.style.display = (f && f.value.trim()) ? '' : 'none'; }
+  });
+  btn.dataset.exp = expand ? '1' : '0';
+  btn.textContent = expand ? '➖ Fewer lab groups' : '➕ More lab groups';
+}
 
 function parseBiochemFromDocNote(idx) {
   const text = document.getElementById(`docNote_${idx}`)?.value || '';
@@ -4321,231 +4334,129 @@ function parseBiochem(idx, text) {
   // Detect Vesalius full-name format — handles both space-separated AND the
   // comma-delimited export ("Urea, , 29.5, mg/dL, 15.0 - 40.0"). Includes
   // renal/electrolyte labels so a renal-only paste is still recognised.
-  const isVesalius = /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Total\s+Cholesterol|LDL\s+Cholesterol|Triglycerides|Creatinine|Sodium|Potassium|Chloride|Urea|Egfr)[\s,]+\d/i.test(src);
+  // Vesalius detection: the unmistakable signal is its "VIEW PATIENT RESULTS CHART" column
+  // (present in `text` before normalise strips it). Fall back to multi-word analyte names that
+  // never appear in quick free-text — NOT short tokens like Urea/eGFR/CRP, which would wrongly
+  // route an abbreviated doctor's note into the full-name branch.
+  const isVesalius = /VIEW\s+PATIENT\s+RESULTS\s+CHART/i.test(text)
+    || /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Total\s+Cholesterol|LDL\s+Cholesterol|Alkaline\s+Phosphatase|Aminotransferase)[\s,]+\d/i.test(src);
   // vGet captures the FIRST number after the label, tolerating ", , " or ":" or
   // whitespace between the label and its value. Runs on the normalised `src` (which has
   // the "VIEW PATIENT RESULTS CHART" column stripped) so the value isn't hidden behind it.
   const vGet = (label) => { const m = src.match(new RegExp(label + '[\\s,]*:?[\\s,]*([0-9.]+)', 'i')); return m ? m[1] : null; };
 
-  let fbc = '';
+  // ── Pull every analyte into one value-map V, then assemble the 10 clusters once. ──
+  const V = {};        // numeric analytes
+  const otherParts = []; // free-text / misc results for the Other cluster
+  let cbgBlock = '';     // CBG glucose table (generic notes)
+  let cxrTxt = '', usgTxt = '', investBlock = '';
   if (isVesalius) {
-    const hbV = vGet('Hemoglobin'), wbcV = vGet('White Blood Cell'), rbcV = vGet('Red Blood Cell');
-    const neutV = vGet('Neutrophil %'), lymphV = vGet('Lymphocyte %');
-    const pltV = vGet('Platelet Count'), pcvV = vGet('Packed Cell Volume');
-    const mcvV = vGet('MCV'), mchV = vGet('MCH'), mchcV = vGet('MCHC');
-    if (hbV)   fbc += `Hb ${hbV}`;
-    if (wbcV)  fbc += `${fbc?', ':''}WBC ${wbcV}`;
-    if (neutV && lymphV) fbc += `${fbc?', ':''}N/L ${neutV}/${lymphV}`;
-    if (pltV)  fbc += `${fbc?', ':''}Plt ${pltV}`;
-    if (rbcV)  fbc += `${fbc?', ':''}RBC ${rbcV}`;
-    if (pcvV)  fbc += `${fbc?', ':''}PCV ${pcvV}`;
-    if (mcvV)  fbc += `${fbc?', ':''}MCV ${mcvV}`;
-    if (mchV)  fbc += `${fbc?', ':''}MCH ${mchV}`;
-    if (mchcV) fbc += `${fbc?', ':''}MCHC ${mchcV}`;
-    if (fbc)   over(`hb_${idx}`, fbc);
-
-    const tropoV = vGet('Troponin'), ptV = vGet('Prothrombin Time'), inrV = vGet('INR');
-    const apttV = vGet('APTT'), fibV = vGet('Fibrinogen'), thrombV = vGet('Thrombin Time');
-    const crpVes = vGet('C.Reactive Protein') || vGet('CRP');
-    const creatVes = vGet('Creatinine'), naVes = vGet('Sodium'), kVes = vGet('Potassium');
-    const clVes = vGet('Chloride'), egfrVes = vGet('Egfr') || vGet('eGFR');
-    const ureaVes = vGet('Urea'), albVes = vGet('Albumin');
-    const altVes = vGet('Alanine Aminotransferase') || vGet('ALT');
-    const astVes = vGet('Aspartate Aminotransferase') || vGet('AST');
-    const bilVes = vGet('Bilirubin');
-
-    if (crpVes) over(`crp_${idx}`, `CRP ${crpVes}`);
-
-    let rftStr = '';
-    if (naVes)    rftStr += `Na ${naVes}`;
-    if (kVes)     rftStr += `${rftStr?', ':''}K ${kVes}`;
-    if (clVes)    rftStr += `${rftStr?', ':''}Cl ${clVes}`;
-    if (ureaVes)  rftStr += `${rftStr?', ':''}Urea ${ureaVes}`;
-    if (creatVes) rftStr += `${rftStr?', ':''}Cr ${creatVes}`;
-    if (egfrVes)  rftStr += `${rftStr?', ':''}eGFR ${egfrVes}`;
-    if (rftStr) over(`rft_${idx}`, rftStr);
-
-    let lftStr = '';
-    if (altVes) lftStr += `ALT ${altVes}`;
-    if (astVes) lftStr += `${lftStr?', ':''}AST ${astVes}`;
-    if (bilVes) lftStr += `${lftStr?', ':''}Bili ${bilVes}`;
-    if (albVes) lftStr += `${lftStr?', ':''}Alb ${albVes}`;
-    if (lftStr) over(`lft_${idx}`, lftStr);
-
-    // Vesalius lipid profile
-    const tcholV = vGet('Total Cholesterol') || vGet('Cholesterol');
-    const ldlV   = vGet('LDL Cholesterol') || vGet('LDL');
-    const hdlV   = vGet('HDL Cholesterol') || vGet('HDL');
-    const tgV    = vGet('Triglycerides') || vGet('Triglyceride');
-    let lipidVes = '';
-    if (tcholV) lipidVes += `Chol ${tcholV}`;
-    if (ldlV)   lipidVes += `${lipidVes?', ':''}LDL ${ldlV}`;
-    if (hdlV)   lipidVes += `${lipidVes?', ':''}HDL ${hdlV}`;
-    if (tgV)    lipidVes += `${lipidVes?', ':''}TG ${tgV}`;
-
-    let otherVes = lipidVes || '';
-    if (tropoV) otherVes += `${otherVes?', ':''}Troponin I ${tropoV}`;
-    let coagVes = '';
-    if (ptV)    coagVes += `PT ${ptV}`;
-    if (inrV)   coagVes += `${coagVes?', ':''}INR ${inrV}`;
-    if (apttV)  coagVes += `${coagVes?', ':''}APTT ${apttV}`;
-    if (fibV)   coagVes += `${coagVes?', ':''}Fibrinogen ${fibV}`;
-    if (thrombV) coagVes += `${coagVes?', ':''}Thrombin time ${thrombV}`;
-    if (coagVes) otherVes += `${otherVes?', ':''}${coagVes}`;
-    if (otherVes) over(`otherLabs_${idx}`, otherVes);
-
+    V.na = vGet('Sodium'); V.k = vGet('Potassium'); V.cl = vGet('Chloride'); V.hco3 = vGet('Bicarbonate') || vGet('Total CO2') || vGet('CO2');
+    V.ca = vGet('Calcium'); V.mg = vGet('Magnesium'); V.po4 = vGet('Phosphorus') || vGet('Phosphate');
+    V.urea = vGet('Urea'); V.cr = vGet('Creatinine'); V.egfr = vGet('Egfr') || vGet('eGFR');
+    V.hb = vGet('Hemoglobin'); V.alb = vGet('Albumin'); V.crp = vGet('C.Reactive Protein') || vGet('CRP'); V.procal = vGet('Procalcitonin'); V.esr = vGet('ESR');
+    V.alt = vGet('Alanine Aminotransferase') || vGet('ALT'); V.ast = vGet('Aspartate Aminotransferase') || vGet('AST'); V.alp = vGet('Alkaline Phosphatase'); V.ggt = vGet('Gamma Glutamyl') || vGet('GGT'); V.bili = vGet('Bilirubin');
+    V.glu = vGet('Glucose'); V.hba1c = vGet('HbA1c') || vGet('Glycated');
+    V.tc = vGet('Total Cholesterol') || vGet('Cholesterol'); V.ldl = vGet('LDL Cholesterol') || vGet('LDL'); V.hdl = vGet('HDL Cholesterol') || vGet('HDL'); V.tg = vGet('Triglycerides') || vGet('Triglyceride');
+    V.ferritin = vGet('Ferritin'); V.iron = vGet('Serum Iron') || vGet('Iron'); V.tibc = vGet('TIBC') || vGet('Total Iron Binding'); V.tsat = vGet('Transferrin Saturation') || vGet('Transferrin Sat');
+    V.b12 = vGet('Vitamin B12') || vGet('Cobalamin') || vGet('B12'); V.folate = vGet('Folate') || vGet('Folic Acid'); V.vitd = vGet('Vitamin D') || vGet('25-Hydroxy') || vGet('25 Hydroxy'); V.zinc = vGet('Zinc');
+    V.wbc = vGet('White Blood Cell'); V.plt = vGet('Platelet Count'); V.mcv = vGet('MCV'); V.mch = vGet('MCH'); V.mchc = vGet('MCHC'); V.rbc = vGet('Red Blood Cell'); V.pcv = vGet('Packed Cell Volume'); V.neut = vGet('Neutrophil %'); V.lymph = vGet('Lymphocyte %');
+    const tropoV = vGet('Troponin'), ptV = vGet('Prothrombin Time'), inrV = vGet('INR'), apttV = vGet('APTT'), fibV = vGet('Fibrinogen'), thrombV = vGet('Thrombin Time');
+    if (tropoV) otherParts.push(`Troponin I ${tropoV}`);
+    const coag = [ptV && `PT ${ptV}`, inrV && `INR ${inrV}`, apttV && `APTT ${apttV}`, fibV && `Fibrinogen ${fibV}`, thrombV && `Thrombin ${thrombV}`].filter(Boolean).join(', ');
+    if (coag) otherParts.push(coag);
   } else {
     const blockStart = src.search(/(?:BIOCHEMISTRY|BIOCHEM|INVESTIGATION|LABS|LABORATORY|LIPID\s*PROFILE)[S&\s]*[:&\n]/i);
-    let investBlock = blockStart > -1 ? src.slice(blockStart) : src;
+    investBlock = blockStart > -1 ? src.slice(blockStart) : src;
     const blockEnd = investBlock.search(/(?:^|\n)\s*(?:CLINICAL|DIET|NUTRITION|ASSESSMENT|PLAN|IMPRESSION|ADVICE|MEDICATION|SOCIAL|ANTHROPOM)/im);
     if (blockEnd > 0) investBlock = investBlock.slice(0, blockEnd);
     const s = investBlock.length > 80 ? investBlock : src;
-
-    const hbM  = s.match(/\bHb[b]?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const tcM  = s.match(/\bTC[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bWBC[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const nlM  = s.match(/N\/L\/E[:\s]+([\d.]+\s*\/\s*[\d.]+\s*\/\s*[\d.]+(?:\s*→\s*[\d.]+\s*\/\s*[\d.]+\s*\/\s*[\d.]+)*)/i) || s.match(/N\/L[:\s]+([\d.]+\s*\/\s*[\d.]+(?:\s*→\s*[\d.]+\s*\/\s*[\d.]+)*)/i);
-    const pltM = s.match(/\bPlt(?:elet)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const pcvM = s.match(/\bPCV[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const mcvM = s.match(/\bMCV[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const reticM = s.match(/\bRetic(?:ulocyte)?[:\s]+([0-9.]+[%]?)/i);
-    const g6pdM  = s.match(/\bG6PD[:\s]+(\w+)/i);
-    const bgM    = s.match(/\bBlood\s+[Gg]roup[:\s]+([A-BO\+\-\s]+)/i);
-    if (hbM)    fbc += `Hb ${hbM[1]}`;
-    if (tcM)    fbc += `${fbc?', ':''}TC ${tcM[1]}`;
-    if (nlM)    fbc += `${fbc?', ':''}N/L ${nlM[1]}`;
-    if (pltM)   fbc += `${fbc?', ':''}Plt ${pltM[1]}`;
-    if (pcvM)   fbc += `${fbc?', ':''}PCV ${pcvM[1]}`;
-    if (mcvM)   fbc += `${fbc?', ':''}MCV ${mcvM[1]}`;
-    if (reticM) fbc += `${fbc?', ':''}Retic ${reticM[1]}`;
-    if (g6pdM)  fbc += `${fbc?', ':''}G6PD ${g6pdM[1]}`;
-    if (bgM)    fbc += `${fbc?', ':''}Blood group ${bgM[1].trim()}`;
-    if (fbc) over(`hb_${idx}`, fbc);
-
-    const crpM = s.match(/\bCRP[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const proM = s.match(/[Pp]rocalcitonin[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bProcal[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const esrM = s.match(/\bESR[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const ferM = s.match(/\bFerritin[:\s]+([0-9.]+)/i);
-    const ldhM = s.match(/\bLDH[:\s]+([0-9.]+)/i);
-    let inflam = '';
-    if (crpM)  inflam += `CRP ${crpM[1]}`;
-    if (proM)  inflam += `${inflam?', ':''}Procal ${proM[1]}`;
-    if (esrM)  inflam += `${inflam?', ':''}ESR ${esrM[1]}`;
-    if (ferM)  inflam += `${inflam?', ':''}Ferritin ${ferM[1]}`;
-    if (ldhM)  inflam += `${inflam?', ':''}LDH ${ldhM[1]}`;
-    if (inflam) over(`crp_${idx}`, inflam);
-
-    const naM    = s.match(/\bNa\+?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const kM     = s.match(/\bK[\s\+]*[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const ureaM  = s.match(/\bUrea[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const creatM = s.match(/\bCr(?:eat(?:inine)?)?n?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const egfrM  = s.match(/\beGFR[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const phosM  = s.match(/\bPhos(?:phorus|phate)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    let rft = '';
-    if (naM)    rft += `Na ${naM[1]}`;
-    if (kM)     rft += `${rft?', ':''}K ${kM[1]}`;
-    if (ureaM)  rft += `${rft?', ':''}Urea ${ureaM[1]}`;
-    if (creatM) rft += `${rft?', ':''}Cr ${creatM[1]}`;
-    if (egfrM)  rft += `${rft?', ':''}eGFR ${egfrM[1]}`;
-    if (phosM)  rft += `${rft?', ':''}Phos ${phosM[1]}`;
-    const rftNorm = /RFT[\s:-]+(?:WNL|Normal)/i.test(s);
-    if (rftNorm && !rft) rft = 'RFT Normal';
-    if (rft) over(`rft_${idx}`, rft);
-
-    const albM  = s.match(/\bAlb(?:umin)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const sgptM = s.match(/\bSGPT[:\s]*([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bALT[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bALT\/AST[:\s]+([0-9.]+)\/([0-9.]+)/i);
-    const sgotM = s.match(/\bSGOT[:\s]*([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bAST[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || s.match(/\bALT\/AST[:\s]+[0-9.]+\/([0-9.]+)/i);
-    const bilM  = s.match(/\bBilirubin[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
-    const lftNorm = /LFT[\s:-]+(?:WNL|Normal)/i.test(s);
-    let lft = '';
-    if (lftNorm) lft = 'LFT Normal';
-    if (sgptM)   lft += `${lft?', ':''}ALT ${sgptM[1]}`;
-    if (sgotM)   lft += `${lft?', ':''}AST ${sgotM[1]}`;
-    if (bilM)    lft += `${lft?', ':''}Bili ${bilM[1]}`;
-    if (albM)    lft += `${lft?', ':''}Alb ${albM[1]}`;
-    if (lft) over(`lft_${idx}`, lft);
-
-    const ironM     = s.match(/\bIron[:\s]+([0-9.]+)/i);
-    const transferM = s.match(/\bTransferrin[:\s]+([0-9.]+)/i) || s.match(/\bTIBC[:\s]+([0-9.]+)/i);
-    const hba1cM    = s.match(/\bHbA1c[:\s]+([0-9.]+[%]?)/i);
-    const vitDM     = s.match(/\bVitamin\s*D[:\s]+([0-9.]+)/i) || s.match(/\bVit\.?\s*D[:\s]+([0-9.]+)/i) || s.match(/\bVD[:\s]+([0-9.]+)/i);
-    const b12M      = s.match(/\bB\.?12[:\s]+([0-9.]+)/i) || s.match(/\bVitamin\s*B\.?12[:\s]+([0-9.]+)/i);
-    const caM       = s.match(/\bCa(?:lcium)?[:\s]+([0-9.]+)/i);
-    const mgM       = s.match(/\bMg(?:nesium)?[:\s]+([0-9.]+)/i);
-    const cholM     = s.match(/\bT\.?\s*Chol(?:esterol)?[:\s]+([0-9.]+)/i) || s.match(/\bTotal\s+Cholesterol\s+([0-9.]+)/i) || s.match(/\bChol(?:esterol)?[:\s]+([0-9.]+)/i);
-    const ldlM      = s.match(/\bLDL(?:\s+Cholesterol)?\s*[:\s]+([0-9.]+)/i);
-    const hdlM      = s.match(/\bHDL(?:\s+Cholesterol)?\s*[:\s]+([0-9.]+)/i);
-    const cholRatioM= s.match(/Cholesterol\s*\/\s*HDL[:\s]+([0-9.]+)/i) || s.match(/T\.?Chol(?:esterol)?\s*\/\s*HDL[:\s]+([0-9.]+)/i);
-    const tgM       = s.match(/\bTG[:\s]+([0-9.]+)/i) || s.match(/\bTriglycerides?[:\s\s]+([0-9.]+)/i) || s.match(/\bTriglycerides?\s+([0-9.]+)/i);
-    const bnpM      = s.match(/\bBNP[:\s]+([0-9.]+)/i) || s.match(/\bNT[\s-]*pro[\s-]*BNP[:\s]+([0-9.]+)/i);
-    const ddimerM   = s.match(/\bD-?[Dd]imer[:\s]+([0-9.]+)/i);
-    const tropoM    = s.match(/\bTroponin[:\s]+([0-9.]+)/i);
-    const ptM       = s.match(/\bProthrombin\s+Time[:\s]+([0-9.]+)/i) || s.match(/\bPT[:\s]+([0-9.]+)/i);
-    const inrM      = s.match(/\bINR[:\s]+([0-9.]+)/i);
-    const apttM     = s.match(/\bAPTT[:\s]+([0-9.]+)/i);
-    const fibM      = s.match(/\bFibrinogen[:\s]+([0-9.]+)/i);
-    const coagNorm  = /Coagulation\s+profile[\s:-]+(?:WNL|Normal)/i.test(s);
-    const uacrM     = s.match(/\bUACR[:\s]+([0-9.]+)/i) || s.match(/\bAlbumin[:\s]*\/[:\s]*Creatinine[:\s]+([0-9.]+)/i);
-    const cpepM     = s.match(/\bC[\s-]?[Pp]ep(?:tide)?[:\s]+([0-9.]+)/i);
-    const usgM      = s.match(/USG[:\-\s]+([^\n]{5,60})/i);
-    const dengueM   = s.match(/Dengue\s+(?:serology|NS1|IgG|IgM)[:\s]+(\w+)/i);
-    const influPCRM = s.match(/Influenza\s+PCR[:\s]+([^\n\-]+)/i);
-    const influRapM = s.match(/Influenza\s+(?:rapid|Ag)[:\s]+(\w+)/i);
-    const bloodCxM  = s.match(/Blood\s+(?:culture|cs|c\/s)[:\s]*([^\n\-]*)/i);
-    const urineCxM  = s.match(/Urine\s+(?:culture|c\/s)[:\s]*([^\n\-]*)/i);
-    const cxrM      = s.match(/CXR[:\s]+([^\n\-]+)/i);
-    const ketoneM   = s.match(/[Kk]etone[s]?[:\s+]*([0-9+\w]+)/i);
-    const urineM    = s.match(/Urine\s+(?:analysis|R\/E|routine)[:\s]+(\w[^\n,]*)/i);
-    // CBG / glucose table — grab latest values if present
-    const cbgM      = s.match(/CBG[:\s]*\n([\s\S]{0,300}?)(?=\n\n|\n[A-Z]|$)/i);
-    let other = '';
-    const addO = (label, m, i2) => { if (m) other += `${other?', ':''}${label} ${(m[i2||1]||'').trim()}`; };
-    // "Calcium and Magnesium: normal" text result
+    const TR = '(?:\\s*→\\s*[\\d.\\/]+)*';
+    const gm = (re, i2) => { const m = s.match(re); return m ? (m[i2 || 1] || '').toString().trim() : null; };
+    const num = lbl => gm(new RegExp('\\b' + lbl + '[:\\s]+([0-9.]+' + TR + ')', 'i'));
+    V.na = gm(/\bNa\+?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    V.k = gm(/\bK[\s\+]*[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    V.cl = num('Cl(?:oride)?'); V.hco3 = gm(/\b(?:HCO3|Bicarb(?:onate)?)[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    V.ca = gm(/\bCa(?:lcium)?[:\s]+([0-9.]+)/i); V.mg = gm(/\bMg(?:nesium)?[:\s]+([0-9.]+)/i) || gm(/\bMagnesium[:\s]+([0-9.]+)/i);
+    V.po4 = gm(/\bPhos(?:phorus|phate)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || gm(/\bPO4[:\s]+([0-9.]+)/i);
+    V.urea = num('Urea'); V.cr = gm(/\bCr(?:eat(?:inine)?)?n?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.egfr = num('eGFR');
+    V.hb = gm(/\bHb[b]?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    V.alb = gm(/\bAlb(?:umin)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    V.crp = num('CRP'); V.procal = gm(/[Pp]rocalcitonin[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || num('Procal'); V.esr = num('ESR');
+    V.alt = gm(/\bSGPT[:\s]*([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || num('ALT'); V.ast = gm(/\bSGOT[:\s]*([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || num('AST');
+    V.alp = num('ALP') || gm(/\bAlkaline\s+Phosphatase[:\s]+([0-9.]+)/i); V.ggt = num('GGT'); V.bili = num('Bilirubin') || gm(/\bT\.?\s*Bili[:\s]+([0-9.]+)/i);
+    V.glu = gm(/\b(?:RBS|FBS|RBG|Glucose|BSL)[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.hba1c = gm(/\bHbA1c[:\s]+([0-9.]+%?)/i);
+    V.tc = gm(/\bT\.?\s*Chol(?:esterol)?[:\s]+([0-9.]+)/i) || gm(/\bTotal\s+Cholesterol\s+([0-9.]+)/i) || gm(/\bChol(?:esterol)?[:\s]+([0-9.]+)/i);
+    V.ldl = gm(/\bLDL(?:\s+Cholesterol)?\s*[:\s]+([0-9.]+)/i); V.hdl = gm(/\bHDL(?:\s+Cholesterol)?\s*[:\s]+([0-9.]+)/i);
+    V.tg = num('TG') || gm(/\bTriglycerides?[:\s]+([0-9.]+)/i) || gm(/\bTriglycerides?\s+([0-9.]+)/i);
+    V.ferritin = gm(/\bFerritin[:\s]+([0-9.]+)/i); V.iron = gm(/\bIron[:\s]+([0-9.]+)/i); V.tibc = num('TIBC') || gm(/\bTransferrin[:\s]+([0-9.]+)/i); V.tsat = gm(/\bTransferrin\s+sat(?:uration)?[:\s]+([0-9.]+)/i);
+    V.b12 = gm(/\bB\.?12[:\s]+([0-9.]+)/i) || gm(/\bVitamin\s*B\.?12[:\s]+([0-9.]+)/i); V.folate = num('Folate') || gm(/\bFolic\s+Acid[:\s]+([0-9.]+)/i);
+    V.vitd = gm(/\bVitamin\s*D[:\s]+([0-9.]+)/i) || gm(/\bVit\.?\s*D[:\s]+([0-9.]+)/i) || num('VD'); V.zinc = num('Zinc');
+    V.wbc = gm(/\b(?:TC|WBC)[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.plt = gm(/\bPlt(?:elet)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
+    V.pcv = num('PCV'); V.mcv = num('MCV');
+    const nlM = s.match(/N\/L\/E[:\s]+([\d.]+\s*\/\s*[\d.]+\s*\/\s*[\d.]+(?:\s*→\s*[\d.]+\s*\/\s*[\d.]+\s*\/\s*[\d.]+)*)/i) || s.match(/N\/L[:\s]+([\d.]+\s*\/\s*[\d.]+(?:\s*→\s*[\d.]+\s*\/\s*[\d.]+)*)/i);
+    if (nlM) V.nl = nlM[1];
+    const reticM = s.match(/\bRetic(?:ulocyte)?[:\s]+([0-9.]+%?)/i); if (reticM) V.retic = reticM[1];
+    const g6pdM = s.match(/\bG6PD[:\s]+(\w+)/i); const bgM = s.match(/\bBlood\s+[Gg]roup[:\s]+([A-BO\+\-\s]+)/i);
+    // Other-cluster: coags, cardiac, misc, cultures, serology, urine
+    const tropoM = gm(/\bTroponin[:\s]+([0-9.]+)/i), ptM = gm(/\bProthrombin\s+Time[:\s]+([0-9.]+)/i) || num('PT'), inrM = num('INR'), apttM = num('APTT'), fibM = gm(/\bFibrinogen[:\s]+([0-9.]+)/i);
+    const bnpM = num('BNP') || gm(/\bNT[\s-]*pro[\s-]*BNP[:\s]+([0-9.]+)/i), ddimerM = gm(/\bD-?[Dd]imer[:\s]+([0-9.]+)/i), ldhM = num('LDH'), uacrM = num('UACR'), cpepM = gm(/\bC[\s-]?[Pp]ep(?:tide)?[:\s]+([0-9.]+)/i);
+    const cholRatioM = s.match(/Cholesterol\s*\/\s*HDL[:\s]+([0-9.]+)/i);
     const caMgNormM = /[Cc]alcium\s+and\s+[Mm]agnesium[:\s]+[Nn]ormal/i.test(s) || /\bCa\s*(?:and|&|\+)\s*Mg[:\s]+[Nn]ormal/i.test(s);
-    addO('Iron', ironM); addO('Transferrin', transferM); addO('HbA1c', hba1cM);
-    addO('Vit D', vitDM); addO('B12', b12M);
-    if (caMgNormM && !caM && !mgM) { other += `${other?', ':''}Ca & Mg: Normal`; }
-    else { addO('Ca', caM); addO('Mg', mgM); }
-    addO('Chol', cholM); addO('LDL', ldlM); addO('HDL', hdlM);
-    if (cholRatioM) other += `${other?', ':''}Chol/HDL ratio ${cholRatioM[1]}`;
-    addO('TG', tgM); addO('BNP', bnpM); addO('D-Dimer', ddimerM);
-    addO('Troponin I', tropoM); addO('UACR', uacrM); addO('C-peptide', cpepM);
-    if (ptM || inrM || apttM || fibM) {
-      let cs = '';
-      if (ptM)   cs += `PT ${ptM[1]}`;
-      if (inrM)  cs += `${cs?', ':''}INR ${inrM[1]}`;
-      if (apttM) cs += `${cs?', ':''}APTT ${apttM[1]}`;
-      if (fibM)  cs += `${cs?', ':''}Fibrinogen ${fibM[1]}`;
-      other += `${other?', ':''}${cs}`;
-    } else if (coagNorm) { other += `${other?', ':''}Coagulation profile normal`; }
-    if (dengueM)   other += `${other?', ':''}Dengue serology ${dengueM[1]}`;
-    if (influPCRM) other += `${other?', ':''}Influenza PCR ${influPCRM[1].trim()}`;
-    if (influRapM) other += `${other?', ':''}Influenza rapid ${influRapM[1]}`;
-    if (bloodCxM)  { const v = bloodCxM[1].trim(); other += `${other?', ':''}Blood culture${v?': '+v:''}`; }
-    if (urineCxM)  { const v = urineCxM[1].trim(); other += `${other?', ':''}Urine culture${v?': '+v:''}`; }
-    if (ketoneM)   other += `${other?', ':''}Ketones ${ketoneM[1]}`;
-    if (urineM && !ketoneM) other += `${other?', ':''}Urine ${urineM[1]}`;
-    if (other) over(`otherLabs_${idx}`, other);
+    if (caMgNormM && !V.ca && !V.mg) otherParts.push('Ca & Mg: Normal');
+    if (V.retic) otherParts.push(`Retic ${V.retic}`);
+    if (g6pdM) otherParts.push(`G6PD ${g6pdM[1]}`);
+    if (bgM) otherParts.push(`Blood group ${bgM[1].trim()}`);
+    if (ldhM) otherParts.push(`LDH ${ldhM}`);
+    if (cholRatioM) otherParts.push(`Chol/HDL ratio ${cholRatioM[1]}`);
+    if (bnpM) otherParts.push(`BNP ${bnpM}`); if (ddimerM) otherParts.push(`D-Dimer ${ddimerM}`);
+    if (tropoM) otherParts.push(`Troponin I ${tropoM}`); if (uacrM) otherParts.push(`UACR ${uacrM}`); if (cpepM) otherParts.push(`C-peptide ${cpepM}`);
+    const coag = [ptM && `PT ${ptM}`, inrM && `INR ${inrM}`, apttM && `APTT ${apttM}`, fibM && `Fibrinogen ${fibM}`].filter(Boolean).join(', ');
+    if (coag) otherParts.push(coag);
+    else if (/Coagulation\s+profile[\s:-]+(?:WNL|Normal)/i.test(s)) otherParts.push('Coagulation profile normal');
+    const dengueM = s.match(/Dengue\s+(?:serology|NS1|IgG|IgM)[:\s]+(\w+)/i); if (dengueM) otherParts.push(`Dengue serology ${dengueM[1]}`);
+    const influPCRM = s.match(/Influenza\s+PCR[:\s]+([^\n\-]+)/i); if (influPCRM) otherParts.push(`Influenza PCR ${influPCRM[1].trim()}`);
+    const influRapM = s.match(/Influenza\s+(?:rapid|Ag)[:\s]+(\w+)/i); if (influRapM) otherParts.push(`Influenza rapid ${influRapM[1]}`);
+    const bloodCxM = s.match(/Blood\s+(?:culture|cs|c\/s)[:\s]*([^\n\-]*)/i); if (bloodCxM) { const v = bloodCxM[1].trim(); otherParts.push(`Blood culture${v ? ': ' + v : ''}`); }
+    const urineCxM = s.match(/Urine\s+(?:culture|c\/s)[:\s]*([^\n\-]*)/i); if (urineCxM) { const v = urineCxM[1].trim(); otherParts.push(`Urine culture${v ? ': ' + v : ''}`); }
+    const ketoneM = s.match(/[Kk]etone[s]?[:\s+]*([0-9+\w]+)/i); if (ketoneM) otherParts.push(`Ketones ${ketoneM[1]}`);
+    const urineM = s.match(/Urine\s+(?:analysis|R\/E|routine)[:\s]+(\w[^\n,]*)/i); if (urineM && !ketoneM) otherParts.push(`Urine ${urineM[1]}`);
+    const cxrM = s.match(/CXR[:\s]+([^\n\-]+)/i); if (cxrM) cxrTxt = cxrM[1].trim();
+    const usgM = s.match(/USG[:\-\s]+([^\n]{5,60})/i); if (usgM) usgTxt = usgM[1].trim();
+    const cbgM = s.match(/CBG[:\s]*\n([\s\S]{0,300}?)(?=\n\n|\n[A-Z]|$)/i); if (cbgM) cbgBlock = cbgM[1].replace(/\s+/g, ' ').trim().substring(0, 120);
+  }
 
-    // CXR + USG -> investigations field (try IP then OPD id)
+  // ── Assemble the clusters from V and write each (auto-revealing occasional fields). ──
+  const J = arr => arr.filter(Boolean).join(', ');
+  const setF = (name, val) => { if (!val) return; over(`${name}_${idx}`, val); const el = document.getElementById(`${name}_${idx}`); const fg = el && el.closest('.form-group'); if (fg) fg.style.display = ''; };
+  setF('elytes', J([V.na && `Na ${V.na}`, V.k && `K ${V.k}`, V.cl && `Cl ${V.cl}`, V.hco3 && `HCO₃ ${V.hco3}`, V.ca && `Ca ${V.ca}`, V.mg && `Mg ${V.mg}`, V.po4 && `PO₄ ${V.po4}`]));
+  setF('renal', J([V.urea && `Urea ${V.urea}`, V.cr && `Cr ${V.cr}`, V.egfr && `eGFR ${V.egfr}`]));
+  setF('status', J([V.hb && `Hb ${V.hb}`, V.alb && `Alb ${V.alb}`, V.crp && `CRP ${V.crp}`, V.procal && `Procal ${V.procal}`, V.esr && `ESR ${V.esr}`]));
+  setF('lft', J([V.alt && `ALT ${V.alt}`, V.ast && `AST ${V.ast}`, V.alp && `ALP ${V.alp}`, V.ggt && `GGT ${V.ggt}`, V.bili && `Bili ${V.bili}`]));
+  setF('glyc', J([V.glu && `Glucose ${V.glu}`, V.hba1c && `HbA1c ${V.hba1c}`, cbgBlock && `CBG ${cbgBlock}`]));
+  setF('lipids', J([V.tc && `Chol ${V.tc}`, V.ldl && `LDL ${V.ldl}`, V.hdl && `HDL ${V.hdl}`, V.tg && `TG ${V.tg}`]));
+  setF('iron', J([V.ferritin && `Ferritin ${V.ferritin}`, V.iron && `Iron ${V.iron}`, V.tibc && `TIBC ${V.tibc}`, V.tsat && `T.sat ${V.tsat}`]));
+  setF('micros', J([V.b12 && `B12 ${V.b12}`, V.folate && `Folate ${V.folate}`, V.vitd && `Vit D ${V.vitd}`, V.zinc && `Zinc ${V.zinc}`]));
+  // FBC echoes everything except Hb (Hb lives in Status to avoid a duplicate in the note).
+  setF('fbc', J([V.wbc && `WBC ${V.wbc}`, (V.neut && V.lymph) ? `N/L ${V.neut}/${V.lymph}` : (V.nl && `N/L ${V.nl}`), V.plt && `Plt ${V.plt}`, V.rbc && `RBC ${V.rbc}`, V.pcv && `PCV ${V.pcv}`, V.mcv && `MCV ${V.mcv}`, V.mch && `MCH ${V.mch}`, V.mchc && `MCHC ${V.mchc}`]));
+  setF('other', otherParts.filter(Boolean).join(', '));
+
+  // CXR + USG -> investigations field (try IP then OPD id)
+  if (cxrTxt || usgTxt) {
     const investEl = document.getElementById(`investigations_${idx}`) || document.getElementById(`opInvestigations_${idx}`);
     if (investEl && !investEl.value) {
       const investLines = [];
-      if (cxrM) investLines.push(`CXR: ${cxrM[1].trim()}`);
-      if (usgM) investLines.push(`USG: ${usgM[1].trim()}`);
+      if (cxrTxt) investLines.push(`CXR: ${cxrTxt}`);
+      if (usgTxt) investLines.push(`USG: ${usgTxt}`);
       if (investLines.length) investEl.value = investLines.join('\n');
     }
-
-    // CBG table -> glucose field
-    if (cbgM) {
-      const bglEl = document.getElementById(`bgl_${idx}`) || document.getElementById(`opBgl_${idx}`);
-      if (bglEl && !bglEl.value) bglEl.value = `CBG: ${cbgM[1].replace(/\s+/g,' ').trim().substring(0,120)}`;
-    }
-
+  }
+  if (investBlock) {
     const lpe = document.getElementById(`labsPaste_${idx}`);
     if (lpe && !lpe.value && investBlock.length > 40) lpe.value = investBlock.trim().substring(0, 800);
   }
 
-  const filled = [`hb_${idx}`,`crp_${idx}`,`rft_${idx}`,`lft_${idx}`,`otherLabs_${idx}`].filter(id => document.getElementById(id)?.value).length;
+  const filled = [`elytes_${idx}`,`renal_${idx}`,`status_${idx}`,`lft_${idx}`,`glyc_${idx}`,`lipids_${idx}`,`iron_${idx}`,`micros_${idx}`,`fbc_${idx}`,`other_${idx}`].filter(id => document.getElementById(id)?.value).length;
   const labsBanner = document.getElementById(`labsBanner_${idx}`);
   if (labsBanner) {
     labsBanner.style.display = 'block';
@@ -5605,13 +5516,18 @@ function renderPrechart(idx) {
               </div>
             </div>
             <div class="form-grid">
-              <div class="form-group"><label>Hb / FBC</label><input type="text" id="hb_${idx}" inputmode="decimal" value="${esc(saved.hb||'')}" placeholder="e.g. Hb 10.5, TC 14.2"></div>
-              <div class="form-group"><label>CRP / Procalcitonin</label><input type="text" id="crp_${idx}" inputmode="decimal" value="${esc(saved.crp||'')}" placeholder="e.g. CRP 2.5"></div>
-              <div class="form-group"><label>RFT (Na / K / Urea)</label><input type="text" id="rft_${idx}" value="${esc(saved.rft||'')}" placeholder="e.g. Na 138, K 3.9"></div>
-              <div class="form-group"><label>LFT / Albumin</label><input type="text" id="lft_${idx}" value="${esc(saved.lft||'')}" placeholder="e.g. WNL / Alb 3.2"></div>
-              <div class="form-group"><label>Other labs</label><textarea class="field auto-detail" id="otherLabs_${idx}" placeholder="e.g. Ferritin, HbA1c" style="min-height:38px">${esc(saved.otherLabs||'')}</textarea></div>
-              <div class="form-group"><label>Glucose / BGLs</label><textarea class="field auto-detail" id="bgl_${idx}" inputmode="decimal" placeholder="e.g. 6am 252" style="min-height:38px">${esc(saved.bgl||'')}</textarea></div>
+              <div class="form-group"><label>⚡ Electrolytes &amp; minerals</label><input type="text" id="elytes_${idx}" value="${esc(saved.elytes||'')}" placeholder="Na, K, Cl, HCO₃, Ca, Mg, PO₄"></div>
+              <div class="form-group"><label>🫘 Renal (Urea / Cr / eGFR)</label><input type="text" id="renal_${idx}" value="${esc(saved.renal||saved.rft||'')}" placeholder="Urea, Cr, eGFR"></div>
+              <div class="form-group"><label>🩸 Status (Hb / Alb / CRP)</label><input type="text" id="status_${idx}" value="${esc(saved.status||[saved.hb,saved.crp].filter(Boolean).join(', '))}" placeholder="Hb, Albumin, CRP"></div>
+              <div class="form-group lab-occasional" style="display:${saved.lft?'':'none'}"><label>LFTs</label><input type="text" id="lft_${idx}" value="${esc(saved.lft||'')}" placeholder="ALT, AST, ALP, GGT, Bili"></div>
+              <div class="form-group lab-occasional" style="display:${(saved.glyc||saved.bgl)?'':'none'}"><label>Glucose / HbA1c</label><input type="text" id="glyc_${idx}" value="${esc(saved.glyc||saved.bgl||'')}" placeholder="Glucose, HbA1c"></div>
+              <div class="form-group lab-occasional" style="display:${saved.lipids?'':'none'}"><label>Lipids</label><input type="text" id="lipids_${idx}" value="${esc(saved.lipids||'')}" placeholder="Chol, LDL, HDL, TG"></div>
+              <div class="form-group lab-occasional" style="display:${saved.iron?'':'none'}"><label>Iron studies</label><input type="text" id="iron_${idx}" value="${esc(saved.iron||'')}" placeholder="Ferritin, Iron, TIBC, T.sat"></div>
+              <div class="form-group lab-occasional" style="display:${saved.micros?'':'none'}"><label>Vitamins / micronutrients</label><input type="text" id="micros_${idx}" value="${esc(saved.micros||'')}" placeholder="B12, Folate, Vit D, Zinc"></div>
+              <div class="form-group lab-occasional" style="display:${saved.fbc?'':'none'}"><label>FBC (WBC / Plt / MCV)</label><input type="text" id="fbc_${idx}" value="${esc(saved.fbc||'')}" placeholder="WBC, Plt, MCV, diff"></div>
+              <div class="form-group lab-occasional" style="display:${(saved.other||saved.otherLabs)?'':'none'}"><label>Other labs</label><textarea class="field auto-detail" id="other_${idx}" placeholder="coags, TFTs, troponin…" style="min-height:38px">${esc(saved.other||saved.otherLabs||'')}</textarea></div>
             </div>
+            <button class="btn-ghost btn-small" onclick="toggleMoreLabs(${idx},this)" style="margin-top:8px;font-size:11px;padding:3px 10px">➕ More lab groups</button>
             <div class="form-group" style="margin-top:10px">
               <label>Investigations <span style="font-weight:400;color:var(--text-muted)">(imaging, cultures, ECG, swallow assessment)</span></label>
               <textarea class="field field-sm" id="investigations_${idx}" placeholder="e.g. CXR: Normal&#10;USG: Grade 1 fatty liver&#10;Blood culture: pending">${esc(saved.investigations||'')}</textarea>
@@ -6181,6 +6097,7 @@ function importPrevNote(idx, cfg) {
       el.value = String(val).trim();
       if (!el.value.trim()) return; // value didn't take (e.g. a <select> with no matching option)
       el.classList.add('from-prev');
+      const fg = el.closest('.form-group'); if (fg) fg.style.display = ''; // reveal occasional lab clusters
       if (typeof autoExpand === 'function') autoExpand(el);
       filled++;
     }
@@ -6213,21 +6130,49 @@ function importPrevNote(idx, cfg) {
   const bio = sec['BIOCHEMISTRY & INVESTIGATIONS'] || '';
   const labLine = bio.split('\n')[0] || '';
   if (labLine) {
-    const b = { hb:[], crp:[], rft:[], lft:[], other:[], bgl:[] };
-    labLine.split('|').map(s=>s.trim()).filter(Boolean).forEach(pc => {
-      if (/glucose\/bgls?:/i.test(pc)) b.bgl.push(pc.replace(/glucose\/bgls?:\s*/i,''));
-      else if (/\b(Hb|FBC|Plt|TC|WBC|Hct|MCV|Platelet)\b/i.test(pc)) b.hb.push(pc);
-      else if (/\b(CRP|Procalcitonin|ESR)\b/i.test(pc)) b.crp.push(pc);
-      else if (/\b(Na|K|Urea|Creat|eGFR|RFT|Bicarb|Cl)\b/i.test(pc)) b.rft.push(pc);
-      else if (/\b(Alb|Albumin|LFT|Bili|ALT|AST|GGT|ALP)\b/i.test(pc)) b.lft.push(pc);
-      else b.other.push(pc);
-    });
-    fill(F.hb, b.hb.join(', '));
-    fill(F.crp, b.crp.join(', '));
-    fill(F.rft, b.rft.join(', '));
-    fill(F.lft, b.lft.join(', '));
-    fill(F.other, b.other.join(', '));
-    fill(F.bgl, b.bgl.join(', '));
+    const pieces = labLine.split('|').map(s=>s.trim()).filter(Boolean);
+    if (cfg.labMode === 'clusters') {
+      // IP — new 10-cluster fields. Handles both the new label format ("Electrolytes: …",
+      // "Renal: …", "LFT: …") and legacy/unlabelled pieces routed by analyte keyword.
+      const b = { elytes:[], renal:[], status:[], lft:[], glyc:[], lipids:[], iron:[], micros:[], fbc:[], other:[] };
+      pieces.forEach(pc => {
+        const m = pc.match(/^([^:]+):\s*(.*)$/);
+        const lbl = m ? m[1].trim().toLowerCase() : '';
+        const body = m ? m[2].trim() : pc;
+        if (/^electrolyte/.test(lbl)) b.elytes.push(body);
+        else if (/^renal/.test(lbl)) b.renal.push(body);
+        else if (/^lft/.test(lbl)) b.lft.push(body);
+        else if (/glucose|hba1c/.test(lbl)) b.glyc.push(body);
+        else if (/^lipid/.test(lbl)) b.lipids.push(body);
+        else if (/^iron/.test(lbl)) b.iron.push(body);
+        else if (/micronutrient/.test(lbl)) b.micros.push(body);
+        else if (/^fbc/.test(lbl)) b.fbc.push(body);
+        else if (/\b(Na|K|Cl|HCO|Bicarb|Calcium|Magnesium|\bCa\b|\bMg\b|PO4|PO₄|Phos)\b/i.test(pc)) b.elytes.push(pc);
+        else if (/\b(Urea|Creat|Cr|eGFR)\b/i.test(pc)) b.renal.push(pc);
+        else if (/\b(Hb|Hemoglobin|Alb|Albumin|CRP|Procal|ESR)\b/i.test(pc)) b.status.push(pc);
+        else if (/\b(ALT|AST|GGT|ALP|Bili|SGPT|SGOT)\b/i.test(pc)) b.lft.push(pc);
+        else if (/\b(Glucose|HbA1c|CBG|RBS|FBS|BSL)\b/i.test(pc)) b.glyc.push(pc);
+        else if (/\b(Chol|LDL|HDL|TG|Triglyceride)\b/i.test(pc)) b.lipids.push(pc);
+        else if (/\b(Ferritin|Iron|TIBC|Transferrin)\b/i.test(pc)) b.iron.push(pc);
+        else if (/\b(B12|Folate|Vit\s*D|Vitamin|Zinc)\b/i.test(pc)) b.micros.push(pc);
+        else if (/\b(WBC|Plt|Platelet|MCV|MCH|MCHC|PCV|RBC|N\/L)\b/i.test(pc)) b.fbc.push(pc);
+        else b.other.push(pc);
+      });
+      Object.keys(b).forEach(k => fill(F[k], b[k].join(', ')));
+    } else {
+      // OPD — legacy field set (unchanged).
+      const b = { hb:[], crp:[], rft:[], lft:[], other:[], bgl:[] };
+      pieces.forEach(pc => {
+        if (/glucose\/bgls?:/i.test(pc)) b.bgl.push(pc.replace(/glucose\/bgls?:\s*/i,''));
+        else if (/\b(Hb|FBC|Plt|TC|WBC|Hct|MCV|Platelet)\b/i.test(pc)) b.hb.push(pc);
+        else if (/\b(CRP|Procalcitonin|ESR)\b/i.test(pc)) b.crp.push(pc);
+        else if (/\b(Na|K|Urea|Creat|eGFR|RFT|Bicarb|Cl)\b/i.test(pc)) b.rft.push(pc);
+        else if (/\b(Alb|Albumin|LFT|Bili|ALT|AST|GGT|ALP)\b/i.test(pc)) b.lft.push(pc);
+        else b.other.push(pc);
+      });
+      fill(F.hb, b.hb.join(', ')); fill(F.crp, b.crp.join(', ')); fill(F.rft, b.rft.join(', '));
+      fill(F.lft, b.lft.join(', ')); fill(F.other, b.other.join(', ')); fill(F.bgl, b.bgl.join(', '));
+    }
   }
 
   // Diet history — [label, baseId] pairs (differ between IP and OPD)
@@ -6264,11 +6209,12 @@ function importPrevNote(idx, cfg) {
 // IP import — fills the inpatient field set.
 function parsePrevPlan(idx) {
   importPrevNote(idx, {
-    prevId: 'prevPlan', banner: 'labsBanner',
+    prevId: 'prevPlan', banner: 'labsBanner', labMode: 'clusters',
     intakeLabel: 'Estimated current intake:',
     fields: { pmh:'pmhText', social:'socialHx', wt:'wt', ht:'ht', bmi:'bmi',
       wtChg:'wtChg', wtHx:'wtHx', nutStatus:'nutStatus',
-      hb:'hb', crp:'crp', rft:'rft', lft:'lft', other:'otherLabs', bgl:'bgl',
+      elytes:'elytes', renal:'renal', status:'status', lft:'lft', glyc:'glyc',
+      lipids:'lipids', iron:'iron', micros:'micros', fbc:'fbc', other:'other',
       eer:'eer', epr:'epr', efr:'efr', intakePct:'intakePct',
       nutDx:'nutDx', goals:'goals', intervention:'intervention', monitoring:'monitoring',
       clinical:'clinicalNotes' },
@@ -6281,7 +6227,7 @@ function parsePrevPlan(idx) {
 // OPD import — same logic, outpatient field set (no fluid field; "Estimated intake:" label).
 function parseOPDPrevPlan(idx) {
   importPrevNote(idx, {
-    prevId: 'opPrevPlan', banner: 'opLabsBanner',
+    prevId: 'opPrevPlan', banner: 'opLabsBanner', labMode: 'legacy',
     intakeLabel: 'Estimated intake:',
     fields: { pmh:'opPmhText', social:'opSocialHx', wt:'opWt', ht:'opHt', bmi:'opBmi',
       wtChg:'opWtChg', wtHx:'opWtHx', nutStatus:'opNutStatus',
@@ -7124,7 +7070,7 @@ function sinceLastReviewBlock(prevText, cur) {
     if (prev && now && prev !== now) lines.push(`${label}: ${now} (was ${prev})`);
   };
   labRow('CRP', /\bCRP[:\s]*(-?\d+(?:\.\d+)?)/i, cur.crp);
-  labRow('Albumin', /\b(?:Albumin|Alb)[:\s]*(-?\d+(?:\.\d+)?)/i, cur.lft);
+  labRow('Albumin', /\b(?:Albumin|Alb)[:\s]*(-?\d+(?:\.\d+)?)/i, cur.alb || cur.lft);
 
   if (!lines.length) return '';
   return `SINCE LAST REVIEW\n${lines.join('\n')}\n\n`;
@@ -7166,12 +7112,16 @@ function generateNote(idx) {
   const funcStatusNote = g(`funcStatusNote_${idx}`);
   const wtUsed = g(`wtUsed_${idx}`);
 
-  const hb = g(`hb_${idx}`);
-  const crp = g(`crp_${idx}`);
-  const rft = g(`rft_${idx}`);
+  const elytes = g(`elytes_${idx}`);
+  const renal = g(`renal_${idx}`);
+  const statusLabs = g(`status_${idx}`);
   const lft = g(`lft_${idx}`);
-  const otherLabs = g(`otherLabs_${idx}`);
-  const bgl = g(`bgl_${idx}`);
+  const glyc = g(`glyc_${idx}`);
+  const lipids = g(`lipids_${idx}`);
+  const iron = g(`iron_${idx}`);
+  const micros = g(`micros_${idx}`);
+  const fbc = g(`fbc_${idx}`);
+  const otherLabs = g(`other_${idx}`);
 
   const appetite = radio(`appetite_${idx}`);
   const appetiteTrend = radio(`appetiteTrend_${idx}`);
@@ -7282,7 +7232,7 @@ function generateNote(idx) {
 
   // ── SINCE LAST REVIEW (review patients with a previous note pasted) ──
   if (/review/i.test(sessionType)) {
-    note += sinceLastReviewBlock(g(`prevPlan_${idx}`), { wt, crp, lft });
+    note += sinceLastReviewBlock(g(`prevPlan_${idx}`), { wt, crp: statusLabs, alb: statusLabs, lft });
   }
 
   // ── ANTHROPOMETRY ──
@@ -7329,16 +7279,20 @@ function generateNote(idx) {
   }
 
   // ── BIOCHEMISTRY & INVESTIGATIONS ──
-  const labsArr = [hb, crp, rft, lft, otherLabs, bgl].filter(Boolean);
+  const labsArr = [elytes, renal, statusLabs, lft, glyc, lipids, iron, micros, fbc, otherLabs].filter(Boolean);
   if (labsArr.length || investigations) {
     note += `BIOCHEMISTRY & INVESTIGATIONS\n`;
     const labParts = [];
-    if (hb) labParts.push(hb);
-    if (crp) labParts.push(crp);
-    if (rft) labParts.push(rft);
-    if (lft) labParts.push(lft);
+    if (elytes) labParts.push(`Electrolytes: ${elytes}`);
+    if (renal) labParts.push(`Renal: ${renal}`);
+    if (statusLabs) labParts.push(statusLabs);
+    if (lft) labParts.push(`LFT: ${lft}`);
+    if (glyc) labParts.push(`Glucose/HbA1c: ${glyc}`);
+    if (lipids) labParts.push(`Lipids: ${lipids}`);
+    if (iron) labParts.push(`Iron: ${iron}`);
+    if (micros) labParts.push(`Micronutrients: ${micros}`);
+    if (fbc) labParts.push(`FBC: ${fbc}`);
     if (otherLabs) labParts.push(otherLabs);
-    if (bgl) labParts.push(`Glucose/BGLs: ${bgl}`);
     if (labParts.length) note += labParts.join(' | ') + `\n`;
     if (investigations) {
       const investLines = investigations.split('\n').map(l => l.trim()).filter(Boolean);
@@ -7493,8 +7447,9 @@ function saveChart(idx, silent) {
     nutStatus: g(`nutStatus_${idx}`), pediPaste: g(`pediPaste_${idx}`),
     wtChg: g(`wtChg_${idx}`), sga: radio(`sga_${idx}`),
     socialHx: g(`socialHx_${idx}`),
-    hb: g(`hb_${idx}`), crp: g(`crp_${idx}`), rft: g(`rft_${idx}`),
-    lft: g(`lft_${idx}`), otherLabs: g(`otherLabs_${idx}`), bgl: g(`bgl_${idx}`),
+    elytes: g(`elytes_${idx}`), renal: g(`renal_${idx}`), status: g(`status_${idx}`),
+    lft: g(`lft_${idx}`), glyc: g(`glyc_${idx}`), lipids: g(`lipids_${idx}`),
+    iron: g(`iron_${idx}`), micros: g(`micros_${idx}`), fbc: g(`fbc_${idx}`), other: g(`other_${idx}`),
     appetite: radio(`appetite_${idx}`), swallow: radio(`swallow_${idx}`),
     appetiteTrend: radio(`appetiteTrend_${idx}`),
     appetiteDetail: g(`appetiteDetail_${idx}`),
