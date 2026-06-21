@@ -807,11 +807,15 @@
   .tchip:active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .tchip-ref { border-color: #7b2ff7; color: #7b2ff7; }
   .tchip-ref:active { background: #7b2ff7; color: #fff; }
-  .ses-badge { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 999px; cursor: pointer; }
-  .ses-r { background: #e3f0ff; color: #1f5fa8; }
-  .ses-a { background: #ede0ff; color: #6b29c7; }
-  body.dark .ses-r { background: #10243a; color: #76b2f0; }
-  body.dark .ses-a { background: #1e1233; color: #c39cf5; }
+  .ses-badge { font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 999px; cursor: pointer; }
+  /* Her paper highlighter system: pink = Review, fluorescent green = Assessment */
+  .ses-r { background: #ffc9de; color: #b3105e; }
+  .ses-a { background: #ccf29a; color: #2f7a04; }
+  body.dark .ses-r { background: #3a1124; color: #ff9ec4; }
+  body.dark .ses-a { background: #1f3309; color: #a6e26a; }
+  /* Highlighter stripe down a charted card, in the same colours */
+  .patient-card.charted-review { border-left: 5px solid #ec407a; }
+  .patient-card.charted-assess { border-left: 5px solid #5bb318; }
 
   /* ── COLLAPSIBLE SECTIONS ── */
   .section-header { cursor: pointer; user-select: none; }
@@ -1085,6 +1089,12 @@
     #ipAwarenessBanner .ipb-name { max-width: none; flex: 1 1 auto; }
     .clear-all-btn { display: none !important; }   /* not needed at the bedside on rounds */
   }
+  /* Collapsed: shrink to a small corner pill (phase + time) so the header is reachable */
+  #ipAwarenessBanner.ipb-collapsed { left: auto; right: 8px; transform: none; max-width: none; width: auto; padding: 5px 12px; }
+  #ipAwarenessBanner.ipb-collapsed .ipb-room,
+  #ipAwarenessBanner.ipb-collapsed .ipb-name,
+  #ipAwarenessBanner.ipb-collapsed .ipb-sub { display: none !important; }
+  #ipAwarenessBanner.ipb-collapsed .cb-time { margin-left: 8px; }
 
   /* ── LIVE PER-PATIENT FOCUS TIMER (rounds & finalising) ── */
   .focus-timer { align-items: center; gap: 6px; padding: 4px 11px; border-radius: var(--r-pill);
@@ -1298,7 +1308,7 @@
   <button class="cb-end" onclick="endOpenOPDConsultFromBanner()">■ End</button>
 </div>
 
-<div id="ipAwarenessBanner" style="display:none" onclick="ipBannerTap()" title="Go to current patient">
+<div id="ipAwarenessBanner" style="display:none" onclick="toggleIpBanner(event)" title="Tap to collapse / expand">
   <div class="ipb-row">
     <span class="ipb-phase" id="ipbPhase">Rounds</span>
     <span class="ipb-room" id="ipbRoom" style="display:none"></span>
@@ -1630,7 +1640,7 @@ function updateAwarenessTimers() {
 // consult banner that already cuts through time-blindness for her. Shows the current
 // patient's elapsed time + the phase total, escalates colour, vibrates + toasts at
 // the per-patient thresholds, and gives a gentle pacing pulse every 10 min.
-let _ipNudgeAmber = false, _ipNudgeRed = false, _ipPulseMark = 0, _ipPulsePhase = '';
+let _ipNudgeAmber = false, _ipNudgeRed = false, _ipPulseMark = 0, _ipPulsePhase = '', _ipBannerCollapsed = false;
 function _ipDayStart() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); }
 function fmtMins(ms) { const m = Math.floor(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; }
 // Live phase that (unlike detectPhase) promotes post-rounds work on an already-seen
@@ -1648,9 +1658,16 @@ function ipPhaseTotalMs(phase) {
 }
 function _vibe(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (_) {} }
 function ipBannerTap() { if (_focusIdx !== null && typeof selectPatient === 'function') selectPatient(_focusIdx); }
+// Tap the banner to collapse it to a small corner pill (frees the Save/Load/Restore
+// header controls on the phone) — still shows the time so awareness isn't lost.
+function toggleIpBanner(ev) { if (ev) ev.stopPropagation(); _ipBannerCollapsed = !_ipBannerCollapsed; updateIPBanner(); }
 function updateIPBanner() {
   const banner = document.getElementById('ipAwarenessBanner');
   if (!banner) return;
+  // While the crash-recovery prompt is up, hide the banner so Restore/Dismiss are reachable.
+  const rec = document.getElementById('recoveryBanner');
+  if (rec && getComputedStyle(rec).display !== 'none') { banner.style.display = 'none'; return; }
+  banner.classList.toggle('ipb-collapsed', _ipBannerCollapsed);
   const opdOpen = (typeof opdConsultLog !== 'undefined') && opdConsultLog.some(e => !e.endTime);
   const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
   // Set-up / triage: show a Set-up timer while she's working the list before pre-charting.
@@ -1677,7 +1694,7 @@ function updateIPBanner() {
   const ageTxt = ageR ? (ageR + (sx ? (/^\d+$/.test(ageR) ? '/' : ' ') + sx : '')) : (sx || '');
   const rEl = document.getElementById('ipbRoom'); if (rEl) { rEl.textContent = room ? ('🛏 ' + room) : ''; rEl.style.display = room ? '' : 'none'; }
   const aEl = document.getElementById('ipbAge'); if (aEl) { aEl.textContent = ageTxt; aEl.style.display = ageTxt ? '' : 'none'; }
-  set('ipbPer', hasPatient ? fmtClock(perMs) : '');
+  set('ipbPer', hasPatient ? fmtClock(perMs) : (_ipBannerCollapsed ? fmtClock(phaseMs) : ''));
   set('ipbTotal', `${phaseLabel} total ${fmtMins(phaseMs)}`);
   banner.classList.remove('ipb-amber', 'ipb-red');
   if (hasPatient && mins >= FOCUS_RED_MIN) banner.classList.add('ipb-red');
@@ -2694,6 +2711,7 @@ function renderList() {
     if (isActive) classes += ' active';
     if (isSeen) classes += ' seen';
     if (p.isNew) classes += ' new-admit';
+    if (isCharted) classes += /assess/i.test((chartData[origIdx]||{}).sessionType||'') ? ' charted-assess' : ' charted-review';
     classes += ' ' + p.ageGroup;
 
     const badgeLabel = p.ageGroup === 'infant' ? '<2y' : p.ageGroup === 'toddler' ? '2–5y' : p.ageGroup === 'child' ? '5–18y' : 'ADULT';
