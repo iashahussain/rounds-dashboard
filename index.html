@@ -1045,6 +1045,20 @@
   #opdConsultBanner .cb-end { background: rgba(255,255,255,.22); color: #fff; border: 1px solid rgba(255,255,255,.55); border-radius: var(--r-pill); padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
   #opdConsultBanner .cb-end:active { background: rgba(255,255,255,.38); }
 
+  /* ── IP AWARENESS BANNER (v89) — always-visible during rounds/precharting/finalising ── */
+  #ipAwarenessBanner {
+    position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
+    z-index: 299; align-items: center; gap: 12px;
+    max-width: calc(100vw - 20px);
+    padding: 7px 14px; border-radius: var(--r-pill);
+    background: #2563aa; color: #fff;
+    box-shadow: 0 6px 20px rgba(0,0,0,.32);
+    font-family: var(--sans); font-size: 13px; font-weight: 600;
+  }
+  #ipAwarenessBanner.ipb-amber { background: #b8860b; }
+  #ipAwarenessBanner.ipb-red { background: #c0392b; animation: cbpulse 1.4s ease-in-out infinite; }
+  #ipAwarenessBanner .ipb-total { font-size: 11px; opacity: .92; white-space: nowrap; border-left: 1px solid rgba(255,255,255,.4); padding-left: 12px; }
+
   /* ── LIVE PER-PATIENT FOCUS TIMER (rounds & finalising) ── */
   .focus-timer { align-items: center; gap: 6px; padding: 4px 11px; border-radius: var(--r-pill);
     font-family: var(--mono); font-weight: 700; font-size: 14px; line-height: 1; }
@@ -1255,6 +1269,15 @@
     <span id="opdConsultBannerTime" class="cb-time">00:00</span>
   </span>
   <button class="cb-end" onclick="endOpenOPDConsultFromBanner()">■ End</button>
+</div>
+
+<div id="ipAwarenessBanner" style="display:none">
+  <span class="cb-main" onclick="ipBannerTap()" title="Go to current patient">
+    <span class="cb-dot">●</span>
+    <span class="cb-label"><b id="ipbPhase">Rounds</b><span id="ipbNameWrap"> · <span id="ipbName"></span></span></span>
+    <span id="ipbPer" class="cb-time"></span>
+  </span>
+  <span class="ipb-total" id="ipbTotal"></span>
 </div>
 
 <header>
@@ -1523,7 +1546,7 @@ function fmtClock(ms) {
   return (h > 0 ? h + ':' : '') + String(m).padStart(h > 0 ? 2 : 1, '0') + ':' + String(x).padStart(2, '0');
 }
 
-function startFocusTimer(idx) { _focusIdx = idx; _focusStart = Date.now(); ensureAwarenessLoop(); updateAwarenessTimers(); }
+function startFocusTimer(idx) { _focusIdx = idx; _focusStart = Date.now(); _ipNudgeAmber = false; _ipNudgeRed = false; ensureAwarenessLoop(); updateAwarenessTimers(); }
 function stopFocusTimer() { _focusIdx = null; updateAwarenessTimers(); } // stops + hides the per-patient timer
 function ensureAwarenessLoop() { if (!_awarenessInterval) _awarenessInterval = setInterval(updateAwarenessTimers, 1000); }
 
@@ -1564,6 +1587,62 @@ function updateAwarenessTimers() {
       pEl.style.display = 'none';
     }
   }
+
+  updateIPBanner();
+}
+
+// ── IP AWARENESS BANNER (v89) ──────────────────────────────────────────────
+// Always-visible during IP rounds / pre-charting / finalising, mirroring the OPD
+// consult banner that already cuts through time-blindness for her. Shows the current
+// patient's elapsed time + the phase total, escalates colour, vibrates + toasts at
+// the per-patient thresholds, and gives a gentle pacing pulse every 10 min.
+let _ipNudgeAmber = false, _ipNudgeRed = false, _ipPulseMark = 0, _ipPulsePhase = '';
+function _ipDayStart() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); }
+function fmtMins(ms) { const m = Math.floor(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; }
+// Live phase that (unlike detectPhase) promotes post-rounds work on an already-seen
+// patient to "finalising", so the banner labels the evening write-up correctly in real time.
+function livePhase() {
+  const base = detectPhase();
+  if (base === 'precharting' && currentPanelOpen && panelOpenLog.some(e => e.phase === 'rounds') && seenSet.has(currentPanelOpen.idx)) return 'finalising';
+  return base;
+}
+function ipPhaseTotalMs(phase) {
+  const ds = _ipDayStart(); let tot = 0;
+  reclassifyFinalising(panelOpenLog.filter(e => e.endTime && e.endTime >= ds)).forEach(e => { if (e.phase === phase) tot += e.endTime - e.startTime; });
+  if (currentPanelOpen && phase === livePhase()) tot += Date.now() - currentPanelOpen.startTime;
+  return tot;
+}
+function _vibe(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (_) {} }
+function ipBannerTap() { if (_focusIdx !== null && typeof selectPatient === 'function') selectPatient(_focusIdx); }
+function updateIPBanner() {
+  const banner = document.getElementById('ipAwarenessBanner');
+  if (!banner) return;
+  const opdOpen = (typeof opdConsultLog !== 'undefined') && opdConsultLog.some(e => !e.endTime);
+  const phase = livePhase();
+  const hasPatient = _focusIdx !== null && patients[_focusIdx];
+  const phaseMs = ipPhaseTotalMs(phase);
+  const active = currentMode === 'ip' && !opdOpen && patients.length && (hasPatient || phaseMs > 1000);
+  if (!active) { banner.style.display = 'none'; return; }
+  const phaseLabel = phase === 'rounds' ? 'Rounds' : phase === 'finalising' ? 'Finalising' : 'Pre-charting';
+  const perMs = hasPatient ? Date.now() - _focusStart : 0, mins = perMs / 60000;
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  set('ipbPhase', phaseLabel);
+  const nameWrap = document.getElementById('ipbNameWrap'); if (nameWrap) nameWrap.style.display = hasPatient ? '' : 'none';
+  set('ipbName', hasPatient ? patients[_focusIdx].name : '');
+  set('ipbPer', hasPatient ? fmtClock(perMs) : '');
+  set('ipbTotal', `${phaseLabel} total ${fmtMins(phaseMs)}`);
+  banner.classList.remove('ipb-amber', 'ipb-red');
+  if (hasPatient && mins >= FOCUS_RED_MIN) banner.classList.add('ipb-red');
+  else if (hasPatient && mins >= FOCUS_AMBER_MIN) banner.classList.add('ipb-amber');
+  banner.style.display = 'flex';
+  // Per-patient threshold nudges (once each; reset when the patient changes).
+  if (hasPatient && mins >= FOCUS_AMBER_MIN && !_ipNudgeAmber) { _ipNudgeAmber = true; _vibe(200); toast(`⏱ ${Math.round(mins)} min on ${patients[_focusIdx].name}`, 3500); }
+  if (hasPatient && mins >= FOCUS_RED_MIN && !_ipNudgeRed) { _ipNudgeRed = true; _vibe([200, 100, 200]); toast(`⏱ ${Math.round(mins)} min on ${patients[_focusIdx].name} — time to wrap up?`, 4500); }
+  // Pacing pulse every 10 min of the current phase (resets on phase change so we
+  // don't replay a backlog when the app reopens mid-shift).
+  if (phase !== _ipPulsePhase) { _ipPulsePhase = phase; _ipPulseMark = Math.floor(phaseMs / 600000); }
+  const mark = Math.floor(phaseMs / 600000);
+  if (mark > _ipPulseMark) { _ipPulseMark = mark; _vibe(120); toast(`⏱ ${phaseLabel} ${fmtMins(phaseMs)} · ${seenSet.size} seen`, 3500); }
 }
 window.addEventListener('DOMContentLoaded', ensureAwarenessLoop);
 
