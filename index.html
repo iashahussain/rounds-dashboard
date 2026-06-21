@@ -1075,9 +1075,10 @@
   #ipAwarenessBanner .ipb-phase { flex: none; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; font-size: 10.5px; background: rgba(255,255,255,.22); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
   #ipAwarenessBanner .ipb-room { flex: none; font-weight: 700; font-size: 11px; background: rgba(255,255,255,.2); padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
   #ipAwarenessBanner .ipb-name { min-width: 0; max-width: 46vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
-  #ipAwarenessBanner .cb-time { font-family: var(--mono); font-weight: 700; font-size: 17px; flex: none; margin-left: auto; }
+  #ipAwarenessBanner .cb-time { font-family: var(--mono); font-weight: 800; font-size: 18px; color: #ffd54a; flex: none; margin-left: auto; }
+  #ipAwarenessBanner.ipb-amber .cb-time, #ipAwarenessBanner.ipb-red .cb-time { color: #fff; }
   #ipAwarenessBanner .ipb-sub { display: flex; align-items: center; gap: 8px; }
-  #ipAwarenessBanner .ipb-age { flex: none; font-size: 12px; font-weight: 700; opacity: .95; white-space: nowrap; }
+  #ipAwarenessBanner .ipb-age { flex: none; font-size: 13px; font-weight: 800; opacity: 1; white-space: nowrap; }
   #ipAwarenessBanner .ipb-total { font-size: 10.5px; opacity: .82; white-space: nowrap; }
   @media (max-width: 768px) {
     #ipAwarenessBanner { left: 8px; right: 8px; transform: none; max-width: none; }
@@ -1672,7 +1673,8 @@ function updateIPBanner() {
   set('ipbName', hasPatient ? patients[_focusIdx].name : '');
   const room = hasPatient ? (patients[_focusIdx].roomNo || '') : '';
   const ageR = hasPatient ? String(patients[_focusIdx].ageRaw || '').trim() : '';
-  const ageTxt = ageR ? (/^\d+$/.test(ageR) ? ageR + 'y' : ageR) : '';
+  const sx = hasPatient ? (patients[_focusIdx].sex || '') : '';
+  const ageTxt = ageR ? (ageR + (sx ? (/^\d+$/.test(ageR) ? '/' : ' ') + sx : '')) : (sx || '');
   const rEl = document.getElementById('ipbRoom'); if (rEl) { rEl.textContent = room ? ('🛏 ' + room) : ''; rEl.style.display = room ? '' : 'none'; }
   const aEl = document.getElementById('ipbAge'); if (aEl) { aEl.textContent = ageTxt; aEl.style.display = ageTxt ? '' : 'none'; }
   set('ipbPer', hasPatient ? fmtClock(perMs) : '');
