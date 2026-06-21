@@ -1664,9 +1664,6 @@ function toggleIpBanner(ev) { if (ev) ev.stopPropagation(); _ipBannerCollapsed =
 function updateIPBanner() {
   const banner = document.getElementById('ipAwarenessBanner');
   if (!banner) return;
-  // While the crash-recovery prompt is up, hide the banner so Restore/Dismiss are reachable.
-  const rec = document.getElementById('recoveryBanner');
-  if (rec && getComputedStyle(rec).display !== 'none') { banner.style.display = 'none'; return; }
   banner.classList.toggle('ipb-collapsed', _ipBannerCollapsed);
   const opdOpen = (typeof opdConsultLog !== 'undefined') && opdConsultLog.some(e => !e.endTime);
   const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
