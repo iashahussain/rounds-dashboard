@@ -2672,7 +2672,12 @@ function renderList() {
   // ── Priority triage (v84): auto nutrition-priority, manual buttons override ──
   const prio = new Map();
   visible.forEach(p => prio.set(p, effectivePriority(p)));
+  // In a ward filter, float her triaged worklist (charted as review/assessment/referral,
+  // or given a manual priority) to the top so she works through them first.
+  const wardView = currentFilter === 'w3' || currentFilter === 'w4' || currentFilter === 'w5';
+  const isTriaged = (p) => { const i = patients.indexOf(p); return chartedSet.has(i) || !!priorityMap[i]; };
   const byPriority = (a, b) => {
+    if (wardView) { const ta = isTriaged(a), tb = isTriaged(b); if (ta !== tb) return ta ? -1 : 1; }
     const pa = prio.get(a), pb = prio.get(b);
     if (pa.band !== pb.band) return pa.band - pb.band;       // higher priority band first
     if (pb.score !== pa.score) return pb.score - pa.score;   // then higher auto score
