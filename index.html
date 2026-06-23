@@ -776,7 +776,7 @@
   .gv-inputs > div { flex: 1; min-width: 90px; }
   .gv-inputs label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
   .gv-inputs input, .gv-inputs select { width: 100%; font-family: var(--sans); font-size: 13px; padding: 7px 9px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
-  .gv-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .gv-row { display: grid; grid-template-columns: 1.3fr .9fr .9fr .9fr 26px; gap: 5px; align-items: center; margin-bottom: 6px; }
   .gv-row input { font-family: var(--sans); font-size: 13px; padding: 7px 8px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); width: 100%; }
   .gv-row.gv-head { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 2px; }
   .gv-del { background: transparent; border: 1px solid var(--border); color: var(--warn); border-radius: 7px; padding: 6px 0; font-size: 12px; cursor: pointer; }
@@ -7057,7 +7057,7 @@ function _growthPersist() {
   if (f) { f.value = JSON.stringify({ dob: document.getElementById('gaDob')?.value || '', ga: document.getElementById('gaGa')?.value || '', intake: document.getElementById('aspenIntake')?.value || '', etio: document.getElementById('aspenEtio')?.value || '', visits: _growthVisits }); if (typeof scheduleAutosave === 'function') scheduleAutosave(); }
 }
 function growthSyncVisit(i, field, val) { if (_growthVisits[i]) { _growthVisits[i][field] = val; _growthPersist(); } }
-function growthAddVisit() { _growthVisits.push({ date: '', wt: '', ht: '' }); renderGrowthVisits(); _growthPersist(); }
+function growthAddVisit() { _growthVisits.push({ date: '', wt: '', ht: '', hc: '' }); renderGrowthVisits(); _growthPersist(); }
 function growthDelVisit(i) { _growthVisits.splice(i, 1); renderGrowthVisits(); _growthPersist(); }
 function renderGrowthVisits() {
   const b = document.getElementById('growthVisitsBody'); if (!b) return;
@@ -7065,6 +7065,7 @@ function renderGrowthVisits() {
     <input type="text" inputmode="text" autocomplete="off" value="${esc(v.date || '')}" placeholder="date e.g. 23/08/25" oninput="growthSyncVisit(${i},'date',this.value)">
     <input type="text" inputmode="decimal" value="${esc(v.wt || '')}" placeholder="wt kg" oninput="growthSyncVisit(${i},'wt',this.value)">
     <input type="text" inputmode="decimal" value="${esc(v.ht || '')}" placeholder="ht cm" oninput="growthSyncVisit(${i},'ht',this.value)">
+    <input type="text" inputmode="decimal" value="${esc(v.hc || '')}" placeholder="head cm" oninput="growthSyncVisit(${i},'hc',this.value)" title="Head circumference (used for under-2y)">
     <button class="gv-del" onclick="growthDelVisit(${i})" aria-label="Remove visit">✕</button>
   </div>`).join('') || '<div class="hint" style="padding:4px 0">No visits yet.</div>';
 }
@@ -7087,7 +7088,7 @@ function openGrowthModal(idx) {
     </div>
     <div class="pes-list" style="padding:10px 12px">
       <div class="tt-section-label" style="margin:0 0 4px">Measurements (most are optional except date + weight)</div>
-      <div class="gv-row gv-head"><span>Date</span><span>Weight</span><span>Height</span><span></span></div>
+      <div class="gv-row gv-head"><span>Date</span><span>Weight</span><span>Height</span><span>Head</span><span></span></div>
       <div id="growthVisitsBody"></div>
       <button class="btn-ghost btn-small" style="margin-top:6px" onclick="growthAddVisit()">＋ Add visit</button>
 
@@ -7147,11 +7148,11 @@ function buildGrowthENC() {
     if (dob) { a = ageBetween(dob, md); ageMo = (md - dob) / 86400000 / 30.4375; }
     else { ageMo = (p.ageYears || 0) * 12; a = { total: Math.round(ageMo) }; }
     if (ageMo == null || ageMo < 0) return;
-    const wt = parseFloat(v.wt), ht = parseFloat(v.ht);
-    const parsed = computeParsedSet(sex, ageMo, wt, ht > 0 ? ht : 0);
+    const wt = parseFloat(v.wt), ht = parseFloat(v.ht), hc = parseFloat(v.hc);
+    const parsed = computeParsedSet(sex, ageMo, wt, ht > 0 ? ht : 0, hc > 0 ? hc : 0);
     const e = { md, a, ageMo, parsed };
-    if (preterm) { const corrMo = ageMo - corrDays / 30.4375; if (corrMo >= 0) { e.parsedCorr = computeParsedSet(sex, corrMo, wt, ht > 0 ? ht : 0); e.correctedAgeMo = corrMo; e.correctedAgeObj = ageBetween(dob, new Date(md.getTime() - corrDays * 86400000)); e.gaLabel = ptGaWD(gaDays) + ' wk'; } }
-    if (parsed.weight || parsed.stature || parsed.bmi || parsed.wtfs) ENC.push(e);
+    if (preterm) { const corrMo = ageMo - corrDays / 30.4375; if (corrMo >= 0) { e.parsedCorr = computeParsedSet(sex, corrMo, wt, ht > 0 ? ht : 0, hc > 0 ? hc : 0); e.correctedAgeMo = corrMo; e.correctedAgeObj = ageBetween(dob, new Date(md.getTime() - corrDays * 86400000)); e.gaLabel = ptGaWD(gaDays) + ' wk'; } }
+    if (parsed.weight || parsed.stature || parsed.bmi || parsed.wtfs || parsed.head) ENC.push(e);
   });
   ENC.sort((x, y) => y.md - x.md);
   return { ENC, sex, dob, preterm };
@@ -7208,6 +7209,7 @@ function buildGrowthText(ENC, sex) {
   const sec = [];
   const wE = ENC.filter(e => e.parsed.weight); if (wE.length) sec.push(wE.map((e, i) => { const w = e.parsed.weight; return makeRow(i === 0 ? 'Weight (kg)' : BLANK, w.val, w.pct, w.z, e); }).join('\n'));
   const sE = ENC.filter(e => e.parsed.stature); if (sE.length) sec.push(sE.map((e, i) => { const s = e.parsed.stature; return makeRow(i === 0 ? (s.label || 'Length/Height') : BLANK, s.val, s.pct, s.z, e); }).join('\n'));
+  const hE = ENC.filter(e => e.parsed.head); if (hE.length) sec.push(hE.map((e, i) => { const h = e.parsed.head; return makeRow(i === 0 ? 'Head circ (cm)' : BLANK, h.val, h.pct, h.z, e); }).join('\n'));
   const fE = ENC.filter(e => e.parsed.wtfs); if (fE.length) sec.push(fE.map((e, i) => { const w = e.parsed.wtfs; return makeRow(i === 0 ? 'Wt-for-Length' : BLANK, null, w.pct, w.z, e); }).join('\n'));
   const bE = ENC.filter(e => e.parsed.bmi); if (bE.length) sec.push(bE.map((e, i) => { const b = e.parsed.bmi; return makeRow(i === 0 ? 'BMI (kg/m²)' : BLANK, b.val, b.pct, b.z, e); }).join('\n'));
   let out = 'ANTHROPOMETRY' + (dual ? ' (chronological age)' : '') + ':\n' + hdr + '\n\n' + sec.join('\n\n');
@@ -7217,6 +7219,7 @@ function buildGrowthText(ENC, sex) {
     const cs = [];
     const w2 = ENC.filter(e => P(e) && P(e).weight); if (w2.length) cs.push(w2.map((e, i) => { const w = P(e).weight; return mkCorr(i === 0 ? 'Weight (kg)' : BLANK, w.val, w.pct, w.z, e); }).join('\n'));
     const s2 = ENC.filter(e => P(e) && P(e).stature); if (s2.length) cs.push(s2.map((e, i) => { const s = P(e).stature; return mkCorr(i === 0 ? (s.label || 'Length/Height') : BLANK, s.val, s.pct, s.z, e); }).join('\n'));
+    const h2 = ENC.filter(e => P(e) && P(e).head); if (h2.length) cs.push(h2.map((e, i) => { const h = P(e).head; return mkCorr(i === 0 ? 'Head circ (cm)' : BLANK, h.val, h.pct, h.z, e); }).join('\n'));
     const f2 = ENC.filter(e => P(e) && P(e).wtfs); if (f2.length) cs.push(f2.map((e, i) => { const w = P(e).wtfs; return mkCorr(i === 0 ? 'Wt-for-Length' : BLANK, null, w.pct, w.z, e); }).join('\n'));
     const b2 = ENC.filter(e => P(e) && P(e).bmi); if (b2.length) cs.push(b2.map((e, i) => { const b = P(e).bmi; return mkCorr(i === 0 ? 'BMI (kg/m²)' : BLANK, b.val, b.pct, b.z, e); }).join('\n'));
     const ga = (ENC.find(e => e.gaLabel) || {}).gaLabel;
