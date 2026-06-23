@@ -4206,7 +4206,7 @@ function parseBiochemOPD(idx) {
     const dengueM=s.match(/Dengue[^:]*[:\s]+(\w+)/i); if(dengueM) otherParts.push(`Dengue ${dengueM[1]}`);
   }
   const J=arr=>arr.filter(Boolean).join(', ');
-  over('Elytes', J([V.na&&`Na ${V.na}`, V.k&&`K ${V.k}`, V.cl&&`Cl ${V.cl}`, V.hco3&&`HCO₃ ${V.hco3}`, V.ca&&`Ca ${V.ca}`, V.mg&&`Mg ${V.mg}`, V.po4&&`PO₄ ${V.po4}`]));
+  over('Elytes', J([V.na&&`Na ${V.na}`, V.k&&`K ${V.k}`, V.cl&&`Cl ${V.cl}`, V.hco3&&`HCO₃ ${V.hco3}`, V.ca&&`Ca ${V.ca}`, V.mg&&`Mg ${V.mg}`, V.po4&&`Phos ${V.po4}`]));
   over('Renal', J([V.urea&&`Urea ${V.urea}`, V.cr&&`Cr ${V.cr}`, V.egfr&&`eGFR ${V.egfr}`]));
   over('Status', J([V.hb&&`Hb ${V.hb}`, V.alb&&`Alb ${V.alb}`, V.crp&&`CRP ${V.crp}`, V.esr&&`ESR ${V.esr}`]));
   over('Lft', J([V.alt&&`ALT ${V.alt}`, V.ast&&`AST ${V.ast}`, V.alp&&`ALP ${V.alp}`, V.ggt&&`GGT ${V.ggt}`, V.bili&&`Bili ${V.bili}`]));
@@ -4673,7 +4673,7 @@ function parseBiochem(idx, text) {
   // ── Assemble the clusters from V and write each (auto-revealing occasional fields). ──
   const J = arr => arr.filter(Boolean).join(', ');
   const setF = (name, val) => { if (!val) return; over(`${name}_${idx}`, val); const el = document.getElementById(`${name}_${idx}`); const fg = el && el.closest('.form-group'); if (fg) fg.style.display = ''; };
-  setF('elytes', J([V.na && `Na ${V.na}`, V.k && `K ${V.k}`, V.cl && `Cl ${V.cl}`, V.hco3 && `HCO₃ ${V.hco3}`, V.ca && `Ca ${V.ca}`, V.mg && `Mg ${V.mg}`, V.po4 && `PO₄ ${V.po4}`]));
+  setF('elytes', J([V.na && `Na ${V.na}`, V.k && `K ${V.k}`, V.cl && `Cl ${V.cl}`, V.hco3 && `HCO₃ ${V.hco3}`, V.ca && `Ca ${V.ca}`, V.mg && `Mg ${V.mg}`, V.po4 && `Phos ${V.po4}`]));
   setF('renal', J([V.urea && `Urea ${V.urea}`, V.cr && `Cr ${V.cr}`, V.egfr && `eGFR ${V.egfr}`]));
   setF('status', J([V.hb && `Hb ${V.hb}`, V.alb && `Alb ${V.alb}`, V.crp && `CRP ${V.crp}`, V.procal && `Procal ${V.procal}`, V.esr && `ESR ${V.esr}`]));
   setF('lft', J([V.alt && `ALT ${V.alt}`, V.ast && `AST ${V.ast}`, V.alp && `ALP ${V.alp}`, V.ggt && `GGT ${V.ggt}`, V.bili && `Bili ${V.bili}`]));
@@ -5299,7 +5299,7 @@ function renderOPDPrechart(idx) {
               <button class="btn-ghost btn-small" onclick="parseBiochemOPD(${idx})" style="font-size:11px;padding:3px 10px;margin-top:4px">↻ Re-parse from doctor's notes</button>
             </div>
             <div class="form-grid">
-              <div class="form-group"><label>⚡ Electrolytes &amp; minerals</label><input type="text" id="opElytes_${idx}" value="${esc(saved.elytes||'')}" placeholder="Na, K, Cl, HCO₃, Ca, Mg, PO₄"></div>
+              <div class="form-group"><label>⚡ Electrolytes &amp; minerals</label><input type="text" id="opElytes_${idx}" value="${esc(saved.elytes||'')}" placeholder="Na, K, Cl, HCO₃, Ca, Mg, Phos"></div>
               <div class="form-group"><label>🫘 Renal (Urea / Cr / eGFR)</label><input type="text" id="opRenal_${idx}" value="${esc(saved.renal||saved.rft||'')}" placeholder="Urea, Cr, eGFR"></div>
               <div class="form-group"><label>🩸 Status (Hb / Alb / CRP)</label><input type="text" id="opStatus_${idx}" value="${esc(saved.status||[saved.hb,saved.crp].filter(Boolean).join(', '))}" placeholder="Hb, Albumin, CRP"></div>
               <div class="form-group lab-occasional" style="display:${saved.lft?'':'none'}"><label>LFTs</label><input type="text" id="opLft_${idx}" value="${esc(saved.lft||'')}" placeholder="ALT, AST, ALP, GGT, Bili"></div>
@@ -5765,7 +5765,7 @@ function renderPrechart(idx) {
               </div>
             </div>
             <div class="form-grid">
-              <div class="form-group"><label>⚡ Electrolytes &amp; minerals</label><input type="text" id="elytes_${idx}" value="${esc(saved.elytes||'')}" placeholder="Na, K, Cl, HCO₃, Ca, Mg, PO₄"></div>
+              <div class="form-group"><label>⚡ Electrolytes &amp; minerals</label><input type="text" id="elytes_${idx}" value="${esc(saved.elytes||'')}" placeholder="Na, K, Cl, HCO₃, Ca, Mg, Phos"></div>
               <div class="form-group"><label>🫘 Renal (Urea / Cr / eGFR)</label><input type="text" id="renal_${idx}" value="${esc(saved.renal||saved.rft||'')}" placeholder="Urea, Cr, eGFR"></div>
               <div class="form-group"><label>🩸 Status (Hb / Alb / CRP)</label><input type="text" id="status_${idx}" value="${esc(saved.status||[saved.hb,saved.crp].filter(Boolean).join(', '))}" placeholder="Hb, Albumin, CRP"></div>
               <div class="form-group lab-occasional" style="display:${saved.lft?'':'none'}"><label>LFTs</label><input type="text" id="lft_${idx}" value="${esc(saved.lft||'')}" placeholder="ALT, AST, ALP, GGT, Bili"></div>
