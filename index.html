@@ -6168,6 +6168,7 @@ function renderPrechart(idx) {
         <span style="font-size:11px;color:var(--text-muted)">Paste NutriCalc output or enter manually</span>
       </div>
       <div class="section-body">
+        <button type="button" class="btn-ghost btn-small" onclick="openNourishCal(${idx})" style="margin:0 0 10px;font-size:11px;padding:3px 10px">⚡ Calculate requirements (NourishCal)</button>
         <div class="form-grid-3">
           <div class="form-group">
             <label>Weight Used (kg)</label>
@@ -7167,6 +7168,61 @@ window.addEventListener('message', function (e) {
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
   if (typeof toast === 'function') toast('Feeding regimen → Intervention ✓', 2400);
   closeFeedCalc();
+});
+
+// ── REQUIREMENTS — in-app panel to the live NourishCal (same origin) ──
+// Opens NourishCal in an overlay iframe, pre-filled with weight/sex + pathway (by age);
+// its "Send to dashboard" button posts EER/EPR/EFR + full text back, which we drop into
+// the Requirements fields + the NutriCalc paste (note).
+const NOURISHCAL_URL = FEEDCALC_ORIGIN + '/nourishcal/';
+let _nourishCalIdx = null;
+function openNourishCal(idx) {
+  _nourishCalIdx = idx;
+  const p = patients[idx] || {};
+  const wt = (document.getElementById('wtUsed_' + idx)?.value || document.getElementById('wt_' + idx)?.value || (chartData[idx] || {}).wt || '').toString();
+  const wtNum = parseFloat(wt);
+  const ageY = (typeof p.ageYears === 'number') ? p.ageYears : parseFloat(p.ageRaw);
+  const paeds = p.isPaeds || (ageY != null && !isNaN(ageY) && ageY < 18);
+  const params = new URLSearchParams({ embed: '1' });
+  if (paeds) {
+    if (ageY != null && !isNaN(ageY) && ageY < 3) { params.set('grp', 'infant'); params.set('agem', Math.max(0, Math.round(ageY * 12))); }
+    else { params.set('grp', 'child'); if (!isNaN(ageY)) params.set('agey', Math.round(ageY)); }
+  } else {
+    params.set('grp', currentMode === 'op' ? 'adult-out' : 'adult-hosp');
+    if (!isNaN(ageY)) params.set('agey', Math.round(ageY));
+  }
+  if (wtNum > 0) params.set('wt', wtNum);
+  if (p.sex === 'M' || p.sex === 'F') params.set('sex', p.sex);
+  const ov = document.createElement('div');
+  ov.id = 'nourishCalOverlay'; ov.className = 'pes-overlay';
+  ov.onclick = e => { if (e.target === ov) closeNourishCal(); };
+  ov.innerHTML = `<div class="pes-modal feedcalc-modal" role="dialog" aria-label="Nutrition requirements calculator">
+      <div class="pes-head">
+        <div class="pes-headrow"><span style="font-size:14px;font-weight:700;flex:1">⚡ Requirements${p.name ? ' — ' + esc(p.name) : ''}</span><button class="pes-close" onclick="closeNourishCal()" aria-label="Close">✕</button></div>
+        <div class="hint" style="margin:0">Generate, then tap <b>→ Send to dashboard</b> to fill EER/EPR/EFR + the note.</div>
+      </div>
+      <iframe id="nourishCalFrame" src="${NOURISHCAL_URL}?${params.toString()}"></iframe>
+    </div>`;
+  document.body.appendChild(ov);
+  document.body.style.overflow = 'hidden';
+}
+function closeNourishCal() {
+  const ov = document.getElementById('nourishCalOverlay'); if (ov) ov.remove();
+  document.body.style.overflow = '';
+  _nourishCalIdx = null;
+}
+window.addEventListener('message', function (e) {
+  if (e.origin !== FEEDCALC_ORIGIN) return;
+  const d = e.data;
+  if (!d || d.type !== 'nourishcal-result') return;
+  const idx = _nourishCalIdx; if (idx == null) return;
+  const set = (id, v) => { if (!v) return; const el = document.getElementById(id); if (el) { el.value = String(v).trim(); el.classList.remove('from-prev'); } };
+  set('eer_' + idx, d.eer); set('epr_' + idx, d.epr); set('efr_' + idx, d.efr);
+  const np = document.getElementById('nutriCalcPaste_' + idx);
+  if (np && d.text) { np.value = String(d.text).trim(); np.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(np); }
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
+  if (typeof toast === 'function') toast('Requirements → EER/EPR/EFR + note ✓', 2400);
+  closeNourishCal();
 });
 // Flexible date parser (ported from the standalone growth tool) so DOB / measurement
 // dates can be typed or pasted in any common form instead of clicking a date picker:
