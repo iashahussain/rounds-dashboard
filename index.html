@@ -7141,9 +7141,14 @@ function openFeedCalc(idx, mode) {
   const params = new URLSearchParams({ embed: '1', type, uc: _feedCalcMode === 'intake' ? '1' : '2' });
   if (wtNum > 0) params.set('wt', wtNum);
   // Pass the patient's requirements so the calc's "% of EER" / protein % use HER numbers.
-  const eerNum = parseFloat((document.getElementById('eer_' + idx)?.value || '').replace(/,/g, ''));
+  // Grab the first number anywhere in the field so "Up to 1030 kcal/day" or "910–1030" still work.
+  const firstNum = (id) => {
+    const m = String(document.getElementById(id)?.value || '').replace(/,/g, '').match(/\d+(?:\.\d+)?/);
+    return m ? parseFloat(m[0]) : NaN;
+  };
+  const eerNum = firstNum('eer_' + idx);
   if (eerNum > 0) params.set('eer', Math.round(eerNum));
-  const eprNum = parseFloat((document.getElementById('epr_' + idx)?.value || '').replace(/,/g, ''));
+  const eprNum = firstNum('epr_' + idx);
   if (eprNum > 0) params.set('epr', eprNum);
   const title = _feedCalcMode === 'intake' ? '💧 Estimate current intake' : '💧 Feeding regimen';
   const hint = _feedCalcMode === 'intake'
