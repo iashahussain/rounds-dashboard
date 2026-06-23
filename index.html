@@ -770,6 +770,9 @@
   .pes-empty { padding: 26px; text-align: center; color: var(--text-muted); font-size: 13px; }
   .pes-trigger-row { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; flex-wrap: wrap; }
   @media (max-width: 768px) { .pes-overlay { padding: 0; } .pes-modal { max-height: 100%; height: 100%; width: 100%; border-radius: 0; } }
+  /* Feeding-regimen in-app panel (iframes the live Formula Calculator) */
+  .feedcalc-modal { width: 640px; height: 88vh; max-height: 88vh; }
+  .feedcalc-modal iframe { flex: 1 1 auto; width: 100%; border: 0; background: #fff; min-height: 0; }
 
   /* ── GROWTH / ASPEN PANEL (v83) ── */
   .gv-inputs { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -6233,6 +6236,7 @@ function renderPrechart(idx) {
         </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>✏️ Intervention</label>
+          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx})" style="margin:0 0 6px;font-size:11px;padding:3px 10px">🍼 Feeding regimen (Formula Calc)</button>
           <textarea class="field field-lg" id="intervention_${idx}" placeholder="Diet order, formula, tube feeding plan, ONS, food service instructions, counselling...">${esc(saved.intervention||'')}</textarea>
         </div>
         <div class="form-group">
@@ -7115,6 +7119,55 @@ function closeGrowthModal() {
   const nav = document.getElementById('mobileFloatNav'); if (nav) nav.style.visibility = '';
   if (_growthEsc) { document.removeEventListener('keydown', _growthEsc); _growthEsc = null; }
 }
+
+// ── FEEDING REGIMEN — in-app panel to the live Formula Calculator (same origin) ──
+// Opens the feed calculator in an overlay iframe, pre-filled with this patient's weight
+// + paeds/adult; its "Send to dashboard" button postMessages the regimen back here,
+// which we drop into the Intervention field (which is what flows into the note).
+const FEEDCALC_ORIGIN = 'https://iashahussain.github.io';
+const FEEDCALC_URL = FEEDCALC_ORIGIN + '/feed-calculator/';
+let _feedCalcIdx = null;
+function openFeedCalc(idx) {
+  _feedCalcIdx = idx;
+  const p = patients[idx] || {};
+  const wt = (document.getElementById('wt_' + idx)?.value || (chartData[idx] || {}).wt || '').toString();
+  const wtNum = parseFloat(wt);
+  const type = (p.isPaeds || (typeof p.ageYears === 'number' && p.ageYears < 18)) ? 'paeds' : 'adult';
+  const params = new URLSearchParams({ embed: '1', type });
+  if (wtNum > 0) params.set('wt', wtNum);
+  const ov = document.createElement('div');
+  ov.id = 'feedCalcOverlay'; ov.className = 'pes-overlay';
+  ov.onclick = e => { if (e.target === ov) closeFeedCalc(); };
+  ov.innerHTML = `<div class="pes-modal feedcalc-modal" role="dialog" aria-label="Feeding regimen calculator">
+      <div class="pes-head">
+        <div class="pes-headrow"><span style="font-size:14px;font-weight:700;flex:1">🍼 Feeding regimen${p.name ? ' — ' + esc(p.name) : ''}</span><button class="pes-close" onclick="closeFeedCalc()" aria-label="Close">✕</button></div>
+        <div class="hint" style="margin:0">Calculate, then tap <b>→ Send to dashboard</b> to drop the regimen into Intervention + the note.</div>
+      </div>
+      <iframe id="feedCalcFrame" src="${FEEDCALC_URL}?${params.toString()}" allow="clipboard-write"></iframe>
+    </div>`;
+  document.body.appendChild(ov);
+  document.body.style.overflow = 'hidden';
+}
+function closeFeedCalc() {
+  const ov = document.getElementById('feedCalcOverlay'); if (ov) ov.remove();
+  document.body.style.overflow = '';
+  _feedCalcIdx = null;
+}
+window.addEventListener('message', function (e) {
+  if (e.origin !== FEEDCALC_ORIGIN) return;
+  const d = e.data;
+  if (!d || d.type !== 'feedcalc-result' || !d.text) return;
+  const idx = _feedCalcIdx; if (idx == null) return;
+  const el = document.getElementById('intervention_' + idx);
+  if (el) {
+    el.value = (el.value.trim() ? el.value.replace(/\s+$/, '') + '\n\n' : '') + String(d.text).trim();
+    el.classList.remove('from-prev');
+    if (typeof autoExpand === 'function') autoExpand(el);
+  }
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
+  if (typeof toast === 'function') toast('Feeding regimen → Intervention ✓', 2400);
+  closeFeedCalc();
+});
 // Flexible date parser (ported from the standalone growth tool) so DOB / measurement
 // dates can be typed or pasted in any common form instead of clicking a date picker:
 // 23/08/2017 · 23-08-2017 · 23.8.17 · 23-Aug-2017 · Aug 23 2017 · 2017-08-23 (day-first).
