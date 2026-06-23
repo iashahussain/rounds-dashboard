@@ -1075,6 +1075,9 @@
   }
   #ipAwarenessBanner.ipb-amber { background: #b8860b; }
   #ipAwarenessBanner.ipb-red { background: #c0392b; animation: cbpulse 1.4s ease-in-out infinite; }
+  #ipAwarenessBanner.ipb-break { background: #4a6b66; }
+  #ipAwarenessBanner.ipb-break .cb-time { color: #fff; }
+  #breakBtn.on-break { background: #4a6b66; color: #fff; border-color: #4a6b66; }
   #ipAwarenessBanner .ipb-row { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; }
   #ipAwarenessBanner .ipb-phase { flex: none; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; font-size: 10.5px; background: rgba(255,255,255,.22); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
   #ipAwarenessBanner .ipb-room { flex: none; font-weight: 700; font-size: 11px; background: rgba(255,255,255,.2); padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
@@ -1334,6 +1337,7 @@
     📂 Load Session
     <input type="file" id="sessionFileInput" accept=".json" style="display:none" onchange="loadSession(this)">
   </label>
+  <button class="btn-ghost btn-small" id="breakBtn" onclick="toggleBreak()" title="Pause time tracking while you step away">☕ Break</button>
   <span id="sessionStatus" style="font-size:11px;color:var(--text-muted);margin-left:4px"></span>
   <span id="autosaveStatus" style="font-size:11px;color:var(--text-muted);margin-left:4px" title="Charting is auto-saved to this device"></span>
   <select id="phaseSelect" onchange="setManualPhase(this.value)" title="What you're doing now — sets how time is recorded (set to Finalising when finalising notes)" style="font-size:11px;padding:4px 8px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);color:var(--text);margin-left:6px;cursor:pointer">
@@ -1612,7 +1616,7 @@ function updateAwarenessTimers() {
   //  the always-on awareness banner now carries the per-patient time, room and age.)
 
   // Precharting cumulative total (runs only in precharting + IP + visible → pauses during OPD)
-  const running = phase === 'precharting' && currentMode === 'ip' && document.visibilityState !== 'hidden';
+  const running = phase === 'precharting' && currentMode === 'ip' && document.visibilityState !== 'hidden' && !_onBreak;
   if (running && !_prechartRunStart) _prechartRunStart = Date.now();
   if (!running && _prechartRunStart) { _prechartAccumMs += Date.now() - _prechartRunStart; _prechartRunStart = 0; savePrechartTotal(); }
   if (running && (++_awTick % 10 === 0)) { _prechartAccumMs += Date.now() - _prechartRunStart; _prechartRunStart = Date.now(); savePrechartTotal(); }
@@ -1628,7 +1632,7 @@ function updateAwarenessTimers() {
 
   // Set-up accumulator — runs while triaging the IP list (armed, not yet pre-charting,
   // on the list with no chart open, tab visible).
-  const setupRunning = _setupArmed && !_setupDone && currentMode === 'ip' && activeIdx === null && document.visibilityState !== 'hidden' && patients.length;
+  const setupRunning = _setupArmed && !_setupDone && currentMode === 'ip' && activeIdx === null && document.visibilityState !== 'hidden' && patients.length && !_onBreak;
   if (setupRunning && !_setupRunStart) _setupRunStart = Date.now();
   if (!setupRunning && _setupRunStart) { _setupAccumMs += Date.now() - _setupRunStart; _setupRunStart = 0; saveSetup(); }
 
@@ -1660,13 +1664,52 @@ function _vibe(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (
 function ipBannerTap() { if (_focusIdx !== null && typeof selectPatient === 'function') selectPatient(_focusIdx); }
 // Tap the banner to collapse it to a small corner pill (frees the Save/Load/Restore
 // header controls on the phone) — still shows the time so awareness isn't lost.
-function toggleIpBanner(ev) { if (ev) ev.stopPropagation(); _ipBannerCollapsed = !_ipBannerCollapsed; updateIPBanner(); }
+function toggleIpBanner(ev) { if (ev) ev.stopPropagation(); if (_onBreak) { toggleBreak(); return; } _ipBannerCollapsed = !_ipBannerCollapsed; updateIPBanner(); }
+
+// ── BREAK (v90) ── explicit pause so a coffee/lunch break never gets charged to a
+// patient (stops the open-chart timer / parking) and pauses the set-up & pre-charting
+// accumulators. The paused interval is simply not tracked; on resume it picks up where
+// you are. Breaks over the cutoff are removed from the wall-clock anyway, but this makes
+// it deliberate and visible.
+let _onBreak = false, _breakStart = 0;
+function toggleBreak() {
+  _onBreak = !_onBreak;
+  if (_onBreak) {
+    _breakStart = Date.now();
+    stopFocusTimer();        // stop the per-patient banner timer
+    closeIPPanelLog();       // close the open chart segment so nothing accrues to it
+    currentPanelOpen = null;
+    toast('☕ On break — time tracking paused', 2600);
+  } else {
+    _breakStart = 0;
+    // resume tracking on whatever chart is still open
+    if (typeof activeIdx === 'number' && activeIdx >= 0 && patients[activeIdx]) { openIPPanelLog(activeIdx); startFocusTimer(activeIdx); }
+    toast('▶ Back — tracking resumed', 2200);
+  }
+  updateBreakBtn();
+  updateIPBanner();
+}
+function updateBreakBtn() {
+  const b = document.getElementById('breakBtn');
+  if (b) { b.textContent = _onBreak ? '▶ Resume' : '☕ Break'; b.classList.toggle('on-break', _onBreak); }
+}
 function updateIPBanner() {
   const banner = document.getElementById('ipAwarenessBanner');
   if (!banner) return;
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  // On break: a distinct calm bar, tap to resume. Tracking is paused.
+  if (_onBreak) {
+    banner.classList.remove('ipb-collapsed', 'ipb-amber', 'ipb-red');
+    banner.classList.add('ipb-break');
+    set('ipbPhase', '☕ Break'); set('ipbName', 'tap to resume'); set('ipbPer', _breakStart ? fmtClock(Date.now() - _breakStart) : ''); set('ipbTotal', 'time tracking paused');
+    const rb = document.getElementById('ipbRoom'); if (rb) rb.style.display = 'none';
+    const ab = document.getElementById('ipbAge'); if (ab) ab.style.display = 'none';
+    banner.style.display = 'flex';
+    return;
+  }
+  banner.classList.remove('ipb-break');
   banner.classList.toggle('ipb-collapsed', _ipBannerCollapsed);
   const opdOpen = (typeof opdConsultLog !== 'undefined') && opdConsultLog.some(e => !e.endTime);
-  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
   // Set-up / triage: show a Set-up timer while she's working the list before pre-charting.
   if (!opdOpen && currentMode === 'ip' && _setupArmed && !_setupDone && _focusIdx === null && patients.length) {
     banner.classList.remove('ipb-amber', 'ipb-red');
