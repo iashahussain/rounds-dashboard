@@ -7140,6 +7140,11 @@ function openFeedCalc(idx, mode) {
   const type = (p.isPaeds || (typeof p.ageYears === 'number' && p.ageYears < 18)) ? 'paeds' : 'adult';
   const params = new URLSearchParams({ embed: '1', type, uc: _feedCalcMode === 'intake' ? '1' : '2' });
   if (wtNum > 0) params.set('wt', wtNum);
+  // Pass the patient's requirements so the calc's "% of EER" / protein % use HER numbers.
+  const eerNum = parseFloat((document.getElementById('eer_' + idx)?.value || '').replace(/,/g, ''));
+  if (eerNum > 0) params.set('eer', Math.round(eerNum));
+  const eprNum = parseFloat((document.getElementById('epr_' + idx)?.value || '').replace(/,/g, ''));
+  if (eprNum > 0) params.set('epr', eprNum);
   const title = _feedCalcMode === 'intake' ? '💧 Estimate current intake' : '💧 Feeding regimen';
   const hint = _feedCalcMode === 'intake'
     ? 'Work out what they\'re getting now, then tap <b>→ Send to dashboard</b> (fills Current intake + % of EER).'
