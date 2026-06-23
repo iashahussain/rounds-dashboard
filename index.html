@@ -4502,7 +4502,7 @@ function generateOPDNote(idx) {
     if (eer) note += `EER: ${eer}\n`;
     if (epr) note += `EPR: ${epr}\n`;
     if (intakePct) note += `Estimated intake: ${intakePct}\n`;
-    if (nutriCalc) note += `\n${nutriCalc}\n`;
+    if (nutriCalc && !(eer || epr)) note += `\n${nutriCalc}\n`;
     note += `\n`;
   }
 
@@ -6001,6 +6001,7 @@ function renderPrechart(idx) {
         </div>
         <div class="form-group" style="margin-top:8px">
           <label>🍽 Current Intake in Hospital</label>
+          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx},'intake')" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Estimate current intake (Formula Calc)</button>
           <textarea class="field field-sm" id="currentIntake_${idx}" placeholder="e.g. Eating 50% of meals, accepting porridge, refusing meat. Tolerating ORS...">${esc(saved.currentIntake||'')}</textarea>
         </div>
         
@@ -6237,7 +6238,7 @@ function renderPrechart(idx) {
         </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>✏️ Intervention</label>
-          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx})" style="margin:0 0 6px;font-size:11px;padding:3px 10px">🍼 Feeding regimen (Formula Calc)</button>
+          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx})" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Feeding regimen (Formula Calc)</button>
           <textarea class="field field-lg" id="intervention_${idx}" placeholder="Diet order, formula, tube feeding plan, ONS, food service instructions, counselling...">${esc(saved.intervention||'')}</textarea>
         </div>
         <div class="form-group">
@@ -7127,22 +7128,29 @@ function closeGrowthModal() {
 // which we drop into the Intervention field (which is what flows into the note).
 const FEEDCALC_ORIGIN = 'https://iashahussain.github.io';
 const FEEDCALC_URL = FEEDCALC_ORIGIN + '/feed-calculator/';
-let _feedCalcIdx = null;
-function openFeedCalc(idx) {
+let _feedCalcIdx = null, _feedCalcMode = 'regimen';
+// mode 'regimen' → feed-calc use-case 2 (calculate support) → result into Intervention.
+// mode 'intake'  → feed-calc use-case 1 (estimate current intake) → into Current intake + % of EER.
+function openFeedCalc(idx, mode) {
   _feedCalcIdx = idx;
+  _feedCalcMode = (mode === 'intake') ? 'intake' : 'regimen';
   const p = patients[idx] || {};
   const wt = (document.getElementById('wt_' + idx)?.value || (chartData[idx] || {}).wt || '').toString();
   const wtNum = parseFloat(wt);
   const type = (p.isPaeds || (typeof p.ageYears === 'number' && p.ageYears < 18)) ? 'paeds' : 'adult';
-  const params = new URLSearchParams({ embed: '1', type });
+  const params = new URLSearchParams({ embed: '1', type, uc: _feedCalcMode === 'intake' ? '1' : '2' });
   if (wtNum > 0) params.set('wt', wtNum);
+  const title = _feedCalcMode === 'intake' ? '💧 Estimate current intake' : '💧 Feeding regimen';
+  const hint = _feedCalcMode === 'intake'
+    ? 'Work out what they\'re getting now, then tap <b>→ Send to dashboard</b> (fills Current intake + % of EER).'
+    : 'Calculate, then tap <b>→ Send to dashboard</b> to drop the regimen into Intervention + the note.';
   const ov = document.createElement('div');
   ov.id = 'feedCalcOverlay'; ov.className = 'pes-overlay';
   ov.onclick = e => { if (e.target === ov) closeFeedCalc(); };
-  ov.innerHTML = `<div class="pes-modal feedcalc-modal" role="dialog" aria-label="Feeding regimen calculator">
+  ov.innerHTML = `<div class="pes-modal feedcalc-modal" role="dialog" aria-label="Feed calculator">
       <div class="pes-head">
-        <div class="pes-headrow"><span style="font-size:14px;font-weight:700;flex:1">🍼 Feeding regimen${p.name ? ' — ' + esc(p.name) : ''}</span><button class="pes-close" onclick="closeFeedCalc()" aria-label="Close">✕</button></div>
-        <div class="hint" style="margin:0">Calculate, then tap <b>→ Send to dashboard</b> to drop the regimen into Intervention + the note.</div>
+        <div class="pes-headrow"><span style="font-size:14px;font-weight:700;flex:1">${title}${p.name ? ' — ' + esc(p.name) : ''}</span><button class="pes-close" onclick="closeFeedCalc()" aria-label="Close">✕</button></div>
+        <div class="hint" style="margin:0">${hint}</div>
       </div>
       <iframe id="feedCalcFrame" src="${FEEDCALC_URL}?${params.toString()}" allow="clipboard-write"></iframe>
     </div>`;
@@ -7159,14 +7167,19 @@ window.addEventListener('message', function (e) {
   const d = e.data;
   if (!d || d.type !== 'feedcalc-result' || !d.text) return;
   const idx = _feedCalcIdx; if (idx == null) return;
-  const el = document.getElementById('intervention_' + idx);
-  if (el) {
-    el.value = (el.value.trim() ? el.value.replace(/\s+$/, '') + '\n\n' : '') + String(d.text).trim();
-    el.classList.remove('from-prev');
-    if (typeof autoExpand === 'function') autoExpand(el);
+  const txt = String(d.text).trim();
+  if (_feedCalcMode === 'intake') {
+    const ci = document.getElementById('currentIntake_' + idx);
+    if (ci) { ci.value = (ci.value.trim() ? ci.value.replace(/\s+$/, '') + '\n\n' : '') + txt; ci.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(ci); }
+    const m = txt.match(/(\d+)\s*%\s*of\s*EER/i);   // pull the % of EER if the output has it
+    if (m) { const ip = document.getElementById('intakePct_' + idx); if (ip && !ip.value.trim()) ip.value = m[1] + '% of EER'; }
+    if (typeof toast === 'function') toast('Current intake → Diet ✓', 2400);
+  } else {
+    const el = document.getElementById('intervention_' + idx);
+    if (el) { el.value = (el.value.trim() ? el.value.replace(/\s+$/, '') + '\n\n' : '') + txt; el.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(el); }
+    if (typeof toast === 'function') toast('Feeding regimen → Intervention ✓', 2400);
   }
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
-  if (typeof toast === 'function') toast('Feeding regimen → Intervention ✓', 2400);
   closeFeedCalc();
 });
 
@@ -7754,7 +7767,9 @@ function generateNote(idx) {
     if (epr) note += `EPR: ${epr}\n`;
     if (efr) note += `EFR: ${efr}\n`;
     if (intakePct) note += `Estimated current intake: ${intakePct}\n`;
-    if (nutriCalcPaste) note += `\n${nutriCalcPaste}\n`;
+    // Only include the full paste/breakdown when the structured fields are empty,
+    // so the calculator's output isn't duplicated alongside the EER/EPR/EFR lines.
+    if (nutriCalcPaste && !(eer || epr || efr)) note += `\n${nutriCalcPaste}\n`;
     note += `\n`;
   }
 
