@@ -4181,7 +4181,7 @@ function parseBiochemOPD(idx) {
     V.ca=vGet('Calcium'); V.mg=vGet('Magnesium'); V.po4=vGet('Phosphorus')||vGet('Phosphate');
     V.urea=vGet('Urea'); V.cr=vGet('Creatinine'); V.egfr=vGet('Egfr')||vGet('eGFR');
     V.hb=vGet('Hemoglobin'); V.alb=vGet('Albumin'); V.crp=vGet('C.Reactive Protein')||vGet('CRP'); V.esr=vGet('ESR');
-    V.alt=vGet('Alanine Aminotransferase')||vGet('ALT'); V.ast=vGet('Aspartate Aminotransferase')||vGet('AST'); V.alp=vGet('Alkaline Phosphatase'); V.ggt=vGet('Gamma Glutamyl')||vGet('GGT'); V.bili=vGet('Bilirubin');
+    V.alt=vGet('Alanine Aminotransferase')||vGet('Alanine Transaminase')||vGet('SGPT')||vGet('ALT'); V.ast=vGet('Aspartate Aminotransferase')||vGet('Aspartate Transaminase')||vGet('SGOT')||vGet('AST'); V.alp=vGet('Alkaline Phosphatase')||vGet('ALP'); V.ggt=vGet('Gamma Glutamyl')||vGet('GGT'); V.bili=vGet('Total Bilirubin')||vGet('Bilirubin');
     V.glu=vGet('Glucose'); V.hba1c=vGet('HbA1c')||vGet('Glycated');
     V.tc=vGet('Total Cholesterol')||vGet('Cholesterol'); V.ldl=vGet('LDL Cholesterol')||vGet('LDL'); V.hdl=vGet('HDL Cholesterol')||vGet('HDL'); V.tg=vGet('Triglycerides')||vGet('Triglyceride');
     V.ferritin=vGet('Ferritin'); V.iron=vGet('Serum Iron')||vGet('Iron'); V.tibc=vGet('TIBC')||vGet('Total Iron Binding'); V.tsat=vGet('Transferrin Saturation')||vGet('Transferrin Sat');
@@ -4436,16 +4436,17 @@ function generateOPDNote(idx) {
   if (labs.length || investigations) {
     note += `BIOCHEMISTRY & INVESTIGATIONS\n`;
     const lp = [];
-    if (elytes) lp.push(`Electrolytes: ${elytes}`);
-    if (renal) lp.push(`Renal: ${renal}`);
+    // Groups kept together but NOT labelled (analyte names are self-evident) — her preference.
+    if (elytes) lp.push(elytes);
+    if (renal) lp.push(renal);
     if (statusLabs) lp.push(statusLabs);
-    if (lft) lp.push(`LFT: ${lft}`);
-    if (glyc) lp.push(`Glucose/HbA1c: ${glyc}`);
-    if (lipids) lp.push(`Lipids: ${lipids}`);
-    if (iron) lp.push(`Iron: ${iron}`);
-    if (micros) lp.push(`Micronutrients: ${micros}`);
-    if (thyroid) lp.push(`Thyroid: ${thyroid}`);
-    if (fbc) lp.push(`FBC: ${fbc}`);
+    if (lft) lp.push(lft);
+    if (glyc) lp.push(glyc);
+    if (lipids) lp.push(lipids);
+    if (iron) lp.push(iron);
+    if (micros) lp.push(micros);
+    if (thyroid) lp.push(thyroid);
+    if (fbc) lp.push(fbc);
     if (otherLabs) lp.push(otherLabs);
     if (lp.length) note += lp.join(' | ') + `\n`;
     if (investigations) {
@@ -4598,7 +4599,7 @@ function parseBiochem(idx, text) {
     V.ca = vGet('Calcium'); V.mg = vGet('Magnesium'); V.po4 = vGet('Phosphorus') || vGet('Phosphate');
     V.urea = vGet('Urea'); V.cr = vGet('Creatinine'); V.egfr = vGet('Egfr') || vGet('eGFR');
     V.hb = vGet('Hemoglobin'); V.alb = vGet('Albumin'); V.crp = vGet('C.Reactive Protein') || vGet('CRP'); V.procal = vGet('Procalcitonin'); V.esr = vGet('ESR');
-    V.alt = vGet('Alanine Aminotransferase') || vGet('ALT'); V.ast = vGet('Aspartate Aminotransferase') || vGet('AST'); V.alp = vGet('Alkaline Phosphatase'); V.ggt = vGet('Gamma Glutamyl') || vGet('GGT'); V.bili = vGet('Bilirubin');
+    V.alt = vGet('Alanine Aminotransferase') || vGet('Alanine Transaminase') || vGet('SGPT') || vGet('ALT'); V.ast = vGet('Aspartate Aminotransferase') || vGet('Aspartate Transaminase') || vGet('SGOT') || vGet('AST'); V.alp = vGet('Alkaline Phosphatase') || vGet('ALP'); V.ggt = vGet('Gamma Glutamyl') || vGet('GGT'); V.bili = vGet('Total Bilirubin') || vGet('Bilirubin');
     V.glu = vGet('Glucose'); V.hba1c = vGet('HbA1c') || vGet('Glycated');
     V.tc = vGet('Total Cholesterol') || vGet('Cholesterol'); V.ldl = vGet('LDL Cholesterol') || vGet('LDL'); V.hdl = vGet('HDL Cholesterol') || vGet('HDL'); V.tg = vGet('Triglycerides') || vGet('Triglyceride');
     V.ferritin = vGet('Ferritin'); V.iron = vGet('Serum Iron') || vGet('Iron'); V.tibc = vGet('TIBC') || vGet('Total Iron Binding'); V.tsat = vGet('Transferrin Saturation') || vGet('Transferrin Sat');
@@ -7534,15 +7535,16 @@ function generateNote(idx) {
   if (labsArr.length || investigations) {
     note += `BIOCHEMISTRY & INVESTIGATIONS\n`;
     const labParts = [];
-    if (elytes) labParts.push(`Electrolytes: ${elytes}`);
-    if (renal) labParts.push(`Renal: ${renal}`);
+    // Groups are kept together but NOT labelled (the analyte names are self-evident) — her preference.
+    if (elytes) labParts.push(elytes);
+    if (renal) labParts.push(renal);
     if (statusLabs) labParts.push(statusLabs);
-    if (lft) labParts.push(`LFT: ${lft}`);
-    if (glyc) labParts.push(`Glucose/HbA1c: ${glyc}`);
-    if (lipids) labParts.push(`Lipids: ${lipids}`);
-    if (iron) labParts.push(`Iron: ${iron}`);
-    if (micros) labParts.push(`Micronutrients: ${micros}`);
-    if (fbc) labParts.push(`FBC: ${fbc}`);
+    if (lft) labParts.push(lft);
+    if (glyc) labParts.push(glyc);
+    if (lipids) labParts.push(lipids);
+    if (iron) labParts.push(iron);
+    if (micros) labParts.push(micros);
+    if (fbc) labParts.push(fbc);
     if (otherLabs) labParts.push(otherLabs);
     if (labParts.length) note += labParts.join(' | ') + `\n`;
     if (investigations) {
