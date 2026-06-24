@@ -2837,6 +2837,10 @@ const sentenceCaseHeader = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCa
 // "Fortify meals (target: …)" isn't mistaken for a label), apostrophes allowed (so
 // "Patient's concern:" bolds like the others), colon then a space or end of line.
 const NOTE_LABEL_RE = /^([A-Z][A-Za-z0-9'’\s\/&\-]{0,28}?):(\s|$)/;
+// NourishCal (and the occasional manual paste) sends requirement values already prefixed
+// with their own label, e.g. "EER: 1534 kcal/day". The note then adds "EER: " again →
+// "EER: EER: 1534…". Strip a single leading requirement label so it prints once.
+const stripReqLabel = v => String(v == null ? '' : v).trim().replace(/^(?:EER|EPR|EFR|Energy|Protein|Fluids?)\s*[:=]\s*/i, '');
 const noteStore = {};
 const opdNoteStore = {};
 
@@ -4537,8 +4541,8 @@ function generateOPDNote(idx) {
 
   if (eer || epr || nutriCalc) {
     note += `NUTRITIONAL REQUIREMENTS\n`;
-    if (eer) note += `EER: ${eer}\n`;
-    if (epr) note += `EPR: ${epr}\n`;
+    if (eer) note += `EER: ${stripReqLabel(eer)}\n`;
+    if (epr) note += `EPR: ${stripReqLabel(epr)}\n`;
     if (intakePct) note += `Estimated intake: ${intakePct}\n`;
     if (nutriCalc && !(eer || epr)) note += `\n${nutriCalc}\n`;
     note += `\n`;
@@ -7301,7 +7305,7 @@ window.addEventListener('message', function (e) {
   if (!d || d.type !== 'nourishcal-result') return;
   const idx = _nourishCalIdx; if (idx == null) return;
   const opd = _nourishCalOPD;
-  const set = (id, v) => { if (!v) return; const el = document.getElementById(id); if (el) { el.value = String(v).trim(); el.classList.remove('from-prev'); } };
+  const set = (id, v) => { v = stripReqLabel(v); if (!v) return; const el = document.getElementById(id); if (el) { el.value = v; el.classList.remove('from-prev'); } };
   if (opd) { set('opEer_' + idx, d.eer); set('opEpr_' + idx, d.epr); }   // OPD has no EFR field
   else { set('eer_' + idx, d.eer); set('epr_' + idx, d.epr); set('efr_' + idx, d.efr); }
   const np = document.getElementById((opd ? 'opNutriCalc_' : 'nutriCalcPaste_') + idx);
@@ -7840,9 +7844,9 @@ function generateNote(idx) {
   if (eer || epr || efr || nutriCalcPaste) {
     note += `NUTRITIONAL REQUIREMENTS\n`;
     if (wtUsed) note += `Weight used: ${wtUsed}\n`;
-    if (eer) note += `EER: ${eer}${eqn ? ` (${eqn})` : ''}\n`;
-    if (epr) note += `EPR: ${epr}\n`;
-    if (efr) note += `EFR: ${efr}\n`;
+    if (eer) note += `EER: ${stripReqLabel(eer)}${eqn ? ` (${eqn})` : ''}\n`;
+    if (epr) note += `EPR: ${stripReqLabel(epr)}\n`;
+    if (efr) note += `EFR: ${stripReqLabel(efr)}\n`;
     if (intakePct) note += `Estimated current intake: ${intakePct}\n`;
     // Only include the full paste/breakdown when the structured fields are empty,
     // so the calculator's output isn't duplicated alongside the EER/EPR/EFR lines.
