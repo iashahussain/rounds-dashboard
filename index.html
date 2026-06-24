@@ -2827,6 +2827,16 @@ function renderList() {
 //  NOTE RENDERING — bold section headers in display
 // ──────────────────────────────────────────
 const NOTE_HEADER_RE = /^([A-Z][A-Z &\/\(\)\-]{2,})$/;
+// The exact section headers both note builders emit (stored uppercase). At RENDER time we
+// show these in sentence case + bold so the note reads calmer — the stored/plain-text note
+// keeps the caps, so structure still survives a plain-text paste (rich paste shows sentence
+// case). Restricting to this known set avoids sentence-casing stray caps like "TPN"/"NBM".
+const NOTE_HEADERS = new Set(['ANTHROPOMETRY','BIOCHEMISTRY & INVESTIGATIONS','CLINICAL','DIET HISTORY','NUTRITIONAL REQUIREMENTS','NUTRITION DIAGNOSIS','INTERVENTION','MONITORING & EVALUATION']);
+const sentenceCaseHeader = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+// A "true" field label: capitalised, short, no parens/commas (so a mid-sentence colon like
+// "Fortify meals (target: …)" isn't mistaken for a label), apostrophes allowed (so
+// "Patient's concern:" bolds like the others), colon then a space or end of line.
+const NOTE_LABEL_RE = /^([A-Z][A-Za-z0-9'’\s\/&\-]{0,28}?):(\s|$)/;
 const noteStore = {};
 const opdNoteStore = {};
 
@@ -2919,11 +2929,14 @@ function renderNoteHTML(plainText) {
   const lines = plainText.split('\n');
   return lines.map(line => {
     const e = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    if (/^─+$/.test(line.trim())) return `<span class="note-divider">${e(line)}</span>`;
-    if (NOTE_HEADER_RE.test(line.trim()) && line.trim().length > 2) return `<span class="note-section-header">${e(line)}</span>`;
+    const tt = line.trim();
+    if (/^─+$/.test(tt)) return `<span class="note-divider">${e(line)}</span>`;
+    // Known section headers → sentence case + bold (instead of shouty caps).
+    if (NOTE_HEADERS.has(tt.toUpperCase())) return `<span class="note-section-header">${e(sentenceCaseHeader(tt))}</span>`;
+    if (NOTE_HEADER_RE.test(tt) && tt.length > 2) return `<span class="note-section-header">${e(line)}</span>`;
     // Bold field labels: lines starting with "Label:" (mixed case, not all-caps)
-    const lm = line.match(/^([A-Z][A-Za-z0-9\s\/\-\(\)&]+?):\s*/);
-    if (lm && !NOTE_HEADER_RE.test(lm[1].trim())) {
+    const lm = line.match(NOTE_LABEL_RE);
+    if (lm) {
       const rest = line.slice(lm[0].length);
       return `<strong>${e(lm[1])}:</strong> ${e(rest)}`;
     }
@@ -7963,10 +7976,12 @@ function buildNoteHTMLForCopy(plain) {
   // editors (e.g. Vesalius) that strip white-space:pre-wrap on paste.
   const lines = plain.split('\n').map(line => {
     const t = line.trim();
+    // Known section headers → sentence case + bold (the stored plain text stays caps).
+    if (NOTE_HEADERS.has(t.toUpperCase())) return `<b>${e(sentenceCaseHeader(t))}</b>`;
     if (NOTE_HEADER_RE.test(t) && t.length > 2) return `<b>${e(line)}</b>`;
     // Bold mixed-case field labels ("Label:") too
-    const lm = line.match(/^([A-Z][A-Za-z0-9\s\/\-\(\)&]+?):\s/);
-    if (lm && !NOTE_HEADER_RE.test(lm[1].trim())) {
+    const lm = line.match(NOTE_LABEL_RE);
+    if (lm) {
       return `<b>${e(lm[1])}:</b>${e(line.slice(lm[1].length + 1))}`;
     }
     return keepIndent(e(line));
