@@ -4307,7 +4307,7 @@ function saveOPDChart(idx, silent) {
     wtHx: g(`opWtHx_${idx}`), wtZ: g(`opWtZ_${idx}`), htZ: g(`opHtZ_${idx}`), bmiZ: g(`opBmiZ_${idx}`),
     growthChart: g(`opGrowthChart_${idx}`), growthTrend: g(`opGrowthTrend_${idx}`),
     nutStatus: g(`opNutStatus_${idx}`), wtChg: g(`opWtChg_${idx}`),
-    pediPaste: g(`opPediPaste_${idx}`),
+    pediPaste: g(`opPediPaste_${idx}`), growthData: g(`opGrowthData_${idx}`),
     elytes: g(`opElytes_${idx}`), renal: g(`opRenal_${idx}`), status: g(`opStatus_${idx}`),
     lft: g(`opLft_${idx}`), glyc: g(`opGlyc_${idx}`), lipids: g(`opLipids_${idx}`),
     iron: g(`opIron_${idx}`), micros: g(`opMicros_${idx}`), thyroid: g(`opThyroid_${idx}`), fbc: g(`opFbc_${idx}`), other: g(`opOther_${idx}`),
@@ -4439,7 +4439,7 @@ function generateOPDNote(idx) {
   }
 
   // Anthropometry
-  if (wt || ht || bmi) {
+  if (wt || ht || bmi || wtHx || pediPaste || (p.isPaeds ? wtZ : false)) {
     note += `ANTHROPOMETRY\n`;
     if (p.isPaeds) {
       if (wt) note += `Weight: ${wt} kg${wtSrcStr}${wtZ?` (Z: ${wtZ})`:''}\n`;
@@ -4451,7 +4451,7 @@ function generateOPDNote(idx) {
       }
       if (growthTrend) note += `Growth trend: ${growthTrend}\n`;
       if (nutStatus) note += `Nutritional status: ${nutStatus}\n`;
-      if (pediPaste) note += `\n${pediPaste}\n`;
+      if (pediPaste) { const cleanPedi = pediPaste.replace(/^ANTHROPOMETRY[:\s]*\n/i, '').trim(); note += `\n${cleanPedi}\n`; }
       if (growthChart) {
         const sw = p.sex==='F'?'girls':p.sex==='M'?'boys':'children';
         if (growthChart==='WHO') note += `Growth chart: WHO growth charts for ${sw} 0–5 years\n`;
@@ -5425,6 +5425,11 @@ function renderOPDPrechart(idx) {
           <textarea class="field field-sm" id="opWtHx_${idx}" placeholder="e.g. 30 kg 3 months ago. Gaining 0.5kg/month. Previous visit: 31.2 kg">${esc(saved.wtHx||'')}</textarea>
         </div>
         ${p.isPaeds ? `
+        <div class="form-group" style="margin-top:8px;background:var(--accent-faint);border:1px solid var(--accent-light);border-radius:var(--r-md);padding:10px 12px">
+          <button type="button" class="btn-ghost btn-small" style="white-space:nowrap" onclick="openGrowthModal(${idx})" title="Serial measurements + ASPEN malnutrition screen">📊 Serial / ASPEN…</button>
+          <div class="hint" style="margin-top:6px;font-size:11.5px">Serial trend + malnutrition screen (works with a single measurement too). Inserts z-scores + the column-aligned block.</div>
+          <input type="hidden" id="opGrowthData_${idx}" value="${esc(saved.growthData||'')}">
+        </div>
         <div class="form-grid-3" style="margin-top:8px">
           <div class="form-group">
             <label>Wt Z-score / %ile</label>
@@ -7113,10 +7118,13 @@ function computeAspen(ENC, sex, intake, etiology) {
 }
 
 // ── Growth panel state + modal ──
-let _growthVisits = [], _growthIdx = null, _growthLast = null, _growthEsc = null;
+let _growthVisits = [], _growthIdx = null, _growthLast = null, _growthEsc = null, _growthOPD = false;
+// Field-id helper so the serial/growth modal works in both modes: OPD ids are 'op' + the
+// capitalised IP id (wtZ → opWtZ, growthChart → opGrowthChart, pediPaste → opPediPaste, …).
+const _gid = base => (_growthOPD ? 'op' + base.charAt(0).toUpperCase() + base.slice(1) : base) + '_' + _growthIdx;
 function _growthPersist() {
   if (_growthIdx == null) return;
-  const f = document.getElementById('growthData_' + _growthIdx);
+  const f = document.getElementById((_growthOPD ? 'opGrowthData_' : 'growthData_') + _growthIdx);
   if (f) { f.value = JSON.stringify({ dob: document.getElementById('gaDob')?.value || '', ga: document.getElementById('gaGa')?.value || '', intake: document.getElementById('aspenIntake')?.value || '', etio: document.getElementById('aspenEtio')?.value || '', visits: _growthVisits }); if (typeof scheduleAutosave === 'function') scheduleAutosave(); }
 }
 function growthSyncVisit(i, field, val) { if (_growthVisits[i]) { _growthVisits[i][field] = val; _growthPersist(); } }
@@ -7134,10 +7142,11 @@ function renderGrowthVisits() {
 }
 function openGrowthModal(idx) {
   closeGrowthModal();
-  _growthIdx = idx; const p = patients[idx];
-  const saved = (() => { try { return JSON.parse((chartData[idx] || {}).growthData || '{}'); } catch (_) { return {}; } })();
+  _growthOPD = (currentMode === 'op');
+  _growthIdx = idx; const p = (_growthOPD ? opdPatients : patients)[idx];
+  const saved = (() => { try { return JSON.parse(((_growthOPD ? opdChartData : chartData)[idx] || {}).growthData || '{}'); } catch (_) { return {}; } })();
   _growthVisits = Array.isArray(saved.visits) && saved.visits.length ? saved.visits.map(v => ({ ...v }))
-    : [{ date: new Date().toISOString().slice(0, 10), wt: document.getElementById('wt_' + idx)?.value || '', ht: document.getElementById('ht_' + idx)?.value || '' }];
+    : [{ date: new Date().toISOString().slice(0, 10), wt: document.getElementById((_growthOPD ? 'opWt_' : 'wt_') + idx)?.value || '', ht: document.getElementById((_growthOPD ? 'opHt_' : 'ht_') + idx)?.value || '' }];
   const sexWord = p.sex === 'F' ? 'F' : p.sex === 'M' ? 'M' : '—';
   const ov = document.createElement('div'); ov.id = 'growthOverlay'; ov.className = 'pes-overlay';
   ov.innerHTML = `<div class="pes-modal" role="dialog" aria-label="Growth and malnutrition assessment">
@@ -7190,8 +7199,8 @@ let _feedCalcIdx = null, _feedCalcMode = 'regimen', _feedCalcOPD = false;
 // the dedicated wt_ field. So when she works serial-only (to avoid the weight printing twice),
 // the requirement/feeding calculators can still pick up the MOST RECENT serial weight. Read-only
 // — nothing is written back to the note.
-function latestSerialWeight(idx) {
-  const raw = document.getElementById('growthData_' + idx)?.value || (chartData[idx] || {}).growthData || '';
+function latestSerialWeight(idx, opd) {
+  const raw = document.getElementById((opd ? 'opGrowthData_' : 'growthData_') + idx)?.value || ((opd ? opdChartData : chartData)[idx] || {}).growthData || '';
   let data; try { data = JSON.parse(raw || '{}'); } catch (_) { return ''; }
   const visits = Array.isArray(data.visits) ? data.visits.filter(v => parseFloat(v.wt) > 0) : [];
   if (!visits.length) return '';
@@ -7208,7 +7217,7 @@ function openFeedCalc(idx, mode) {
   _feedCalcOPD = opd;
   const p = (opd ? opdPatients[idx] : patients[idx]) || {};
   let wt = (document.getElementById((opd ? 'opWt_' : 'wt_') + idx)?.value || ((opd ? opdChartData : chartData)[idx] || {}).wt || '').toString();
-  if (!parseFloat(wt) && !opd) wt = latestSerialWeight(idx) || wt;   // serial-only fallback (IP)
+  if (!parseFloat(wt)) wt = latestSerialWeight(idx, opd) || wt;   // serial-only fallback (IP + OPD)
   const wtNum = parseFloat(wt);
   const type = (p.isPaeds || (typeof p.ageYears === 'number' && p.ageYears < 18)) ? 'paeds' : 'adult';
   const params = new URLSearchParams({ embed: '1', type, uc: _feedCalcMode === 'intake' ? '1' : '2' });
@@ -7282,7 +7291,7 @@ function openNourishCal(idx) {
     ? (document.getElementById('opWt_' + idx)?.value || (opdChartData[idx] || {}).wt || '')
     : (document.getElementById('wtUsed_' + idx)?.value || document.getElementById('wt_' + idx)?.value || (chartData[idx] || {}).wt || '')
   ).toString();
-  if (!parseFloat(wt) && !opd) wt = latestSerialWeight(idx) || wt;   // serial-only fallback (IP)
+  if (!parseFloat(wt)) wt = latestSerialWeight(idx, opd) || wt;   // serial-only fallback (IP + OPD)
   const wtNum = parseFloat(wt);
   const ageY = (typeof p.ageYears === 'number') ? p.ageYears : parseFloat(p.ageRaw);
   const paeds = p.isPaeds || (ageY != null && !isNaN(ageY) && ageY < 18);
@@ -7348,7 +7357,7 @@ function gParseDate(s) {
   return null;
 }
 function buildGrowthENC() {
-  const idx = _growthIdx, p = patients[idx];
+  const idx = _growthIdx, p = (_growthOPD ? opdPatients : patients)[idx] || {};
   const sex = p.sex === 'M' ? 'M' : p.sex === 'F' ? 'F' : '';
   const dobStr = document.getElementById('gaDob')?.value;
   const dob = gParseDate(dobStr);
@@ -7499,22 +7508,22 @@ function _setField(id, val, append) {
 function growthInsertAnthro() {
   if (!_growthLast) return; const idx = _growthLast.idx, e = _growthLast.ENC[0]; // latest visit
   const zc = o => o ? `${o.z} / ${o.pct}%` : '';
-  _setField('wtZ_' + idx, zc(e.parsed.weight)); _setField('htZ_' + idx, zc(e.parsed.stature));
-  const wfl = e.ageMo < 24 ? e.parsed.wtfs : e.parsed.bmi; _setField('bmiZ_' + idx, zc(wfl));
-  const gc = document.getElementById('growthChart_' + idx); if (gc) { gc.value = e.ageMo < 24 ? 'WHO' : 'CDC'; if (typeof updateGrowthChartLabel === 'function') updateGrowthChartLabel(idx); }
+  _setField(_gid('wtZ'), zc(e.parsed.weight)); _setField(_gid('htZ'), zc(e.parsed.stature));
+  const wfl = e.ageMo < 24 ? e.parsed.wtfs : e.parsed.bmi; _setField(_gid('bmiZ'), zc(wfl));
+  const gc = document.getElementById(_gid('growthChart')); if (gc) { gc.value = e.ageMo < 24 ? 'WHO' : 'CDC'; const fn = _growthOPD ? updateOPDGrowthChartLabel : updateGrowthChartLabel; if (typeof fn === 'function') fn(idx); }
   // full column-aligned block → pediPaste (the tool-style output she prefers)
-  _setField('pediPaste_' + idx, _growthLast.text || '');
+  _setField(_gid('pediPaste'), _growthLast.text || '');
   if (typeof scheduleAutosave === 'function') scheduleAutosave(); if (typeof toast === 'function') toast('Z-scores → Anthropometry ✓', 1600);
 }
 function growthInsertTrend() {
   if (!_growthLast || !_growthLast.aspen) return; const idx = _growthLast.idx;
   const trend = _growthLast.aspen.indicators.filter(i => /deceleration|loss|velocity/i.test(i.name)).map(i => i.name + ': ' + i.detail);
-  _setField('growthTrend_' + idx, trend.length ? trend.join('\n') : 'No significant deceleration / loss / velocity concern', false);
+  _setField(_gid('growthTrend'), trend.length ? trend.join('\n') : 'No significant deceleration / loss / velocity concern', false);
   if (typeof scheduleAutosave === 'function') scheduleAutosave(); if (typeof toast === 'function') toast('Trend → Growth trend ✓', 1600);
 }
 function growthInsertDx() {
   if (!_growthLast || !_growthLast.aspen) return; const idx = _growthLast.idx;
-  _setField('nutDx_' + idx, _growthLast.aspen.emr, true);
+  _setField(_gid('nutDx'), _growthLast.aspen.emr, true);
   if (typeof scheduleAutosave === 'function') scheduleAutosave(); if (typeof toast === 'function') toast('ASPEN dx → Nutrition Diagnosis ✓', 1800);
 }
 
