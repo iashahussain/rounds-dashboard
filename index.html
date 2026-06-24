@@ -7120,14 +7120,14 @@ function computeAspen(ENC, sex, intake, etiology) {
 }
 
 // ── Growth panel state + modal ──
-let _growthVisits = [], _growthIdx = null, _growthLast = null, _growthEsc = null, _growthOPD = false;
+let _growthVisits = [], _growthIdx = null, _growthLast = null, _growthEsc = null, _growthOPD = false, PRIORGROWTH = [];
 // Field-id helper so the serial/growth modal works in both modes: OPD ids are 'op' + the
 // capitalised IP id (wtZ → opWtZ, growthChart → opGrowthChart, pediPaste → opPediPaste, …).
 const _gid = base => (_growthOPD ? 'op' + base.charAt(0).toUpperCase() + base.slice(1) : base) + '_' + _growthIdx;
 function _growthPersist() {
   if (_growthIdx == null) return;
   const f = document.getElementById((_growthOPD ? 'opGrowthData_' : 'growthData_') + _growthIdx);
-  if (f) { f.value = JSON.stringify({ dob: document.getElementById('gaDob')?.value || '', ga: document.getElementById('gaGa')?.value || '', intake: document.getElementById('aspenIntake')?.value || '', etio: document.getElementById('aspenEtio')?.value || '', visits: _growthVisits }); if (typeof scheduleAutosave === 'function') scheduleAutosave(); }
+  if (f) { f.value = JSON.stringify({ dob: document.getElementById('gaDob')?.value || '', ga: document.getElementById('gaGa')?.value || '', intake: document.getElementById('aspenIntake')?.value || '', etio: document.getElementById('aspenEtio')?.value || '', visits: _growthVisits, priorGrowth: PRIORGROWTH }); if (typeof scheduleAutosave === 'function') scheduleAutosave(); }
 }
 function growthSyncVisit(i, field, val) { if (_growthVisits[i]) { _growthVisits[i][field] = val; _growthPersist(); } }
 function growthAddVisit() { _growthVisits.push({ date: '', wt: '', ht: '', hc: '' }); renderGrowthVisits(); _growthPersist(); }
@@ -7149,6 +7149,7 @@ function openGrowthModal(idx) {
   const saved = (() => { try { return JSON.parse(((_growthOPD ? opdChartData : chartData)[idx] || {}).growthData || '{}'); } catch (_) { return {}; } })();
   _growthVisits = Array.isArray(saved.visits) && saved.visits.length ? saved.visits.map(v => ({ ...v }))
     : [{ date: new Date().toISOString().slice(0, 10), wt: document.getElementById((_growthOPD ? 'opWt_' : 'wt_') + idx)?.value || '', ht: document.getElementById((_growthOPD ? 'opHt_' : 'ht_') + idx)?.value || '' }];
+  PRIORGROWTH = Array.isArray(saved.priorGrowth) ? saved.priorGrowth.slice() : [];
   const sexWord = p.sex === 'F' ? 'F' : p.sex === 'M' ? 'M' : '—';
   const ov = document.createElement('div'); ov.id = 'growthOverlay'; ov.className = 'pes-overlay';
   ov.innerHTML = `<div class="pes-modal" role="dialog" aria-label="Growth and malnutrition assessment">
@@ -7166,6 +7167,22 @@ function openGrowthModal(idx) {
       <div id="growthVisitsBody"></div>
       <button class="btn-ghost btn-small" style="margin-top:6px" onclick="growthAddVisit()">＋ Add visit</button>
 
+      <div class="tt-section-label" style="margin:14px 0 4px">Previous growth <span style="font-weight:400;color:var(--text-muted)">· from the WHO chart</span></div>
+      <div class="hint" style="margin:0 0 8px">Read the trajectory off the chart and add a statement — it goes into the note even with only the latest measurement entered.</div>
+      <div class="gv-inputs">
+        <div><label>Measure</label><select id="pg-measure" onchange="pgPreview()"><option value="Weight">Weight</option><option value="Length/height">Length / height</option><option value="BMI">BMI</option><option value="Weight-for-length">Weight-for-length</option><option value="Head circumference">Head circumference</option></select></div>
+        <div><label>Pattern</label><select id="pg-pattern" onchange="pgPattern();pgPreview()"><option value="track">tracked the line</option><option value="down">crossed down</option><option value="up">crossed up</option><option value="static">stayed around</option><option value="dip">dipped then recovered</option><option value="born">born on the line</option></select></div>
+        <div><label id="pg-from-lbl">z-score line</label><select id="pg-from" onchange="pgPreview()"><option value="3">+3</option><option value="2">+2</option><option value="1">+1</option><option value="0" selected>median (0)</option><option value="-1">−1</option><option value="-2">−2</option><option value="-2.5">between −2 &amp; −3</option><option value="-3">−3</option><option value="-3.5">below −3</option></select></div>
+        <div id="pg-to-wrap" style="display:none"><label>to line</label><select id="pg-to" onchange="pgPreview()"><option value="3">+3</option><option value="2">+2</option><option value="1">+1</option><option value="0">median (0)</option><option value="-1">−1</option><option value="-2" selected>−2</option><option value="-2.5">between −2 &amp; −3</option><option value="-3">−3</option><option value="-3.5">below −3</option></select></div>
+        <div id="pg-val-wrap" style="display:none"><label>Birth value <span style="font-weight:400;color:var(--text-muted)">(opt)</span></label><input type="text" id="pg-val" placeholder="e.g. 3.1" oninput="pgPreview()"></div>
+        <div><label>Timeframe <span style="font-weight:400;color:var(--text-muted)">(opt)</span></label><input type="text" id="pg-when" placeholder="over 6 months · since birth" oninput="pgPreview()"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn-ghost btn-small" onclick="addPriorGrowth()">＋ Add statement</button>
+        <span id="pg-preview" class="hint" style="font-style:italic;flex:1;min-width:0"></span>
+      </div>
+      <div id="pg-list" style="margin-top:6px"></div>
+
       <div class="gv-inputs" style="margin-top:12px">
         <div><label>Recent intake</label><select id="aspenIntake" onchange="_growthPersist()"><option value="">— not assessed —</option><option value="0">Adequate (&gt;75%)</option><option value="1">51–75%</option><option value="2">26–50%</option><option value="3">≤25%</option></select></div>
         <div><label>Aetiology</label><select id="aspenEtio" onchange="_growthPersist()"><option value="">— optional —</option><option value="illness-related">illness-related</option><option value="non-illness/social">non-illness/social</option></select></div>
@@ -7181,6 +7198,7 @@ function openGrowthModal(idx) {
   if (saved.intake) { const s = document.getElementById('aspenIntake'); if (s) s.value = saved.intake; }
   if (saved.etio) { const s = document.getElementById('aspenEtio'); if (s) s.value = saved.etio; }
   renderGrowthVisits();
+  pgPattern(); pgPreview(); renderPGList();
   _growthEsc = e => { if (e.key === 'Escape') closeGrowthModal(); };
   document.addEventListener('keydown', _growthEsc);
 }
@@ -7188,6 +7206,55 @@ function closeGrowthModal() {
   const ov = document.getElementById('growthOverlay'); if (ov) ov.remove();
   const nav = document.getElementById('mobileFloatNav'); if (nav) nav.style.visibility = '';
   if (_growthEsc) { document.removeEventListener('keydown', _growthEsc); _growthEsc = null; }
+}
+
+// ── Previous-growth composer (ported from paedigrowth v7) — describe the WHO-chart
+// trajectory in z-lines so it goes into the note even with only the latest measurement. ──
+function pgZLabel(v){return {'3':'+3','2':'+2','1':'+1','0':'median','-1':'−1','-2':'−2','-2.5':'between the −2 and −3','-3':'−3','-3.5':'below the −3'}[v]||v;}
+function pgLinePhrase(l){
+  if(l==='below the −3')return 'below the −3 z-score line';
+  if(l==='between the −2 and −3')return 'between the −2 and −3 z-score lines';
+  if(l==='median')return 'the median z-score line';
+  return 'the '+l+' z-score line';
+}
+function pgSentence(){
+  const meas=document.getElementById('pg-measure').value;
+  const pat=document.getElementById('pg-pattern').value;
+  const fromV=document.getElementById('pg-from').value, toV=document.getElementById('pg-to').value;
+  const fromP=pgLinePhrase(pgZLabel(fromV)), toP=pgLinePhrase(pgZLabel(toV));
+  const when=(document.getElementById('pg-when').value||'').trim();
+  const w=when?(' '+when):'';
+  const conn=(word,p)=>/^(between|below)/.test(p)?p:word+' '+p;
+  if(pat==='born'){
+    const valEl=document.getElementById('pg-val'); const val=valEl?valEl.value.trim():'';
+    const bl=meas==='Weight'?'Birthweight':meas==='Length/height'?'Birth length':meas==='Head circumference'?'Birth head circumference':('Birth '+meas);
+    const unit=meas==='Weight'?' kg':(meas==='Length/height'||meas==='Head circumference')?' cm':'';
+    return `${bl}${val?' '+val+unit:''} was ${conn('on',fromP)}${w}.`;
+  }
+  if(pat==='track')return `${meas} has tracked ${fromP}${w}.`;
+  if(pat==='static')return `${meas} has stayed ${conn('around',fromP)}${w}.`;
+  if(pat==='dip')return `${meas} dipped then recovered, ${conn('around',fromP)}${w}.`;
+  const dz=Math.abs(parseFloat(fromV)-parseFloat(toV));
+  const dzS=Number.isInteger(dz)?dz:dz.toFixed(1);
+  const verb=pat==='down'?'fall':'rise';
+  return `${meas} has crossed ${pat} from ${fromP} to ${toP} (a ${verb} of ${dzS} SD)${w}.`;
+}
+function pgPattern(){
+  const pat=document.getElementById('pg-pattern').value, crossing=(pat==='down'||pat==='up'), born=(pat==='born');
+  const toW=document.getElementById('pg-to-wrap'); if(toW)toW.style.display=crossing?'':'none';
+  const valW=document.getElementById('pg-val-wrap'); if(valW)valW.style.display=born?'':'none';
+  const lbl=document.getElementById('pg-from-lbl'); if(lbl)lbl.textContent=crossing?'from line':(born?'on line':'z-score line');
+}
+function pgPreview(){const el=document.getElementById('pg-preview');if(el)el.textContent='“'+pgSentence()+'”';}
+function addPriorGrowth(){PRIORGROWTH.push(pgSentence());renderPGList();_growthPersist();computeGrowthPanel();}
+function removePG(i){PRIORGROWTH.splice(i,1);renderPGList();_growthPersist();computeGrowthPanel();}
+function clearPG(){PRIORGROWTH=[];renderPGList();_growthPersist();computeGrowthPanel();}
+function renderPGList(){
+  const el=document.getElementById('pg-list');if(!el)return;
+  if(!PRIORGROWTH.length){el.innerHTML='';return;}
+  el.innerHTML='<div style="display:flex;flex-direction:column;gap:5px;font-size:12px">'+
+    PRIORGROWTH.map((s,i)=>`<div style="display:flex;gap:8px;align-items:baseline"><span style="color:var(--accent)">•</span><span style="flex:1">${esc(s)}</span><button class="btn-ghost btn-small" style="color:var(--warn);border-color:var(--warn);padding:1px 8px" onclick="removePG(${i})">remove</button></div>`).join('')+
+    '</div><button class="btn-ghost btn-small" style="margin-top:8px" onclick="clearPG()">Clear all</button>';
 }
 
 // ── FEEDING REGIMEN — in-app panel to the live Formula Calculator (same origin) ──
@@ -7400,30 +7467,83 @@ function _buildBmiAssessment(ENC, sex) {
   if (sex && st && st.val && e.ageMo != null) { const lms = lmsAt(LMSDATA.CDC.bmi[sex], e.ageMo); if (lms) { const w50 = lms[1] * Math.pow(st.val / 100, 2); s += '\n  Weight at 50th-%ile BMI: ' + (Math.round(w50 * 100) / 100) + ' kg'; } }
   return s;
 }
+// GROWTH ASSESSMENT (RCH approach, ported from paedigrowth v7): current-status
+// classification, z-trajectory (tracking vs crossing centiles), velocity vs WHO median,
+// and an impression. Works with a single measurement (status + impression).
 function _buildGrowthStatement(ENC, sex) {
-  if (!ENC || ENC.length < 2) return '';
-  const s = [...ENC].sort((a, b) => a.md - b.md), first = s[0], last = s[s.length - 1];
-  const days = Math.round((last.md - first.md) / 86400000); if (days <= 0) return '';
+  if (!ENC || !ENC.length) return '';
+  const s = [...ENC].sort((a, b) => a.md - b.md);
+  const last = s[s.length - 1], first = s[0];
+  const multi = s.length >= 2;
+  const sexWord = sex === 'M' ? 'male' : sex === 'F' ? 'female' : '';
+  const zf = v => (v && v.z != null && v.z !== '?') ? parseFloat(v.z) : null;
+  const ord = n => { const r = n % 100; if (r >= 11 && r <= 13) return n + 'th'; return n + (({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th'); };
+  const pctL = z => { if (z == null) return '—'; const p = normCdf(z) * 100; if (p < 1) return '<1st centile'; if (p > 99) return '>99th centile'; return ord(Math.round(p)) + ' centile'; };
+  const zStr = z => z == null ? '—' : (z >= 0 ? '+' + z.toFixed(2) : z.toFixed(2));
+  const cross = dz => { const a = Math.abs(dz / 0.67); if (a < 1) return 'tracked its centile'; const n = a.toFixed(1); return `crossed ${dz < 0 ? 'down' : 'up'} ~${n} centile space${n === '1.0' ? '' : 's'}`; };
+  const P = last.parsed;
+  const adi = P.wtfs ? { v: P.wtfs, label: 'Weight-for-length', bmi: false } : (P.bmi ? { v: P.bmi, label: 'BMI', bmi: true } : null);
+  const adiZ = adi ? zf(adi.v) : null, statZ = P.stature ? zf(P.stature) : null;
   const lines = [];
-  if (first.parsed.weight && last.parsed.weight) {
-    const wEnc = s.filter(e => e.parsed.weight && e.parsed.weight.val > 0); let usual = wEnc[0];
-    wEnc.forEach(e => { if (e.parsed.weight.val > usual.parsed.weight.val) usual = e; });
-    const lostKg = usual.parsed.weight.val - last.parsed.weight.val;
-    if (lostKg > 0.0005) {
-      const ld = Math.round((last.md - usual.md) / 86400000) || days, lossPct = Math.round(lostKg / usual.parsed.weight.val * 1000) / 10;
-      lines.push(`Weight: lost ${lostKg.toFixed(2)} kg (${lossPct.toFixed(1)}% of usual weight, avg ${Math.round(lostKg * 1000 / ld)} g/day) over ${ld} days, ${_fmtDate(usual.md)} → ${_fmtDate(last.md)}.`);
-    } else {
-      const dg = last.parsed.weight.val - first.parsed.weight.val; let line = `Weight: gained ${dg.toFixed(2)} kg (avg ${Math.round(dg * 1000 / days)} g/day) over ${days} days, ${_fmtDate(first.md)} → ${_fmtDate(last.md)}`;
-      if (sex) { const m0 = whoMedianWt(first.ageMo, sex), m1 = whoMedianWt(last.ageMo, sex); if (m0 != null && m1 != null && (m1 - m0) > 0.001) { const exp = m1 - m0; line += ` — WHO 50th-%ile ~${Math.round(exp * 1000 / days)} g/day (${Math.round(dg / exp * 100)}% of expected)`; } }
-      lines.push(line + '.');
+  // Current status (classification)
+  const sp = [];
+  if (adi && adiZ != null) {
+    let tag = ' — normal';
+    if (adiZ <= -3) tag = ' — severely wasted'; else if (adiZ <= -2) tag = ' — wasted'; else if (adiZ <= -1) tag = ' — mildly low';
+    else if (adi.bmi && adiZ >= 1.645) tag = ' — obese'; else if (adi.bmi && adiZ >= 1.036) tag = ' — overweight';
+    sp.push(`${adi.label} ${pctL(adiZ)} (z ${zStr(adiZ)})${tag}`);
+  }
+  if (P.stature && statZ != null) {
+    let tag = ' — normal';
+    if (statZ <= -3) tag = ' — severely short'; else if (statZ <= -2) tag = ' — short (stunting)'; else if (statZ >= 2) tag = ' — tall';
+    sp.push(`${P.stature.label.replace(' (cm)', '')} ${pctL(statZ)} (z ${zStr(statZ)})${tag}`);
+  }
+  if (sp.length) lines.push('Status: ' + sp.join('; ') + '.');
+  // Trend (z-trajectory: tracking vs crossing; weight loss as % of usual)
+  let lostNow = false;
+  if (multi) {
+    const days = Math.round((last.md - first.md) / 86400000);
+    const tp = [];
+    if (first.parsed.weight && last.parsed.weight) {
+      const wEnc = s.filter(e => e.parsed.weight && e.parsed.weight.val > 0);
+      let usual = wEnc[0]; wEnc.forEach(e => { if (e.parsed.weight.val > usual.parsed.weight.val) usual = e; });
+      const cur = last.parsed.weight.val, z0 = zf(first.parsed.weight), z1 = zf(last.parsed.weight);
+      let w;
+      if (usual.parsed.weight.val - cur > 0.0005) {
+        lostNow = true;
+        const lostKg = usual.parsed.weight.val - cur, lossPct = Math.round(lostKg / usual.parsed.weight.val * 1000) / 10;
+        w = `weight lost ${lostKg.toFixed(2)} kg (${lossPct.toFixed(1)}% of usual weight)`;
+      } else { w = `weight gained ${(cur - first.parsed.weight.val).toFixed(2)} kg`; }
+      if (z0 != null && z1 != null) w += `, ${cross(z1 - z0)} (z ${zStr(z0)} → ${zStr(z1)})`;
+      tp.push(w);
     }
+    const htE = s.filter(e => e.parsed.stature);
+    if (htE.length >= 2) { const z0 = zf(htE[0].parsed.stature), z1 = zf(htE[htE.length - 1].parsed.stature); if (z0 != null && z1 != null) tp.push(`length/height ${cross(z1 - z0)} (z ${zStr(z0)} → ${zStr(z1)})`); }
+    const ak = P.wtfs ? 'wtfs' : (P.bmi ? 'bmi' : null);
+    if (ak) { const aE = s.filter(e => e.parsed[ak]); if (aE.length >= 2) { const z0 = zf(aE[0].parsed[ak]), z1 = zf(aE[aE.length - 1].parsed[ak]); if (z0 != null && z1 != null) { const d = cross(z1 - z0); if (d !== 'tracked its centile') tp.push(`${ak === 'wtfs' ? 'weight-for-length' : 'BMI'} ${d} (z ${zStr(z0)} → ${zStr(z1)})`); } } }
+    if (tp.length) { const mo = days / 30.4375; const per = mo >= 1.5 ? `${Math.round(mo)} months` : `${days} days`; lines.push(`Trend over ${per}: ${tp.join('; ')}.`); }
   }
-  const ht = s.filter(e => e.parsed.stature && e.parsed.stature.val != null);
-  if (ht.length >= 2) {
-    const a = ht[0], b = ht[ht.length - 1], dmo = (b.md - a.md) / 86400000 / 30.4375, dcm = b.parsed.stature.val - a.parsed.stature.val;
-    if (dmo > 0) { let line = `Height/length: grew ${dcm.toFixed(1)} cm (avg ${(dcm / dmo).toFixed(1)} cm/month), ${_fmtDate(a.md)} → ${_fmtDate(b.md)}`; if (sex) { const m0 = whoMedianLen(a.ageMo, sex), m1 = whoMedianLen(b.ageMo, sex); if (m0 != null && m1 != null && (m1 - m0) > 0.01) { const exp = m1 - m0; line += ` — WHO 50th-%ile ~${(exp / dmo).toFixed(1)} cm/month (${Math.round(dcm / exp * 100)}% of expected)`; } } lines.push(line + '.'); }
+  // Velocity vs WHO median (<2y, gaining)
+  if (sex && last.ageMo != null && last.ageMo < 24 && multi && first.parsed.weight && last.parsed.weight) {
+    const vp = [];
+    const expW = whoMedianWt(last.ageMo, sex) - whoMedianWt(first.ageMo, sex), actW = last.parsed.weight.val - first.parsed.weight.val;
+    if (expW > 0.001 && actW > 0) vp.push(`weight gain ${Math.round(actW / expW * 100)}% of WHO median`);
+    const htE = s.filter(e => e.parsed.stature && e.parsed.stature.val != null);
+    if (htE.length >= 2) { const a = htE[0], b = htE[htE.length - 1], expL = whoMedianLen(b.ageMo, sex) - whoMedianLen(a.ageMo, sex), actL = b.parsed.stature.val - a.parsed.stature.val; if (expL > 0.01 && actL > 0) vp.push(`length ${Math.round(actL / expL * 100)}%`); }
+    if (vp.length) lines.push('Velocity: ' + vp.join(', ') + '.');
   }
-  return lines.length ? ('GROWTH TREND:\n' + lines.join('\n')) : '';
+  // Impression
+  const wasted = adiZ != null && adiZ <= -2, stunted = statZ != null && statZ <= -2, overwt = adi && adi.bmi && adiZ != null && adiZ >= 1.036;
+  let imp;
+  if (overwt) imp = 'Weight excess (' + (adiZ >= 1.645 ? 'obese' : 'overweight') + ').';
+  else if (wasted || lostNow) { imp = multi ? 'Low / falling weight-for-height — acute (wasting) pattern' : 'Low weight-for-height (wasting)'; if (stunted) imp += multi ? ', on a background of stunting (chronic)' : '; also low height (stunting)'; imp += '.'; }
+  else if (stunted) imp = 'Low height-for-age — stunting (chronic)' + (multi ? '; weight-for-height relatively preserved.' : '.');
+  else if (multi) imp = 'Proportionate growth tracking its centiles — reassuring.';
+  else imp = 'Within the normal range; single measurement — serial data needed to judge trajectory.';
+  lines.push('Impression: ' + imp);
+  if (!lines.length) return '';
+  const ageLabel = _ageShort(last.a) + (last.correctedAgeMo != null ? ' corrected' : '');
+  return `GROWTH ASSESSMENT (${ageLabel}${sexWord ? ' · ' + sexWord : ''}):\n` + lines.join('\n');
 }
 // Build the paste-ready ANTHROPOMETRY block exactly like the standalone tool.
 function buildGrowthText(ENC, sex) {
@@ -7462,6 +7582,8 @@ function buildGrowthText(ENC, sex) {
     const st = bmiE.parsed.stature;
     if (sex && st && st.val && bmiE.ageMo != null) { const lms = lmsAt(LMSDATA.CDC.bmi[sex], bmiE.ageMo); if (lms) { const w50 = lms[1] * Math.pow(st.val / 100, 2); out += '\nWeight at 50th-%ile BMI: ' + (Math.round(w50 * 100) / 100) + ' kg'; } }
   }
+  // PREVIOUS GROWTH (from chart) — narrative trajectory she read off the WHO chart.
+  if (PRIORGROWTH && PRIORGROWTH.length) out += '\n\nPREVIOUS GROWTH (from chart):\n ' + PRIORGROWTH.join('\n ');
   const gs = _buildGrowthStatement(aENC, sex); if (gs) out += '\n\n' + gs;
   return out;
 }
