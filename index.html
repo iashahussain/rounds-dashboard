@@ -7186,6 +7186,19 @@ function closeGrowthModal() {
 const FEEDCALC_ORIGIN = 'https://iashahussain.github.io';
 const FEEDCALC_URL = FEEDCALC_ORIGIN + '/feed-calculator/';
 let _feedCalcIdx = null, _feedCalcMode = 'regimen', _feedCalcOPD = false;
+// IP serial/growth route stores weights in the hidden growthData_ field (JSON visits[]), not
+// the dedicated wt_ field. So when she works serial-only (to avoid the weight printing twice),
+// the requirement/feeding calculators can still pick up the MOST RECENT serial weight. Read-only
+// — nothing is written back to the note.
+function latestSerialWeight(idx) {
+  const raw = document.getElementById('growthData_' + idx)?.value || (chartData[idx] || {}).growthData || '';
+  let data; try { data = JSON.parse(raw || '{}'); } catch (_) { return ''; }
+  const visits = Array.isArray(data.visits) ? data.visits.filter(v => parseFloat(v.wt) > 0) : [];
+  if (!visits.length) return '';
+  let best = visits[visits.length - 1], bestT = -Infinity;   // default: last entered
+  visits.forEach(v => { const d = (typeof gParseDate === 'function') ? gParseDate(v.date) : null; if (d && !isNaN(d) && d.getTime() > bestT) { bestT = d.getTime(); best = v; } });
+  return String(best.wt);
+}
 // mode 'regimen' → feed-calc use-case 2 (calculate support) → result into Intervention.
 // mode 'intake'  → feed-calc use-case 1 (estimate current intake) → into Current intake + % of EER.
 function openFeedCalc(idx, mode) {
@@ -7194,7 +7207,8 @@ function openFeedCalc(idx, mode) {
   const opd = currentMode === 'op';
   _feedCalcOPD = opd;
   const p = (opd ? opdPatients[idx] : patients[idx]) || {};
-  const wt = (document.getElementById((opd ? 'opWt_' : 'wt_') + idx)?.value || ((opd ? opdChartData : chartData)[idx] || {}).wt || '').toString();
+  let wt = (document.getElementById((opd ? 'opWt_' : 'wt_') + idx)?.value || ((opd ? opdChartData : chartData)[idx] || {}).wt || '').toString();
+  if (!parseFloat(wt) && !opd) wt = latestSerialWeight(idx) || wt;   // serial-only fallback (IP)
   const wtNum = parseFloat(wt);
   const type = (p.isPaeds || (typeof p.ageYears === 'number' && p.ageYears < 18)) ? 'paeds' : 'adult';
   const params = new URLSearchParams({ embed: '1', type, uc: _feedCalcMode === 'intake' ? '1' : '2' });
@@ -7264,10 +7278,11 @@ function openNourishCal(idx) {
   const opd = currentMode === 'op';
   _nourishCalOPD = opd;
   const p = (opd ? opdPatients[idx] : patients[idx]) || {};
-  const wt = (opd
+  let wt = (opd
     ? (document.getElementById('opWt_' + idx)?.value || (opdChartData[idx] || {}).wt || '')
     : (document.getElementById('wtUsed_' + idx)?.value || document.getElementById('wt_' + idx)?.value || (chartData[idx] || {}).wt || '')
   ).toString();
+  if (!parseFloat(wt) && !opd) wt = latestSerialWeight(idx) || wt;   // serial-only fallback (IP)
   const wtNum = parseFloat(wt);
   const ageY = (typeof p.ageYears === 'number') ? p.ageYears : parseFloat(p.ageRaw);
   const paeds = p.isPaeds || (ageY != null && !isNaN(ageY) && ageY < 18);
