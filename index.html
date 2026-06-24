@@ -3071,7 +3071,7 @@ const SMART_PHRASES = {
     'Inadequate fluid intake (NI-3.1) related to restricted access as evidenced by reduced urine output and dry mucous membranes',
     'Swallowing difficulty (NC-1.1) related to neurological impairment as evidenced by coughing on thin fluids',
     'Overweight / obesity (NC-3.3) related to excessive energy intake as evidenced by BMI >25 and dietary history',
-    'Suboptimal growth (NC-3.6) related to inadequate intake as evidenced by declining weight-for-length Z-score',
+    'Suboptimal growth (NC-3.6) related to inadequate intake as evidenced by declining weight-for-length z-score',
     'Altered GI function (NC-1.4) related to post-surgical changes as evidenced by malabsorption and loose stool',
     'Food-medication interaction (NC-2.3) related to current medication regimen',
   ],
@@ -3133,11 +3133,11 @@ const SMART_PHRASES = {
     'Weight gain velocity <75% (mild) / <50% (mod) / <25% (severe)',
   ],
   growthTrend: [
-    'Stable on X %ile / Z-score X',
+    'Stable on X %ile / z-score X',
     'Crossing centiles downward — from X to X',
     'Crossing centiles upward — appropriate catch-up',
     'No net weight gain since X (X months)',
-    'WFL/WFH Z-score declined by X over X months',
+    'WFL/WFH z-score declined by X over X months',
     'Growing appropriate for gestational age',
   ],
   feedingHx: [
@@ -4442,11 +4442,11 @@ function generateOPDNote(idx) {
   if (wt || ht || bmi || wtHx || pediPaste || (p.isPaeds ? wtZ : false)) {
     note += `ANTHROPOMETRY\n`;
     if (p.isPaeds) {
-      if (wt) note += `Weight: ${wt} kg${wtSrcStr}${wtZ?` (Z: ${wtZ})`:''}\n`;
+      if (wt) note += `Weight: ${wt} kg${wtSrcStr}${wtZ?` (z ${wtZ})`:''}\n`;
       {
         const hb2 = [];
-        if (ht) hb2.push(`Height: ${ht} cm${htZ?` (Z: ${htZ})`:''}`);
-        if (bmi) hb2.push(`BMI: ${bmi} kg/m²${bmiZ?` (Z: ${bmiZ})`:''}`);
+        if (ht) hb2.push(`Height: ${ht} cm${htZ?` (z ${htZ})`:''}`);
+        if (bmi) hb2.push(`BMI: ${bmi} kg/m²${bmiZ?` (z ${bmiZ})`:''}`);
         if (hb2.length) note += hb2.join(' | ') + `\n`;
       }
       if (growthTrend) note += `Growth trend: ${growthTrend}\n`;
@@ -5432,15 +5432,15 @@ function renderOPDPrechart(idx) {
         </div>
         <div class="form-grid-3" style="margin-top:8px">
           <div class="form-group">
-            <label>Wt Z-score / %ile</label>
+            <label>Wt z-score / %ile</label>
             <input type="text" id="opWtZ_${idx}" value="${esc(saved.wtZ||'')}" placeholder="e.g. -1.8 / 3%">
           </div>
           <div class="form-group">
-            <label>Ht Z-score / %ile</label>
+            <label>Ht z-score / %ile</label>
             <input type="text" id="opHtZ_${idx}" value="${esc(saved.htZ||'')}" placeholder="e.g. -0.5 / 30%">
           </div>
           <div class="form-group">
-            <label>📈 BMI/WFL Z-score / %ile</label>
+            <label>📈 BMI/WFL z-score / %ile</label>
             <input type="text" id="opBmiZ_${idx}" value="${esc(saved.bmiZ||'')}" placeholder="e.g. -2.1 / 2%">
           </div>
         </div>
@@ -5475,7 +5475,7 @@ function renderOPDPrechart(idx) {
           </div>
         </div>
         <div class="form-group" style="margin-top:8px">
-          <label>PediTools / Z-score paste (optional reference)</label>
+          <label>PediTools / z-score paste (optional reference)</label>
           <textarea class="field field-sm" id="opPediPaste_${idx}" placeholder="Paste PediTools output here — appears in the generated note under anthropometry...">${esc(saved.pediPaste||'')}</textarea>
           <div class="hint">Paste and then click Generate Note — PediTools data will appear in the note as-is.</div>
         </div>` : `
@@ -6155,15 +6155,15 @@ function renderPrechart(idx) {
 
         <div class="form-grid-3">
           <div class="form-group">
-            <label>Wt Z-score / %ile</label>
+            <label>Wt z-score / %ile</label>
             <input type="text" id="wtZ_${idx}" value="${esc(saved.wtZ||'')}" placeholder="e.g. -1.8 / 3%">
           </div>
           <div class="form-group">
-            <label>Ht Z-score / %ile</label>
+            <label>Ht z-score / %ile</label>
             <input type="text" id="htZ_${idx}" value="${esc(saved.htZ||'')}" placeholder="e.g. -0.5 / 30%">
           </div>
           <div class="form-group">
-            <label>📈 BMI/WFL Z-score / %ile</label>
+            <label>📈 BMI/WFL z-score / %ile</label>
             <input type="text" id="bmiZ_${idx}" value="${esc(saved.bmiZ||'')}" placeholder="e.g. -2.1 / 2%">
           </div>
         </div>
@@ -6202,7 +6202,7 @@ function renderPrechart(idx) {
           </div>
         </div>
         <div class="form-group" style="margin-top:8px">
-          <label>PediTools / Z-score paste (optional reference)</label>
+          <label>PediTools / z-score paste (optional reference)</label>
           <textarea class="field field-sm" id="pediPaste_${idx}" placeholder="Paste PediTools output here — appears in the generated note under anthropometry...">${esc(saved.pediPaste||'')}</textarea>
           <div class="hint">Paste and then click Generate Note — PediTools data will appear in the note as-is.</div>
         </div>` : `
@@ -7045,7 +7045,7 @@ function calcGrowth(idx) {
   }
   say('✓ ' + standard + ' · ' + summary.join(' · ') + (corrected ? '  (+ corrected-age line added)' : ''));
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
-  if (typeof toast === 'function') toast('Z-scores calculated ✓', 1600);
+  if (typeof toast === 'function') toast('z-scores calculated ✓', 1600);
 }
 
 // ──────────────────────────────────────────
@@ -7543,7 +7543,7 @@ function _buildGrowthStatement(ENC, sex) {
   lines.push('Impression: ' + imp);
   if (!lines.length) return '';
   const ageLabel = _ageShort(last.a) + (last.correctedAgeMo != null ? ' corrected' : '');
-  return `GROWTH ASSESSMENT (${ageLabel}${sexWord ? ' · ' + sexWord : ''}):\n` + lines.join('\n');
+  return `Growth assessment (${ageLabel}${sexWord ? ' · ' + sexWord : ''}):\n` + lines.join('\n');
 }
 // Build the paste-ready ANTHROPOMETRY block exactly like the standalone tool.
 function buildGrowthText(ENC, sex) {
@@ -7553,7 +7553,7 @@ function buildGrowthText(ENC, sex) {
   const dual = ENC.some(e => e.parsedCorr);
   const corrAgeShort = mo => { if (mo == null) return '—'; if (mo < 24) return Math.round(mo) + 'm'; const y = Math.floor(mo / 12), m = Math.round(mo % 12); return m ? y + 'y ' + m + 'm' : y + 'y'; };
   const makeRow = (lbl, val, pct, z, e) => col(lbl, C.lbl) + col(val, C.val) + col(pct == null ? '—' : pct + '%', C.pct) + col(z, C.z) + col(_ageShort(e.a), C.age) + _fmtDate(e.md);
-  const hdr = col('', C.lbl) + col('Value', C.val) + col('%ile', C.pct) + col('Z-Score', C.z) + col('Age', C.age) + 'Date';
+  const hdr = col('', C.lbl) + col('Value', C.val) + col('%ile', C.pct) + col('z-score', C.z) + col('Age', C.age) + 'Date';
   const sec = [];
   const wE = ENC.filter(e => e.parsed.weight); if (wE.length) sec.push(wE.map((e, i) => { const w = e.parsed.weight; return makeRow(i === 0 ? 'Weight (kg)' : BLANK, w.val, w.pct, w.z, e); }).join('\n'));
   const sE = ENC.filter(e => e.parsed.stature); if (sE.length) sec.push(sE.map((e, i) => { const s = e.parsed.stature; return makeRow(i === 0 ? (s.label || 'Length/Height') : BLANK, s.val, s.pct, s.z, e); }).join('\n'));
@@ -7561,7 +7561,7 @@ function buildGrowthText(ENC, sex) {
   const fE = ENC.filter(e => e.parsed.wtfs); if (fE.length) sec.push(fE.map((e, i) => { const w = e.parsed.wtfs; return makeRow(i === 0 ? 'Wt-for-Length' : BLANK, null, w.pct, w.z, e); }).join('\n'));
   // Label the MOST RECENT BMI row with its category inline (e.g. "→ (Underweight)").
   const bE = ENC.filter(e => e.parsed.bmi); if (bE.length) sec.push(bE.map((e, i) => { const b = e.parsed.bmi; let row = makeRow(i === 0 ? 'BMI (kg/m²)' : BLANK, b.val, b.pct, b.z, e); if (i === 0) row += '  → (' + _bmiCat(b.pct) + ')'; return row; }).join('\n'));
-  let out = 'ANTHROPOMETRY' + (dual ? ' (chronological age)' : '') + ':\n' + hdr + '\n\n' + sec.join('\n\n');
+  let out = 'Anthropometry' + (dual ? ' (chronological age)' : '') + ':\n' + hdr + '\n\n' + sec.join('\n\n');
   if (dual) {
     const P = e => e.parsedCorr;
     const mkCorr = (lbl, val, pct, z, e) => col(lbl, C.lbl) + col(val, C.val) + col(pct == null ? '—' : pct + '%', C.pct) + col(z, C.z) + col(corrAgeShort(e.correctedAgeMo), C.age) + col(_ageShort(e.a), C.age) + _fmtDate(e.md);
@@ -7572,8 +7572,8 @@ function buildGrowthText(ENC, sex) {
     const f2 = ENC.filter(e => P(e) && P(e).wtfs); if (f2.length) cs.push(f2.map((e, i) => { const w = P(e).wtfs; return mkCorr(i === 0 ? 'Wt-for-Length' : BLANK, null, w.pct, w.z, e); }).join('\n'));
     const b2 = ENC.filter(e => P(e) && P(e).bmi); if (b2.length) cs.push(b2.map((e, i) => { const b = P(e).bmi; return mkCorr(i === 0 ? 'BMI (kg/m²)' : BLANK, b.val, b.pct, b.z, e); }).join('\n'));
     const ga = (ENC.find(e => e.gaLabel) || {}).gaLabel;
-    const chdr = col('', C.lbl) + col('Value', C.val) + col('%ile', C.pct) + col('Z-Score', C.z) + col('Cor.Age', C.age) + col('Age', C.age) + 'Date';
-    out += '\n\nANTHROPOMETRY (corrected age' + (ga ? ', born ' + ga : '') + '):\n' + chdr + '\n\n' + cs.join('\n\n');
+    const chdr = col('', C.lbl) + col('Value', C.val) + col('%ile', C.pct) + col('z-score', C.z) + col('Cor.Age', C.age) + col('Age', C.age) + 'Date';
+    out += '\n\nAnthropometry (corrected age' + (ga ? ', born ' + ga : '') + '):\n' + chdr + '\n\n' + cs.join('\n\n');
   }
   const aENC = dual ? ENC.map(e => e.parsedCorr ? { ...e, parsed: e.parsedCorr, a: e.correctedAgeObj || e.a, ageMo: e.correctedAgeMo } : e) : ENC;
   // Only when the most recent BMI is underweight (<5th %ile), add the target weight line.
@@ -7583,7 +7583,7 @@ function buildGrowthText(ENC, sex) {
     if (sex && st && st.val && bmiE.ageMo != null) { const lms = lmsAt(LMSDATA.CDC.bmi[sex], bmiE.ageMo); if (lms) { const w50 = lms[1] * Math.pow(st.val / 100, 2); out += '\nWeight at 50th-%ile BMI: ' + (Math.round(w50 * 100) / 100) + ' kg'; } }
   }
   // PREVIOUS GROWTH (from chart) — narrative trajectory she read off the WHO chart.
-  if (PRIORGROWTH && PRIORGROWTH.length) out += '\n\nPREVIOUS GROWTH (from chart):\n ' + PRIORGROWTH.join('\n ');
+  if (PRIORGROWTH && PRIORGROWTH.length) out += '\n\nPrevious growth (from chart):\n ' + PRIORGROWTH.join('\n ');
   const gs = _buildGrowthStatement(aENC, sex); if (gs) out += '\n\n' + gs;
   return out;
 }
@@ -7642,7 +7642,7 @@ function growthInsertAnthro() {
   const gc = document.getElementById(_gid('growthChart')); if (gc) { gc.value = e.ageMo < 24 ? 'WHO' : 'CDC'; const fn = _growthOPD ? updateOPDGrowthChartLabel : updateGrowthChartLabel; if (typeof fn === 'function') fn(idx); }
   // full column-aligned block → pediPaste (the tool-style output she prefers)
   _setField(_gid('pediPaste'), _growthLast.text || '');
-  if (typeof scheduleAutosave === 'function') scheduleAutosave(); if (typeof toast === 'function') toast('Z-scores → Anthropometry ✓', 1600);
+  if (typeof scheduleAutosave === 'function') scheduleAutosave(); if (typeof toast === 'function') toast('z-scores → Anthropometry ✓', 1600);
 }
 function growthInsertTrend() {
   if (!_growthLast || !_growthLast.aspen) return; const idx = _growthLast.idx;
@@ -7851,12 +7851,12 @@ function generateNote(idx) {
   if (hasAnthro) {
     note += `ANTHROPOMETRY\n`;
     if (p.isPaeds) {
-      if (wt) note += `Weight: ${wt} kg${wtSrcStr}${wtZ ? ` (Z: ${wtZ})` : ''}\n`;
+      if (wt) note += `Weight: ${wt} kg${wtSrcStr}${wtZ ? ` (z ${wtZ})` : ''}\n`;
       if (wtChg) note += `Weight change: ${wtChg}\n`;
       {
         const hb2 = [];
-        if (ht) hb2.push(`Height: ${ht} cm${htZ ? ` (Z: ${htZ})` : ''}`);
-        if (bmi) hb2.push(`BMI/WFL: ${bmi} kg/m²${bmiZ ? ` (Z: ${bmiZ})` : ''}`);
+        if (ht) hb2.push(`Height: ${ht} cm${htZ ? ` (z ${htZ})` : ''}`);
+        if (bmi) hb2.push(`BMI/WFL: ${bmi} kg/m²${bmiZ ? ` (z ${bmiZ})` : ''}`);
         if (hb2.length) note += hb2.join(' | ') + `\n`;
       }
       if (growthTrend) note += `Growth trend: ${growthTrend}\n`;
