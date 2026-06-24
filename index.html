@@ -5426,8 +5426,8 @@ function renderOPDPrechart(idx) {
         </div>
         ${p.isPaeds ? `
         <div class="form-group" style="margin-top:8px;background:var(--accent-faint);border:1px solid var(--accent-light);border-radius:var(--r-md);padding:10px 12px">
-          <button type="button" class="btn-ghost btn-small" style="white-space:nowrap" onclick="openGrowthModal(${idx})" title="Serial measurements + ASPEN malnutrition screen">📊 Serial / ASPEN…</button>
-          <div class="hint" style="margin-top:6px;font-size:11.5px">Serial trend + malnutrition screen (works with a single measurement too). Inserts z-scores + the column-aligned block.</div>
+          <button type="button" class="btn-ghost btn-small" style="white-space:nowrap" onclick="openGrowthModal(${idx})" title="Serial measurements + growth assessment">📊 Serial measures</button>
+          <div class="hint" style="margin-top:6px;font-size:11.5px">Serial trend + assessment (works with a single measurement too). Inserts z-scores + the column-aligned block.</div>
           <input type="hidden" id="opGrowthData_${idx}" value="${esc(saved.growthData||'')}">
         </div>
         <div class="form-grid-3" style="margin-top:8px">
@@ -5720,6 +5720,7 @@ function renderOPDPrechart(idx) {
         <h3>📋 Vesalius OPD Note</h3>
         <div style="display:flex;gap:8px">
           <button class="btn-ghost btn-small" onclick="generateOPDNote(${idx})">Generate / Refresh</button>
+          <button class="btn-ghost btn-small" id="opNoteEditBtn_${idx}" onclick="toggleEditNote(${idx}, true)">✏️ Edit</button>
           <button class="btn-ghost btn-small" onclick="copyOPDNote(${idx})">📋 Copy</button>
         </div>
       </div>
@@ -6146,9 +6147,9 @@ function renderPrechart(idx) {
               <input type="text" id="ga_${idx}" value="${esc(saved.ga||'')}" placeholder="e.g. 32+4" style="width:100%">
             </div>
             <button type="button" class="btn-primary btn-small" style="white-space:nowrap" onclick="calcGrowth(${idx})">📈 Calculate z-scores</button>
-            <button type="button" class="btn-ghost btn-small" style="white-space:nowrap" onclick="openGrowthModal(${idx})" title="Serial measurements + ASPEN malnutrition screen">📊 Serial / ASPEN…</button>
+            <button type="button" class="btn-ghost btn-small" style="white-space:nowrap" onclick="openGrowthModal(${idx})" title="Serial measurements + growth assessment">📊 Serial measures</button>
           </div>
-          <div id="growthResult_${idx}" class="hint" style="margin-top:6px;font-size:11.5px">Quick single z-scores → Calculate. Serial trend + malnutrition screen → Serial / ASPEN.</div>
+          <div id="growthResult_${idx}" class="hint" style="margin-top:6px;font-size:11.5px">Quick single z-scores → Calculate. Serial trend + assessment → Serial measures.</div>
           <input type="hidden" id="growthData_${idx}" value="${esc(saved.growthData||'')}">
         </div>
 
@@ -6318,6 +6319,7 @@ function renderPrechart(idx) {
         <h3>📋 Vesalius ADIME Note</h3>
         <div style="display:flex;gap:8px">
           <button class="btn-ghost btn-small" onclick="generateNote(${idx})">Generate / Refresh</button>
+          <button class="btn-ghost btn-small" id="noteEditBtn_${idx}" onclick="toggleEditNote(${idx}, false)">✏️ Edit</button>
           <button class="btn-ghost btn-small" onclick="copyNote(${idx})">📋 Copy</button>
         </div>
       </div>
@@ -7151,7 +7153,7 @@ function openGrowthModal(idx) {
   const ov = document.createElement('div'); ov.id = 'growthOverlay'; ov.className = 'pes-overlay';
   ov.innerHTML = `<div class="pes-modal" role="dialog" aria-label="Growth and malnutrition assessment">
     <div class="pes-head">
-      <div class="pes-headrow"><span style="font-size:14px;font-weight:700;flex:1">📊 Growth &amp; malnutrition (ASPEN)</span><button class="pes-close" onclick="closeGrowthModal()" aria-label="Close">✕</button></div>
+      <div class="pes-headrow"><span style="font-size:14px;font-weight:700;flex:1">📊 Serial measures</span><button class="pes-close" onclick="closeGrowthModal()" aria-label="Close">✕</button></div>
       <div class="gv-inputs">
         <div><label>Date of birth</label><input type="text" id="gaDob" inputmode="text" autocomplete="off" value="${esc(saved.dob || '')}" placeholder="e.g. 23/08/2025 or 23-Aug-2025" oninput="_growthPersist()"></div>
         <div><label>GA at birth</label><input type="text" id="gaGa" value="${esc(saved.ga || '')}" placeholder="e.g. 32+4" onchange="_growthPersist()"></div>
@@ -7437,7 +7439,8 @@ function buildGrowthText(ENC, sex) {
   const sE = ENC.filter(e => e.parsed.stature); if (sE.length) sec.push(sE.map((e, i) => { const s = e.parsed.stature; return makeRow(i === 0 ? (s.label || 'Length/Height') : BLANK, s.val, s.pct, s.z, e); }).join('\n'));
   const hE = ENC.filter(e => e.parsed.head); if (hE.length) sec.push(hE.map((e, i) => { const h = e.parsed.head; return makeRow(i === 0 ? 'Head circ (cm)' : BLANK, h.val, h.pct, h.z, e); }).join('\n'));
   const fE = ENC.filter(e => e.parsed.wtfs); if (fE.length) sec.push(fE.map((e, i) => { const w = e.parsed.wtfs; return makeRow(i === 0 ? 'Wt-for-Length' : BLANK, null, w.pct, w.z, e); }).join('\n'));
-  const bE = ENC.filter(e => e.parsed.bmi); if (bE.length) sec.push(bE.map((e, i) => { const b = e.parsed.bmi; return makeRow(i === 0 ? 'BMI (kg/m²)' : BLANK, b.val, b.pct, b.z, e); }).join('\n'));
+  // Label the MOST RECENT BMI row with its category inline (e.g. "→ (Underweight)").
+  const bE = ENC.filter(e => e.parsed.bmi); if (bE.length) sec.push(bE.map((e, i) => { const b = e.parsed.bmi; let row = makeRow(i === 0 ? 'BMI (kg/m²)' : BLANK, b.val, b.pct, b.z, e); if (i === 0) row += '  → (' + _bmiCat(b.pct) + ')'; return row; }).join('\n'));
   let out = 'ANTHROPOMETRY' + (dual ? ' (chronological age)' : '') + ':\n' + hdr + '\n\n' + sec.join('\n\n');
   if (dual) {
     const P = e => e.parsedCorr;
@@ -7453,9 +7456,13 @@ function buildGrowthText(ENC, sex) {
     out += '\n\nANTHROPOMETRY (corrected age' + (ga ? ', born ' + ga : '') + '):\n' + chdr + '\n\n' + cs.join('\n\n');
   }
   const aENC = dual ? ENC.map(e => e.parsedCorr ? { ...e, parsed: e.parsedCorr, a: e.correctedAgeObj || e.a, ageMo: e.correctedAgeMo } : e) : ENC;
-  out += _buildBmiAssessment(aENC, sex);
+  // Only when the most recent BMI is underweight (<5th %ile), add the target weight line.
+  const bmiE = bE[0];   // ENC is sorted most-recent-first
+  if (bmiE && bmiE.parsed.bmi && bmiE.parsed.bmi.pct < 5) {
+    const st = bmiE.parsed.stature;
+    if (sex && st && st.val && bmiE.ageMo != null) { const lms = lmsAt(LMSDATA.CDC.bmi[sex], bmiE.ageMo); if (lms) { const w50 = lms[1] * Math.pow(st.val / 100, 2); out += '\nWeight at 50th-%ile BMI: ' + (Math.round(w50 * 100) / 100) + ' kg'; } }
+  }
   const gs = _buildGrowthStatement(aENC, sex); if (gs) out += '\n\n' + gs;
-  out += '\n\nZ-scores: WHO 2006 (<2y) / CDC 2000 (≥2y), computed locally via LMS.' + (dual ? ' Assessment uses corrected age.' : '');
   return out;
 }
 function copyGrowthText() {
@@ -7991,6 +7998,32 @@ function copyNote(idx) {
   const plain = noteStore[idx];
   if (!plain) { toast('Generate the note first'); return; }
   copyNoteRich(plain);
+}
+
+// Edit a generated note in place: swaps the rendered note for a plain-text textarea, then on
+// "Done" saves the edits back to the note store (so Copy uses the edited text) and re-renders.
+// Edits are post-generation — clicking Generate / Refresh rebuilds from the fields as usual.
+function toggleEditNote(idx, opd) {
+  const store = opd ? opdNoteStore : noteStore;
+  const el = document.getElementById((opd ? 'opNoteOutput_' : 'noteOutput_') + idx);
+  const btn = document.getElementById((opd ? 'opNoteEditBtn_' : 'noteEditBtn_') + idx);
+  if (!el) return;
+  const ta = el.querySelector('textarea.note-edit-area');
+  if (ta) {
+    store[idx] = ta.value;
+    el.innerHTML = renderNoteHTML(store[idx]);
+    el.classList.remove('note-placeholder');
+    if (opd) { if (typeof saveOPDChart === 'function') saveOPDChart(idx, true); }
+    else if (typeof scheduleAutosave === 'function') scheduleAutosave();
+    if (btn) btn.innerHTML = '✏️ Edit';
+    if (typeof toast === 'function') toast('Note updated ✓', 1400);
+  } else {
+    const plain = store[idx];
+    if (!plain) { if (typeof toast === 'function') toast('Generate the note first'); return; }
+    el.innerHTML = `<textarea class="note-edit-area" spellcheck="true" style="width:100%;min-height:340px;font-family:var(--mono);font-size:12.5px;line-height:1.5;border:1px solid var(--accent);border-radius:6px;padding:10px;resize:vertical;box-sizing:border-box">${esc(plain)}</textarea>`;
+    const t = el.querySelector('textarea'); if (t) t.focus();
+    if (btn) btn.innerHTML = '✓ Done';
+  }
 }
 
 // Build an HTML version of the note where UPPERCASE section headers are bold,
