@@ -1893,9 +1893,26 @@ function unchart(idx) {
   chartedSet.delete(idx);
   unchartCooldown[idx] = Date.now();
   updateStats();
-  renderList();
-  if (currentMode === 'ip' && activeIdx === idx) renderPrechart(idx);
+  // If this patient's chart is the one open, close it back to the list. Leaving a panel open
+  // for a patient she just removed risks her charting the wrong person.
+  if (currentMode === 'ip' && activeIdx === idx) closeIPPanel();
+  else renderList();
   toast('Removed from Charted ✓');
+}
+
+// Close the open IP chart and return to the worklist (no patient selected). Saves field
+// edits first so nothing is lost, ends the panel/focus timing, and re-shows the list on mobile.
+function closeIPPanel() {
+  const idx = activeIdx;
+  if (idx != null && typeof saveChart === 'function') saveChart(idx, true);
+  if (typeof closeIPPanelLog === 'function') closeIPPanelLog();
+  if (typeof stopFocusTimer === 'function') stopFocusTimer();
+  activeIdx = null;
+  renderList();
+  const panel = document.getElementById('prechartPanel');
+  if (panel) panel.innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><p>Select a patient to begin precharting</p></div>`;
+  const pp = document.getElementById('patientPanelEl');
+  if (pp) pp.classList.remove('collapsed');
 }
 
 // One-tap copy of the PRN straight from the list card — so building the Vesalius
@@ -4176,8 +4193,16 @@ function parseBiochemOPD(idx) {
   const over = (field, val) => { const el = document.getElementById(`op${field}_${idx}`); if (el && val) { el.value = val; el.classList.remove('from-prev'); const fg = el.closest('.form-group'); if (fg) fg.style.display = ''; if (el.tagName === 'TEXTAREA' && typeof autoExpand === 'function') autoExpand(el); } };
   const s = text.replace(/^[\s\-•]+/gm,'').replace(/(\d),(\d)/g,'$1.$2').replace(/VIEW\s+PATIENT\s+RESULTS\s+CHART/gi,'');
   const isVes = /VIEW\s+PATIENT\s+RESULTS\s+CHART/i.test(text)
-    || /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Total\s+Cholesterol|LDL\s+Cholesterol|Alkaline\s+Phosphatase|Aminotransferase)[\s,]+\d/i.test(s);
-  const vGet = label => { const m = s.match(new RegExp(label+'[\\s,]*:?[\\s,]*([0-9.]+)','i')); return m?m[1].replace(/\.$/,''):null; };
+    || /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Total\s+Cholesterol|LDL\s+Cholesterol|Alkaline\s+Phosphatase|Aminotransferase)[\s,]+\d/i.test(s)
+    // Stacked single-result copy (e.g. a lone CRP): Vesalius timestamp + a standalone unit line.
+    || (/\b\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{2,4}\s+\d{1,2}:\d{2}\b/.test(text) && /(?:^|\n|\s)(?:mg\/dL|mmol\/L|g\/dL|g\/L|IU\/L|U\/L|ng\/mL|pg\/mL|[µu]mol\/L|mIU\/L)\b/i.test(text));
+  const vGet = label => {
+    let m = s.match(new RegExp(label+'[\\s,]*:?[\\s,]*([0-9.]+)','i'));
+    // Fallback for the stacked Vesalius layout (e.g. "CRP (Vario)  ORDERER … \n 4.27 \n mg/dL")
+    // where the value sits a line below the name after a "(method)" suffix + orderer/blank cells.
+    if (!m) m = s.match(new RegExp(label+'\\b[^0-9]{0,80}?([0-9][0-9.]*)','i'));
+    return m?m[1].replace(/\.$/,''):null;
+  };
   const V = {}; const otherParts = [];
   if (isVes) {
     V.na=vGet('Sodium'); V.k=vGet('Potassium'); V.cl=vGet('Chloride'); V.hco3=vGet('Bicarbonate')||vGet('Total CO2')||vGet('CO2');
@@ -4586,11 +4611,23 @@ function parseBiochem(idx, text) {
   // never appear in quick free-text — NOT short tokens like Urea/eGFR/CRP, which would wrongly
   // route an abbreviated doctor's note into the full-name branch.
   const isVesalius = /VIEW\s+PATIENT\s+RESULTS\s+CHART/i.test(text)
-    || /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Total\s+Cholesterol|LDL\s+Cholesterol|Alkaline\s+Phosphatase|Aminotransferase)[\s,]+\d/i.test(src);
+    || /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Total\s+Cholesterol|LDL\s+Cholesterol|Alkaline\s+Phosphatase|Aminotransferase)[\s,]+\d/i.test(src)
+    // Stacked single-result copy (e.g. a lone CRP): a Vesalius result timestamp ("22-Jun-2026 00:36")
+    // together with a standalone unit line (mg/dL, mmol/L…) — unmistakably a lab export, not a note.
+    || (/\b\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{2,4}\s+\d{1,2}:\d{2}\b/.test(text) && /(?:^|\n|\s)(?:mg\/dL|mmol\/L|g\/dL|g\/L|IU\/L|U\/L|ng\/mL|pg\/mL|[µu]mol\/L|mIU\/L)\b/i.test(text));
   // vGet captures the FIRST number after the label, tolerating ", , " or ":" or
   // whitespace between the label and its value. Runs on the normalised `src` (which has
   // the "VIEW PATIENT RESULTS CHART" column stripped) so the value isn't hidden behind it.
-  const vGet = (label) => { const m = src.match(new RegExp(label + '[\\s,]*:?[\\s,]*([0-9.]+)', 'i')); return m ? m[1].replace(/\.$/, '') : null; };
+  const vGet = (label) => {
+    // 1) Tight inline match — value right after the label (the VIEW-CHART export format).
+    let m = src.match(new RegExp(label + '[\\s,]*:?[\\s,]*([0-9.]+)', 'i'));
+    // 2) Fallback for Vesalius' STACKED layout — "CRP (Vario)  ORDERER … \n 4.27 \n mg/dL" —
+    //    where a "(method)" suffix + the orderer/blank cells sit between the name and its value
+    //    (value a line or two below). Non-greedy, bounded skip of non-digits grabs the NEAREST
+    //    number (the value), never reaching back into another analyte's row (date is before name).
+    if (!m) m = src.match(new RegExp(label + '\\b[^0-9]{0,80}?([0-9][0-9.]*)', 'i'));
+    return m ? m[1].replace(/\.$/, '') : null;
+  };
 
   // ── Pull every analyte into one value-map V, then assemble the 10 clusters once. ──
   const V = {};        // numeric analytes
@@ -5548,6 +5585,7 @@ function renderOPDPrechart(idx) {
         </div>
         <div class="form-group" style="margin-bottom:8px">
           <label>🍽 Current diet / intake</label>
+          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx},'intake')" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Estimate current intake (Formula Calc)</button>
           <textarea class="field field-sm" id="opCurrentDiet_${idx}" placeholder="What is the patient currently eating and drinking...">${esc(saved.currentDiet||'')}</textarea>
         </div>
         <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px">
@@ -5596,6 +5634,7 @@ function renderOPDPrechart(idx) {
     <div class="section" data-s="reqs">
       <div class="section-header"><span class="section-title">⚡ Nutritional Requirements</span></div>
       <div class="section-body">
+        <button type="button" class="btn-ghost btn-small" onclick="openNourishCal(${idx})" style="margin:0 0 10px;font-size:11px;padding:3px 10px">⚡ Calculate requirements (NourishCal)</button>
         <div class="form-grid-3">
           <div class="form-group"><label>⚡ EER (kcal/day)</label><input type="text" id="opEer_${idx}" value="${esc(saved.eer||'')}" placeholder="e.g. 1400 kcal"></div>
           <div class="form-group"><label>🐟 EPR (g/day)</label><input type="text" id="opEpr_${idx}" value="${esc(saved.epr||'')}" placeholder="e.g. 28–35g"></div>
@@ -5641,6 +5680,7 @@ function renderOPDPrechart(idx) {
         </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>✏️ Plan / Intervention</label>
+          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx})" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Feeding regimen (Formula Calc)</button>
           <textarea class="field field-lg" id="opIntervention_${idx}" placeholder="Dietary advice, supplement recommendation, education, referrals...">${esc(saved.intervention||'')}</textarea>
         </div>
         <div class="form-group">
@@ -7128,14 +7168,16 @@ function closeGrowthModal() {
 // which we drop into the Intervention field (which is what flows into the note).
 const FEEDCALC_ORIGIN = 'https://iashahussain.github.io';
 const FEEDCALC_URL = FEEDCALC_ORIGIN + '/feed-calculator/';
-let _feedCalcIdx = null, _feedCalcMode = 'regimen';
+let _feedCalcIdx = null, _feedCalcMode = 'regimen', _feedCalcOPD = false;
 // mode 'regimen' → feed-calc use-case 2 (calculate support) → result into Intervention.
 // mode 'intake'  → feed-calc use-case 1 (estimate current intake) → into Current intake + % of EER.
 function openFeedCalc(idx, mode) {
   _feedCalcIdx = idx;
   _feedCalcMode = (mode === 'intake') ? 'intake' : 'regimen';
-  const p = patients[idx] || {};
-  const wt = (document.getElementById('wt_' + idx)?.value || (chartData[idx] || {}).wt || '').toString();
+  const opd = currentMode === 'op';
+  _feedCalcOPD = opd;
+  const p = (opd ? opdPatients[idx] : patients[idx]) || {};
+  const wt = (document.getElementById((opd ? 'opWt_' : 'wt_') + idx)?.value || ((opd ? opdChartData : chartData)[idx] || {}).wt || '').toString();
   const wtNum = parseFloat(wt);
   const type = (p.isPaeds || (typeof p.ageYears === 'number' && p.ageYears < 18)) ? 'paeds' : 'adult';
   const params = new URLSearchParams({ embed: '1', type, uc: _feedCalcMode === 'intake' ? '1' : '2' });
@@ -7146,9 +7188,9 @@ function openFeedCalc(idx, mode) {
     const m = String(document.getElementById(id)?.value || '').replace(/,/g, '').match(/\d+(?:\.\d+)?/);
     return m ? parseFloat(m[0]) : NaN;
   };
-  const eerNum = firstNum('eer_' + idx);
+  const eerNum = firstNum((opd ? 'opEer_' : 'eer_') + idx);
   if (eerNum > 0) params.set('eer', Math.round(eerNum));
-  const eprNum = firstNum('epr_' + idx);
+  const eprNum = firstNum((opd ? 'opEpr_' : 'epr_') + idx);
   if (eprNum > 0) params.set('epr', eprNum);
   const title = _feedCalcMode === 'intake' ? '💧 Estimate current intake' : '💧 Feeding regimen';
   const hint = _feedCalcMode === 'intake'
@@ -7177,15 +7219,16 @@ window.addEventListener('message', function (e) {
   const d = e.data;
   if (!d || d.type !== 'feedcalc-result' || !d.text) return;
   const idx = _feedCalcIdx; if (idx == null) return;
+  const opd = _feedCalcOPD;
   const txt = String(d.text).trim();
   if (_feedCalcMode === 'intake') {
-    const ci = document.getElementById('currentIntake_' + idx);
+    const ci = document.getElementById((opd ? 'opCurrentDiet_' : 'currentIntake_') + idx);
     if (ci) { ci.value = (ci.value.trim() ? ci.value.replace(/\s+$/, '') + '\n\n' : '') + txt; ci.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(ci); }
     const m = txt.match(/(\d+)\s*%\s*of\s*EER/i);   // pull the % of EER if the output has it
-    if (m) { const ip = document.getElementById('intakePct_' + idx); if (ip && !ip.value.trim()) ip.value = m[1] + '% of EER'; }
+    if (m) { const ip = document.getElementById((opd ? 'opIntakePct_' : 'intakePct_') + idx); if (ip && !ip.value.trim()) ip.value = m[1] + '% of EER'; }
     if (typeof toast === 'function') toast('Current intake → Diet ✓', 2400);
   } else {
-    const el = document.getElementById('intervention_' + idx);
+    const el = document.getElementById((opd ? 'opIntervention_' : 'intervention_') + idx);
     if (el) { el.value = (el.value.trim() ? el.value.replace(/\s+$/, '') + '\n\n' : '') + txt; el.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(el); }
     if (typeof toast === 'function') toast('Feeding regimen → Intervention ✓', 2400);
   }
@@ -7198,11 +7241,16 @@ window.addEventListener('message', function (e) {
 // its "Send to dashboard" button posts EER/EPR/EFR + full text back, which we drop into
 // the Requirements fields + the NutriCalc paste (note).
 const NOURISHCAL_URL = FEEDCALC_ORIGIN + '/nourishcal/';
-let _nourishCalIdx = null;
+let _nourishCalIdx = null, _nourishCalOPD = false;
 function openNourishCal(idx) {
   _nourishCalIdx = idx;
-  const p = patients[idx] || {};
-  const wt = (document.getElementById('wtUsed_' + idx)?.value || document.getElementById('wt_' + idx)?.value || (chartData[idx] || {}).wt || '').toString();
+  const opd = currentMode === 'op';
+  _nourishCalOPD = opd;
+  const p = (opd ? opdPatients[idx] : patients[idx]) || {};
+  const wt = (opd
+    ? (document.getElementById('opWt_' + idx)?.value || (opdChartData[idx] || {}).wt || '')
+    : (document.getElementById('wtUsed_' + idx)?.value || document.getElementById('wt_' + idx)?.value || (chartData[idx] || {}).wt || '')
+  ).toString();
   const wtNum = parseFloat(wt);
   const ageY = (typeof p.ageYears === 'number') ? p.ageYears : parseFloat(p.ageRaw);
   const paeds = p.isPaeds || (ageY != null && !isNaN(ageY) && ageY < 18);
@@ -7239,9 +7287,11 @@ window.addEventListener('message', function (e) {
   const d = e.data;
   if (!d || d.type !== 'nourishcal-result') return;
   const idx = _nourishCalIdx; if (idx == null) return;
+  const opd = _nourishCalOPD;
   const set = (id, v) => { if (!v) return; const el = document.getElementById(id); if (el) { el.value = String(v).trim(); el.classList.remove('from-prev'); } };
-  set('eer_' + idx, d.eer); set('epr_' + idx, d.epr); set('efr_' + idx, d.efr);
-  const np = document.getElementById('nutriCalcPaste_' + idx);
+  if (opd) { set('opEer_' + idx, d.eer); set('opEpr_' + idx, d.epr); }   // OPD has no EFR field
+  else { set('eer_' + idx, d.eer); set('epr_' + idx, d.epr); set('efr_' + idx, d.efr); }
+  const np = document.getElementById((opd ? 'opNutriCalc_' : 'nutriCalcPaste_') + idx);
   if (np && d.text) { np.value = String(d.text).trim(); np.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(np); }
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
   if (typeof toast === 'function') toast('Requirements → EER/EPR/EFR + note ✓', 2400);
@@ -7274,16 +7324,19 @@ function buildGrowthENC() {
   const preterm = gaDays != null && gaDays < 280, corrDays = preterm ? (280 - gaDays) : 0;
   const ENC = [];
   _growthVisits.forEach(v => {
-    if (!v.date || !(parseFloat(v.wt) > 0)) return;
+    // A visit counts if it has a date + ANY measurement (weight, height, or head) — a
+    // height-only visit should still compute height-for-age, matching the standalone tool.
+    if (!v.date) return;
+    if (!(parseFloat(v.wt) > 0 || parseFloat(v.ht) > 0 || parseFloat(v.hc) > 0)) return;
     const md = gParseDate(v.date); if (!md || isNaN(md)) return;
     let ageMo, a;
     if (dob) { a = ageBetween(dob, md); ageMo = (md - dob) / 86400000 / 30.4375; }
     else { ageMo = (p.ageYears || 0) * 12; a = { total: Math.round(ageMo) }; }
     if (ageMo == null || ageMo < 0) return;
     const wt = parseFloat(v.wt), ht = parseFloat(v.ht), hc = parseFloat(v.hc);
-    const parsed = computeParsedSet(sex, ageMo, wt, ht > 0 ? ht : 0, hc > 0 ? hc : 0);
+    const parsed = computeParsedSet(sex, ageMo, wt > 0 ? wt : 0, ht > 0 ? ht : 0, hc > 0 ? hc : 0);
     const e = { md, a, ageMo, parsed };
-    if (preterm) { const corrMo = ageMo - corrDays / 30.4375; if (corrMo >= 0) { e.parsedCorr = computeParsedSet(sex, corrMo, wt, ht > 0 ? ht : 0, hc > 0 ? hc : 0); e.correctedAgeMo = corrMo; e.correctedAgeObj = ageBetween(dob, new Date(md.getTime() - corrDays * 86400000)); e.gaLabel = ptGaWD(gaDays) + ' wk'; } }
+    if (preterm) { const corrMo = ageMo - corrDays / 30.4375; if (corrMo >= 0) { e.parsedCorr = computeParsedSet(sex, corrMo, wt > 0 ? wt : 0, ht > 0 ? ht : 0, hc > 0 ? hc : 0); e.correctedAgeMo = corrMo; e.correctedAgeObj = ageBetween(dob, new Date(md.getTime() - corrDays * 86400000)); e.gaLabel = ptGaWD(gaDays) + ' wk'; } }
     if (parsed.weight || parsed.stature || parsed.bmi || parsed.wtfs || parsed.head) ENC.push(e);
   });
   ENC.sort((x, y) => y.md - x.md);
@@ -7374,18 +7427,19 @@ function computeGrowthPanel() {
   _growthPersist();
   const out = document.getElementById('growthResults'); if (!out) return;
   const dobStr = document.getElementById('gaDob')?.value;
-  if (_growthVisits.filter(v => v.date && parseFloat(v.wt) > 0).length > 1 && !dobStr) {
+  const _hasMeas = v => v.date && (parseFloat(v.wt) > 0 || parseFloat(v.ht) > 0 || parseFloat(v.hc) > 0);
+  if (_growthVisits.filter(_hasMeas).length > 1 && !dobStr) {
     out.innerHTML = '<div class="pes-empty">Enter Date of birth — needed to age serial measurements correctly.</div>'; return;
   }
   if (dobStr && !gParseDate(dobStr)) {
     out.innerHTML = '<div class="pes-empty">Couldn\'t read the date of birth "' + esc(dobStr) + '". Try 23/08/2025, 23-Aug-2025, or 2025-08-23.</div>'; return;
   }
-  const badVisit = _growthVisits.find(v => v.date && parseFloat(v.wt) > 0 && !gParseDate(v.date));
+  const badVisit = _growthVisits.find(v => _hasMeas(v) && !gParseDate(v.date));
   if (badVisit) {
     out.innerHTML = '<div class="pes-empty">Couldn\'t read the visit date "' + esc(badVisit.date) + '". Try 23/08/2025, 23-Aug-2025, or 2025-08-23.</div>'; return;
   }
   const { ENC, sex, preterm } = buildGrowthENC();
-  if (!ENC.length) { out.innerHTML = '<div class="pes-empty">Add at least one visit with a date and weight.</div>'; return; }
+  if (!ENC.length) { out.innerHTML = '<div class="pes-empty">Add at least one visit with a date and a measurement (weight, height, or head).</div>'; return; }
   const intake = document.getElementById('aspenIntake')?.value, etio = document.getElementById('aspenEtio')?.value;
   const aspen = computeAspen(ENC, sex, intake, etio);
   const text = buildGrowthText(ENC, sex);
