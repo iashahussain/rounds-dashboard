@@ -7555,7 +7555,11 @@ function renderPGList(){
 // + paeds/adult; its "Send to dashboard" button postMessages the regimen back here,
 // which we drop into the Intervention field (which is what flows into the note).
 const FEEDCALC_ORIGIN = 'https://iashahussain.github.io';
-const FEEDCALC_URL = FEEDCALC_ORIGIN + '/feed-calculator/';
+// Offline / firewall fallback: when the dashboard is opened as a LOCAL file (file://) — e.g. on
+// the work laptop where GitHub Pages is blocked — load local copies of the calculators kept in
+// the SAME FOLDER. On the web it uses the online apps exactly as before (auto-detected, no loss).
+const IS_LOCAL_FILE = location.protocol === 'file:';
+const FEEDCALC_URL = IS_LOCAL_FILE ? './feed-calculator.html' : FEEDCALC_ORIGIN + '/feed-calculator/';
 let _feedCalcIdx = null, _feedCalcMode = 'regimen', _feedCalcOPD = false;
 // IP serial/growth route stores weights in the hidden growthData_ field (JSON visits[]), not
 // the dedicated wt_ field. So when she works serial-only (to avoid the weight printing twice),
@@ -7617,7 +7621,8 @@ function closeFeedCalc() {
   _feedCalcIdx = null;
 }
 window.addEventListener('message', function (e) {
-  if (e.origin !== FEEDCALC_ORIGIN) return;
+  const _fcFrame = document.getElementById('feedCalcFrame');
+  if (e.origin !== FEEDCALC_ORIGIN && !(_fcFrame && e.source === _fcFrame.contentWindow)) return; // also accept our own local-file panel
   const d = e.data;
   if (!d || d.type !== 'feedcalc-result' || !d.text) return;
   const idx = _feedCalcIdx; if (idx == null) return;
@@ -7642,7 +7647,7 @@ window.addEventListener('message', function (e) {
 // Opens NourishCal in an overlay iframe, pre-filled with weight/sex + pathway (by age);
 // its "Send to dashboard" button posts EER/EPR/EFR + full text back, which we drop into
 // the Requirements fields + the NutriCalc paste (note).
-const NOURISHCAL_URL = FEEDCALC_ORIGIN + '/nourishcal/';
+const NOURISHCAL_URL = IS_LOCAL_FILE ? './nourishcal.html' : FEEDCALC_ORIGIN + '/nourishcal/';
 let _nourishCalIdx = null, _nourishCalOPD = false;
 function openNourishCal(idx) {
   _nourishCalIdx = idx;
@@ -7686,7 +7691,8 @@ function closeNourishCal() {
   _nourishCalIdx = null;
 }
 window.addEventListener('message', function (e) {
-  if (e.origin !== FEEDCALC_ORIGIN) return;
+  const _ncFrame = document.getElementById('nourishCalFrame');
+  if (e.origin !== FEEDCALC_ORIGIN && !(_ncFrame && e.source === _ncFrame.contentWindow)) return; // also accept our own local-file panel
   const d = e.data;
   if (!d || d.type !== 'nourishcal-result') return;
   const idx = _nourishCalIdx; if (idx == null) return;
