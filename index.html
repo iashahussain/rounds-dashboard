@@ -1091,12 +1091,13 @@
   #ipAwarenessBanner .ipb-age { flex: none; font-size: 13px; font-weight: 800; opacity: 1; white-space: nowrap; }
   #ipAwarenessBanner .ipb-total { font-size: 10.5px; opacity: .82; white-space: nowrap; }
   @media (max-width: 768px) {
-    #ipAwarenessBanner { left: 8px; right: 8px; transform: none; max-width: none; }
+    /* right:60px leaves the right-edge quick-nav column clear so its drag grip stays tappable */
+    #ipAwarenessBanner { left: 8px; right: 60px; transform: none; max-width: none; }
     #ipAwarenessBanner .ipb-name { max-width: none; flex: 1 1 auto; }
     .clear-all-btn { display: none !important; }   /* not needed at the bedside on rounds */
   }
   /* Collapsed: shrink to a small corner pill (phase + time) so the header is reachable */
-  #ipAwarenessBanner.ipb-collapsed { left: auto; right: 8px; transform: none; max-width: none; width: auto; padding: 5px 12px; }
+  #ipAwarenessBanner.ipb-collapsed { left: 8px; right: auto; transform: none; max-width: none; width: auto; padding: 5px 12px; }
   #ipAwarenessBanner.ipb-collapsed .ipb-room,
   #ipAwarenessBanner.ipb-collapsed .ipb-name,
   #ipAwarenessBanner.ipb-collapsed .ipb-sub { display: none !important; }
@@ -2429,8 +2430,10 @@ function extractPatients(rows) {
 
     // Must have a PRN or DOA to be a real patient row
     if (!prn && !doaRaw) continue;
-    // PRN should look like a number
-    if (prn && !/\d/.test(prn)) continue;
+    // PRN must be a real PRN number — reject rows where the PRN cell is actually a date
+    // ("25/06/2026") or clinical text ("Hypothyroid on 100 mcg…"), which are mis-split
+    // continuation lines, not patients. (TTH PRNs are plain digits.)
+    if (prn && !/^\d{2,}$/.test(prn.replace(/\s/g, ''))) continue;
     if (diagnosis.toLowerCase().includes('for surgery')) continue; // OT rows
     // Skip other non-dietetic admission types
     const dxLower = diagnosis.toLowerCase();
@@ -2440,7 +2443,7 @@ function extractPatients(rows) {
     if (/coblation|adenotonsillect|tonsillect|myringotomy|grommet|septoplasty|turbinoplasty|antrostomy|mastoidectomy/i.test(diagnosis) && /\b(on|at|for)\s+\d{2}\/\d{2}/i.test(diagnosis)) continue; // ENT procedure rows with a date
 
     // Age must be present and non-blank for non-B/O patients
-    const isNamedNewborn = /^\s*b[\s\/]?o\b/i.test(name) || /^\s*baby\b/i.test(name);
+    const isNamedNewborn = /^\s*b\s*\/?\s*o\b/i.test(name) || /^\s*baby\b/i.test(name);
     if (!ageRaw && !isNamedNewborn) continue;
 
     // Parse age — handle formats from TTH Excel:
@@ -2473,6 +2476,8 @@ function extractPatients(rows) {
       if (sexBleed) {
         // The M/F is the sex column, not months — extract just the number as years
         ageYears = parseFloat(ageStr) || 0;
+      } else if (/^\d+\s*d$/i.test(ageStr)) {
+        ageYears = 0; // age in DAYS ("1D", "2 D") → newborn, not years
       } else if (s.includes('y') || s.includes('m')) {
         const yMatch = s.match(/(\d+)\s*y/);
         const mMatch = s.match(/(\d+)\s*m/);
@@ -2640,7 +2645,7 @@ const AUTO_META = {
 };
 // Neonatal stream = Nursery / NICU / "B/O" newborns / age-in-days.
 function isNeonate(p) {
-  return /^\s*(b\/o|baby|bo)\b/i.test(p.name || '')
+  return /^\s*(b\s*\/?\s*o|baby)\b/i.test(p.name || '')
       || /\b(nicu|nursery)\b/i.test(p.ward || '')
       || /\b\d+\s*d\b/i.test(p.ageRaw || '');
 }
