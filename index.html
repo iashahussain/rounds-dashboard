@@ -1404,8 +1404,6 @@
           <button class="filter-btn"        id="fb-tube" data-f="tube"    onclick="setFilter('tube',this)">🧪 Tube fed</button>
           <button class="filter-btn"        id="fb-over65" data-f="over65"  onclick="setFilter('over65',this)">65+</button>
           <button class="filter-btn"        id="fb-charted" data-f="charted" onclick="setFilter('charted',this)">✓ Charted</button>
-          <button class="filter-btn"        id="fb-seen"    data-f="seen"    onclick="setFilter('seen',this)">👁 Seen</button>
-          <button class="filter-btn"        id="fb-notedone" data-f="notedone" onclick="setFilter('notedone',this)">✅ Note Done</button>
         </div>
         <div id="seenProgress" style="display:none;font-size:12px;font-weight:700;color:var(--accent);margin-top:8px"></div>
       </div>
@@ -2616,15 +2614,16 @@ function updateStats() {
   set('fb-tube',    '🧪 Tube fed', nTube);
   set('fb-over65',  '65+',         nO65);
   set('fb-charted',  '✓ Charted',   nChart);
-  set('fb-seen',     '👁 Seen',      nSeen);
-  set('fb-notedone', '✅ Notes done', nNoteDone);
 
-  // Rounds progress: how many of the charted (round) list have been seen
+  // Worklist progress summary (single line): the funnel selected → pre-charted → seen → done.
+  // notes-done is shown as a fraction OF the pre-charted patients (how much of your work is finalised).
+  const nPre = patients.filter((_, i) => chartedSet.has(i) && isPrecharted(i)).length;
+  const nDoneOfPre = patients.filter((_, i) => chartedSet.has(i) && isPrecharted(i) && noteDoneSet.has(i)).length;
   const sp = document.getElementById('seenProgress');
   if (sp) {
     if (nChart > 0) {
       sp.style.display = 'block';
-      sp.textContent = `👁 ${nSeen} / ${nChart} seen`;
+      sp.textContent = `📋 ${nChart} charted · ✍ ${nPre} pre-charted · 👁 ${nSeen} seen · ✅ ${nDoneOfPre}/${nPre} notes done`;
     } else {
       sp.style.display = 'none';
     }
@@ -2860,10 +2859,14 @@ function renderList() {
     const toPre     = rest.filter(p => !seenSet.has(ix(p)) && !isPrecharted(ix(p))); // selected, not pre-charted
     [toPre, rounds, noteWrite, done].forEach(g => g.sort(byPriority));
     const sect = (lbl, arr, extra) => arr.length ? `<div class="stream-divider${extra || ''}">${lbl} · ${arr.length}</div>` + arr.map(cardHTML).join('') : '';
-    list.innerHTML = sect('⏳ To pre-chart', toPre)
-      + sect('🩺 Pre-charted · rounds pending', rounds)
-      + sect('✍ Seen · notes to write', noteWrite)
-      + sect('✓ Done · notes finished', done, ' wl-done');
+    const TOPRE = ['⏳ To pre-chart', toPre], ROUNDS = ['🩺 Pre-charted · rounds pending', rounds], NOTES = ['✍ Seen · notes to write', noteWrite];
+    // Phase-aware order: on rounds → rounds-pending first; finalising → notes-to-write first;
+    // otherwise (set-up / pre-charting) → to-pre-chart first. Done is always last.
+    const phase = (typeof livePhase === 'function') ? livePhase() : 'precharting';
+    const order = phase === 'rounds' ? [ROUNDS, NOTES, TOPRE]
+                : phase === 'finalising' ? [NOTES, ROUNDS, TOPRE]
+                : [TOPRE, ROUNDS, NOTES];
+    list.innerHTML = order.map(([lbl, arr]) => sect(lbl, arr)).join('') + sect('✓ Done · notes finished', done, ' wl-done');
     return;
   }
 
