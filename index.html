@@ -803,6 +803,22 @@
   .stream-divider { margin: 16px 4px 8px; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: var(--text-muted); text-transform: uppercase; border-top: 1px dashed var(--border); padding-top: 11px; }
   .stream-divider.wl-done { color: var(--text-faint); }
   .stream-divider.wl-done ~ .patient-card { opacity: .6; }
+  /* Confirm on rounds — bedside checklist (highlighter band) */
+  .confirm-rounds .section-title { color: #BA7517; }
+  .cr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cr-chip { font-size: 11.5px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); border-radius: 999px; padding: 4px 10px; cursor: pointer; font-family: var(--sans); }
+  .cr-chip:hover { border-color: #E9C46A; color: #7A4E08; }
+  .cr-list { margin-top: 10px; background: #FBEFCF; border: 1px solid #E9C46A; border-radius: 8px; padding: 4px 10px; }
+  .cr-list:empty { display: none; }
+  .cr-item { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-top: 1px dashed #E9C46A; }
+  .cr-item:first-child { border-top: none; }
+  .cr-tick { background: none; border: none; cursor: pointer; font-size: 18px; line-height: 1; color: #A8742A; flex-shrink: 0; padding: 0; }
+  .cr-body { flex: 1; min-width: 0; }
+  .cr-q { font-size: 13.5px; color: #5C3B0A; line-height: 1.35; }
+  .cr-item.done .cr-q { text-decoration: line-through; color: #94734a; }
+  .cr-ans { width: 100%; margin-top: 4px; font-size: 12px; border: none; border-bottom: 1px solid #E9C46A; background: transparent; color: #0F6E56; padding: 2px 0; font-family: var(--sans); }
+  .cr-ans::placeholder { color: #b8975a; }
+  .cr-del { background: none; border: none; cursor: pointer; color: #b8975a; font-size: 13px; flex-shrink: 0; padding: 0 2px; }
   /* Card triage chips + copy-PRN (v90) */
   .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 7px; flex-wrap: wrap; }
   .prn-copy { font-family: var(--mono); font-size: 10px; color: var(--text-muted); background: var(--surface2); border: 1px solid var(--border-soft); border-radius: 6px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
@@ -5850,6 +5866,29 @@ function renderPrechart(idx) {
   </div>
   <div class="prechart-wrap"><div class="prechart-content" id="pc${idx}">
 
+    <!-- CONFIRM ON ROUNDS — bedside checklist, captured while pre-charting, NEVER added to the note -->
+    <div class="section confirm-rounds" data-s="confirm">
+      <div class="section-header">
+        <span class="section-title">🔦 Confirm on rounds</span>
+        <span style="font-size:11px;color:var(--text-muted)">Bedside checklist — never goes in the note</span>
+      </div>
+      <div class="section-body">
+        <div class="cr-chips">
+          <button type="button" class="cr-chip" onclick="addConfirm(${idx},'Weight loss?')">＋ Weight loss</button>
+          <button type="button" class="cr-chip" onclick="addConfirm(${idx},'GI symptoms still present?')">＋ GI symptoms still?</button>
+          <button type="button" class="cr-chip" onclick="addConfirm(${idx},'Decreased intake pre-admission?')">＋ Pre-admission intake</button>
+          <button type="button" class="cr-chip" onclick="addConfirm(${idx},'Current intake now?')">＋ Current intake</button>
+          <button type="button" class="cr-chip" onclick="addConfirm(${idx},'Feeds delivered as prescribed? (ask nurse)')">＋ Feeds delivered</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <input type="text" id="crInput_${idx}" class="field" style="flex:1" placeholder="Add your own…" onkeydown="if(event.key==='Enter'){event.preventDefault();addConfirm(${idx},this.value);this.value='';}">
+          <button type="button" class="btn-ghost btn-small" onclick="var i=document.getElementById('crInput_${idx}');addConfirm(${idx},i.value);i.value=''">Add</button>
+        </div>
+        <input type="hidden" id="confirmRounds_${idx}" value="${esc(saved.confirmRounds||'')}">
+        <div id="crList_${idx}" class="cr-list"></div>
+      </div>
+    </div>
+
     <!-- DOCTOR NOTE IMPORT -->
     <div class="section" data-s="docnote">
       <div class="section-header">
@@ -6402,9 +6441,28 @@ function renderPrechart(idx) {
   </div>`;
   applySectionStates('ip', idx);
   markRadioStates();
+  renderConfirmList(idx);
   expandAllTextareas();
   setTimeout(updateStickyHeader, 50);
   setTimeout(() => showMobileFloatNav(idx, 'ip'), 100);
+}
+
+// ── CONFIRM ON ROUNDS — per-patient bedside checklist captured during pre-charting and ticked
+// at the bedside. Stored as JSON in the hidden confirmRounds_ field; NEVER read by generateNote,
+// so a bedside question can't leak into the note (the problem with writing them into chart fields).
+function _crGet(idx) { try { return JSON.parse(document.getElementById('confirmRounds_' + idx)?.value || '[]'); } catch (_) { return []; } }
+function _crSave(idx, arr, rerender) { const el = document.getElementById('confirmRounds_' + idx); if (el) el.value = JSON.stringify(arr); if (rerender !== false) renderConfirmList(idx); if (typeof scheduleAutosave === 'function') scheduleAutosave(); }
+function addConfirm(idx, q) { q = (q || '').trim(); if (!q) return; const a = _crGet(idx); a.push({ q, done: false, ans: '' }); _crSave(idx, a); }
+function removeConfirm(idx, i) { const a = _crGet(idx); a.splice(i, 1); _crSave(idx, a); }
+function toggleConfirm(idx, i) { const a = _crGet(idx); if (a[i]) { a[i].done = !a[i].done; _crSave(idx, a); } }
+function setConfirmAns(idx, i, v) { const a = _crGet(idx); if (a[i]) { a[i].ans = v; _crSave(idx, a, false); } } // no re-render mid-typing
+function renderConfirmList(idx) {
+  const el = document.getElementById('crList_' + idx); if (!el) return;
+  el.innerHTML = _crGet(idx).map((it, i) => `<div class="cr-item${it.done ? ' done' : ''}">
+    <button type="button" class="cr-tick" onclick="toggleConfirm(${idx},${i})" aria-label="confirm">${it.done ? '☑' : '☐'}</button>
+    <div class="cr-body"><div class="cr-q">${esc(it.q)}</div>${(it.done || it.ans) ? `<input type="text" class="cr-ans" placeholder="jot the answer (optional)" value="${esc(it.ans || '')}" oninput="setConfirmAns(${idx},${i},this.value)">` : ''}</div>
+    <button type="button" class="cr-del" onclick="removeConfirm(${idx},${i})" aria-label="remove">✕</button>
+  </div>`).join('');
 }
 
 // ──────────────────────────────────────────
@@ -8126,6 +8184,7 @@ function saveChart(idx, silent) {
 
   chartData[idx] = {
     docNote: g(`docNote_${idx}`),
+    confirmRounds: g(`confirmRounds_${idx}`),
     pmhText: g(`pmhText_${idx}`),
     sessionType: radio(`sessionType_${idx}`),
     priority: priorityMap[idx] || '',
