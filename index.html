@@ -6507,8 +6507,30 @@ function importPrevNote(idx, cfg) {
     }
   }
 
-  // Diet history — [label, baseId] pairs (differ between IP and OPD)
-  (cfg.diet || []).forEach(([lbl, baseId]) => fill(baseId, labelVal(lbl)));
+  // Diet history — MULTI-LINE aware. A sub-field's value can span several lines (e.g.
+  // "Current intake:" with a per-day breakdown), so capture from each label up to the NEXT
+  // known diet label (or end of the DIET HISTORY section) — not just the label's own line.
+  const dietBody = sec['DIET HISTORY'] || '';
+  if (dietBody) {
+    const dietPairs = cfg.diet || [];
+    const boundaries = dietPairs.map(([l]) => l).concat(
+      ['Food allergies:', 'Allergies:', 'Food intolerances / avoids:', 'Intolerances / avoids:', 'Intolerances:',
+       'G6PD:', 'Hospital diet:', 'Current intake:', 'Pre-admission diet:', 'Current diet / intake:', 'Current diet:',
+       'Current supplements:', 'Typical day:', 'Previous dietetic input:', 'Feeding history:']
+    ).map(l => l.toLowerCase());
+    const dl = dietBody.split('\n');
+    const isBoundary = (ln) => { const t = ln.trim().toLowerCase(); return !!t && boundaries.some(b => t.startsWith(b)); };
+    dietPairs.forEach(([lbl, baseId]) => {
+      const lc = lbl.toLowerCase();
+      const i = dl.findIndex(ln => ln.trim().toLowerCase().startsWith(lc));
+      if (i === -1) return;
+      let val = dl[i].trim().slice(lbl.length).trim();
+      for (let j = i + 1; j < dl.length; j++) { if (isBoundary(dl[j])) break; val += '\n' + dl[j]; }
+      fill(baseId, val.replace(/^\n+/, '').replace(/\s+$/, ''));
+    });
+  } else {
+    (cfg.diet || []).forEach(([lbl, baseId]) => fill(baseId, labelVal(lbl)));
+  }
 
   // Requirements
   fill(F.eer, labelVal('EER:'));
