@@ -801,6 +801,8 @@
   .prio-reasons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
   .rchip { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border-soft); }
   .stream-divider { margin: 16px 4px 8px; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: var(--text-muted); text-transform: uppercase; border-top: 1px dashed var(--border); padding-top: 11px; }
+  .stream-divider.wl-done { color: var(--text-faint); }
+  .stream-divider.wl-done ~ .patient-card { opacity: .6; }
   /* Card triage chips + copy-PRN (v90) */
   .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 7px; flex-wrap: wrap; }
   .prn-copy { font-family: var(--mono); font-size: 10px; color: var(--text-muted); background: var(--surface2); border: 1px solid var(--border-soft); border-radius: 6px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
@@ -2716,6 +2718,20 @@ function effectivePriority(p) {
   return { band, badge, score: auto.score, reasons: auto.reasons, neo };
 }
 
+// A charted patient counts as "pre-charted" once any substantive field has content (beyond the
+// triage sessionType). Used to group the worklist into To-pre-chart vs Pre-charted so unfinished
+// patients stay visible without being removed. Works for both IP (chartData) and OPD (opdChartData).
+const PRECHART_KEYS = ['docNote','pmhText','socialHx','wt','ht','bmi','wtHx','wtChg','nutStatus','pediPaste','growthData',
+  'elytes','renal','status','lft','glyc','lipids','iron','micros','fbc','other',
+  'appetiteDetail','swallowDetail','chewingDetail','nvDetail','bowelsDetail','clinicalNotes','urineOutput','medications',
+  'foodAllergies','foodIntolerances','hospitalDiet','currentIntake','homeDiet','dietNotes','prevDietInput','currentDiet','supplements',
+  'eer','epr','efr','intakePct','nutriCalcPaste','nutriCalc','nutDx','goals','intervention','monitoring'];
+function isPrecharted(idx) {
+  const cd = (currentMode === 'op' ? opdChartData : chartData)[idx];
+  if (!cd) return false;
+  return PRECHART_KEYS.some(k => typeof cd[k] === 'string' && cd[k].trim() !== '');
+}
+
 function renderList() {
   persistSession(); // structural changes (seen/done/priority/chart/import) flow through here
   const list = document.getElementById('patientList');
@@ -2806,7 +2822,11 @@ function renderList() {
           ${ep.badge ? `<span class="badge prio-badge${ep.badge.manual ? ' is-manual' : ''}" style="background:${ep.badge.col};color:#fff" title="${esc(prioTitle)}">${ep.badge.lbl}</span>` : ''}
           ${p.isNew ? '<span class="badge badge-new">NEW</span>' : ''}
           <span class="badge ${badgeClass}">${badgeLabel}</span>
-          ${isCharted ? '<span class="badge badge-charted">✓</span>' : ''}
+          ${isCharted ? (noteDoneSet.has(origIdx)
+              ? '<span class="badge" style="background:#2f7a04;color:#fff" title="Note done">✅</span>'
+              : (isPrecharted(origIdx)
+                  ? '<span class="badge badge-charted" title="Pre-charted">✓</span>'
+                  : '<span class="badge" style="background:#b8860b;color:#fff" title="Selected — not pre-charted yet">⏳</span>')) : ''}
           ${isSeen ? '<span class="badge badge-seen">👁 Seen</span>' : ''}
           ${isCharted && currentFilter === 'charted' ? `<button class="badge-x" onclick="event.stopPropagation(); unchart(${origIdx})" title="Remove from Charted">✕</button>` : ''}
         </div>
@@ -2826,6 +2846,19 @@ function renderList() {
       </div>
     </div>`;
   };
+
+  // Charted worklist — group by pre-charting status so unfinished patients stay visible without
+  // being removed: ⏳ To pre-chart (selected, empty) → ✍ Pre-charted, note pending → ✓ Done.
+  if (currentFilter === 'charted') {
+    const ix = p => patients.indexOf(p);
+    const toPre   = visible.filter(p => !noteDoneSet.has(ix(p)) && !isPrecharted(ix(p)));
+    const pending = visible.filter(p => !noteDoneSet.has(ix(p)) &&  isPrecharted(ix(p)));
+    const done    = visible.filter(p =>  noteDoneSet.has(ix(p)));
+    [toPre, pending, done].forEach(g => g.sort(byPriority));
+    const sect = (lbl, arr, extra) => arr.length ? `<div class="stream-divider${extra || ''}">${lbl} · ${arr.length}</div>` + arr.map(cardHTML).join('') : '';
+    list.innerHTML = sect('⏳ To pre-chart', toPre) + sect('✍ Pre-charted · note pending', pending) + sect('✓ Done', done, ' wl-done');
+    return;
+  }
 
   let html = mainList.map(cardHTML).join('');
   if (neoList.length) {
