@@ -2497,6 +2497,12 @@ function extractPatients(rows) {
     else if (ageYears < 5) ageGroup = 'toddler'; // 2–5y
     else if (ageYears < 18) ageGroup = 'child';  // 5–18y
     else ageGroup = 'adult';
+    // Pregnant patients are adults. If a row parsed as paeds but the diagnosis carries obstetric
+    // markers, the age column was wrong (nursing-list typo / misalignment) — force adult so she
+    // doesn't land in a kids filter. (Can't recover the true age, but the classification is right.)
+    if (ageGroup !== 'adult' && /gravida|\bG\d+\s*[PAL]\d+|\d{1,2}\s*\+\s*\d\s*week|hyperemesis|antenatal|pre[\s-]?eclampsia|eclampsia/i.test((diagnosis || '') + ' ' + (comorbidities || ''))) {
+      ageGroup = 'adult';
+    }
     const isPaeds = ageGroup !== 'adult';
 
     // Parse DOA — always treat as DD/MM/YYYY (never trust JS native date parser for ambiguous formats)
