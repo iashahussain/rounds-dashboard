@@ -2850,13 +2850,20 @@ function renderList() {
   // Charted worklist — group by pre-charting status so unfinished patients stay visible without
   // being removed: ⏳ To pre-chart (selected, empty) → ✍ Pre-charted, note pending → ✓ Done.
   if (currentFilter === 'charted') {
+    // Mirrors her real flow: pre-chart → rounds (Mark Seen) → back at the laptop, work through the
+    // Seen list writing notes → Done. Nothing is removed; patients move down the groups.
     const ix = p => patients.indexOf(p);
-    const toPre   = visible.filter(p => !noteDoneSet.has(ix(p)) && !isPrecharted(ix(p)));
-    const pending = visible.filter(p => !noteDoneSet.has(ix(p)) &&  isPrecharted(ix(p)));
-    const done    = visible.filter(p =>  noteDoneSet.has(ix(p)));
-    [toPre, pending, done].forEach(g => g.sort(byPriority));
+    const done      = visible.filter(p =>  noteDoneSet.has(ix(p)));
+    const rest      = visible.filter(p => !noteDoneSet.has(ix(p)));
+    const noteWrite = rest.filter(p =>  seenSet.has(ix(p)));                         // seen on rounds → notes to write
+    const rounds    = rest.filter(p => !seenSet.has(ix(p)) &&  isPrecharted(ix(p))); // pre-charted, awaiting rounds
+    const toPre     = rest.filter(p => !seenSet.has(ix(p)) && !isPrecharted(ix(p))); // selected, not pre-charted
+    [toPre, rounds, noteWrite, done].forEach(g => g.sort(byPriority));
     const sect = (lbl, arr, extra) => arr.length ? `<div class="stream-divider${extra || ''}">${lbl} · ${arr.length}</div>` + arr.map(cardHTML).join('') : '';
-    list.innerHTML = sect('⏳ To pre-chart', toPre) + sect('🩺 Pre-charted · rounds pending', pending) + sect('✓ Done · notes finished', done, ' wl-done');
+    list.innerHTML = sect('⏳ To pre-chart', toPre)
+      + sect('🩺 Pre-charted · rounds pending', rounds)
+      + sect('✍ Seen · notes to write', noteWrite)
+      + sect('✓ Done · notes finished', done, ' wl-done');
     return;
   }
 
