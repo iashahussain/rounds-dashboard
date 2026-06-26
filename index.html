@@ -2028,6 +2028,53 @@ function computeShiftSummary(dayBoundary, thrMin){
 }
 
 // Build the de-identified worklog text for clipboard
+// ── CASE-MIX CLASSIFIERS (de-identified analytics) — a primary case category + age band per
+// patient, so time can be aggregated by case type without storing the raw diagnosis or name. ──
+const CASE_CATS = [
+  [/malnutrition|cachexia|faltering|failure to thrive|underweight|refeed|severe weight loss|sarcopen/i, 'Malnutrition'],
+  [/pancreatit|bowel obstruction|ileus|fistula|short bowel|crohn|colitis|inflammatory bowel|gi bleed|gastroenterit|gastrit|cholecystit|hepat|\bliver\b|dysphagia|\bpeg\b|enteral|nasogastric|\bngt\b|vomit|diarrh|obstruction/i, 'GI'],
+  [/sepsis|septic|bacteraem|\binfection\b|neutropenic|abscess|cellulitis|peritonitis|pyrexia/i, 'Sepsis/infection'],
+  [/heart failure|\bchf\b|myocardial|nstemi|stemi|\bmi\b|angina|coronary|cardiac|arrhythmia|\bcag\b|\bpci\b|cabg|\bvalve\b|atrial fib/i, 'Cardiac'],
+  [/\baki\b|\bckd\b|renal|nephro|dialysis|kidney|nephritis/i, 'Renal'],
+  [/pneumonia|\bcopd\b|\blrti\b|respiratory|bronch|asthma|\bards\b|pleural|empyema|breathing difficulty|\bsob\b/i, 'Respiratory'],
+  [/oncolog|\bcancer\b|carcinoma|malignan|chemo|\btumou?r\b|lymphoma|leukaem|metasta/i, 'Oncology'],
+  [/\bstroke\b|\bcva\b|seizure|epilep|altered sensorium|encephalo|parkinson|dementia|\bneuro|\bgbs\b|myasthen/i, 'Neuro'],
+  [/diabet|\bdka\b|\bhhs\b|hypoglyc|hyperglyc|thyroid|metabolic/i, 'Diabetes/metabolic'],
+  [/gravida|\bg\d+\s*p\d+|\bg\d+\s*a\d+|antenatal|hyperemesis|pre[\s-]?eclampsia|eclampsia|pregnan|obstetric|\bpph\b|postpartum/i, 'Obstetric'],
+  [/\btkr\b|\bthr\b|knee replacement|hip replacement|laparotomy|laparoscop|surgery|surgical|post[\s-]?op|hernia|appendic|resection|biopsy|excision|fixation|amputat|\borif\b|tonsillect|septoplasty|cystectomy/i, 'Surgical/post-op'],
+];
+function caseCategory(p) {
+  if (typeof isNeonate === 'function' && isNeonate(p)) return 'Neonatal';
+  const t = ((p && p.diagnosis || '') + ' ' + (p && p.comorbidities || '')).toLowerCase();
+  for (const [re, lbl] of CASE_CATS) if (re.test(t)) return lbl;
+  return 'Other';
+}
+function ageBand(p) {
+  if (typeof isNeonate === 'function' && isNeonate(p)) return 'Neonate';
+  const y = p ? p.ageYears : null;
+  if ((p && p.isPaeds) || (typeof y === 'number' && y < 18)) return 'Child <18';
+  if (typeof y !== 'number' || isNaN(y)) return 'Adult (age ?)';
+  if (y < 65) return 'Adult 18–64';
+  if (y < 80) return 'Older 65–79';
+  return 'Elderly 80+';
+}
+// Aggregate today's seen-IP time by case category + age band (de-identified).
+function computeCaseMix(dayBoundary) {
+  const buckets = {};
+  reclassifyFinalising(panelOpenLog.filter(e => (e.endTime || 0) >= dayBoundary)).forEach(e => {
+    if (!seenSet.has(e.idx)) return;
+    buckets[e.idx] = (buckets[e.idx] || 0) + (e.endTime - e.startTime);
+  });
+  const cat = {}, age = {};
+  Object.keys(buckets).forEach(k => {
+    const p = patients[Number(k)]; if (!p) return; const ms = buckets[k];
+    const c = caseCategory(p); (cat[c] = cat[c] || { n: 0, ms: 0 }).n++; cat[c].ms += ms;
+    const a = ageBand(p); (age[a] = age[a] || { n: 0, ms: 0 }).n++; age[a].ms += ms;
+  });
+  const rows = o => Object.keys(o).map(k => ({ k, n: o[k].n, ms: o[k].ms })).sort((x, y) => y.ms - x.ms);
+  return { byCat: rows(cat), byAge: rows(age) };
+}
+
 function buildWorklogText() {
   // Compute today's day boundary from the most recent entry
   const allTimes = [
@@ -2108,7 +2155,9 @@ function buildWorklogText() {
       if (r.rounds > 0) parts.push(`Rounds ${fmtDuration(r.rounds)}`);
       if (r.finalising > 0) parts.push(`Finalising ${fmtDuration(r.finalising)}`);
       const breakdown = parts.length ? ` — ${parts.join(' · ')} → ` : ' — ';
-      lines.push(`Patient ${i+1} (${r.tag})${breakdown}Total ${fmtDuration(r.total)}`);
+      const p = patients[r.idx];
+      const tags = p ? ` · ${ageBand(p)} · ${caseCategory(p)}` : '';
+      lines.push(`Patient ${i+1} (${r.tag}${tags})${breakdown}Total ${fmtDuration(r.total)}`);
     });
     lines.push(`IP subtotal: ${fmtDuration(ipTotal)}`);
     lines.push('');
@@ -2133,6 +2182,17 @@ function buildWorklogText() {
     const ipTotal = ipRows.reduce((a,r)=>a+r.total, 0);
     const opdTotal = opdRows.reduce((a,r)=>a+r.totalMs, 0);
     lines.push(`Active in-chart total (focused only): ${fmtDuration(ipTotal + opdTotal)}`);
+  }
+
+  // ── CASE MIX (de-identified) — what types of patients, and what takes the most time ──
+  const mix = computeCaseMix(dayBoundary);
+  if (mix.byCat.length) {
+    lines.push('');
+    lines.push('CASE MIX — by category (most time first)');
+    mix.byCat.forEach(r => lines.push(`  ${r.k}: ${r.n} case${r.n === 1 ? '' : 's'} · ${fmtDuration(r.ms)} · ${fmtDuration(Math.round(r.ms / r.n))}/case`));
+    lines.push('');
+    lines.push('CASE MIX — by age band');
+    mix.byAge.forEach(r => lines.push(`  ${r.k}: ${r.n} · ${fmtDuration(r.ms)}`));
   }
 
   return lines.join('\n');
@@ -2232,6 +2292,16 @@ function renderTimeTrackingModal() {
           </tr>
         </tbody>
       </table>`;
+  }
+
+  // Case mix (de-identified — category + age band) appended to the inpatient section.
+  const mix = computeCaseMix(dayBoundary);
+  if (mix.byCat.length) {
+    ipHtml += `<div style="margin-top:14px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">Case mix — by category (most time first)</div>
+      <table class="tt-table"><thead><tr><th>Category</th><th>Cases</th><th>Total</th><th>Avg/case</th></tr></thead><tbody>
+      ${mix.byCat.map(r => `<tr><td>${esc(r.k)}</td><td>${r.n}</td><td>${fmtDuration(r.ms)}</td><td style="font-weight:600">${fmtDuration(Math.round(r.ms / r.n))}</td></tr>`).join('')}
+      </tbody></table>
+      <div style="margin-top:8px;font-size:11px;color:var(--text-muted)"><b>By age:</b> ${mix.byAge.map(r => `${esc(r.k)} ${r.n} (${fmtDuration(r.ms)})`).join(' · ')}</div>`;
   }
 
   const opdBuckets = {};
@@ -3027,6 +3097,25 @@ function renderNoteHTML(plainText) {
 //  SMART PHRASES  — type / to trigger
 // ──────────────────────────────────────────
 const SMART_PHRASES = {
+  confirmClinical: [
+    'Symptoms resolved',
+    'Symptoms ongoing',
+    'Improving',
+    'Settled with antiemetics',
+    'Nil nausea or vomiting today',
+    'Bowels opened today',
+    'Receiving all prescribed feeds',
+    'Not receiving all prescribed feeds — ',
+    'Feeds held — ',
+    'Tolerating feeds well',
+  ],
+  confirmWeight: [
+    'Unintentional weight loss confirmed — ',
+    'Denies recent weight loss',
+    'Clothes / rings looser',
+    'Weight stable per patient',
+    'Unsure — to weigh when mobilised',
+  ],
   homeDiet: [
     'Eating 3 meals/day — varied Maldivian diet',
     'Eating 2 meals/day — mainly roshi and garudhiya',
@@ -3317,6 +3406,7 @@ const SP_MAP = {
 let spTarget = null, spPopup = null;
 
 function getSpKey(el) {
+  if (el.classList && el.classList.contains('cr-ans')) return el.dataset.spkey || 'confirmClinical';
   const id = el.id || '';
   for (const prefix of Object.keys(SP_MAP)) {
     if (id.startsWith(prefix)) return SP_MAP[prefix];
@@ -3374,6 +3464,8 @@ function openSmartPhrase(el, key) {
         spTarget.value = (v ? v + '\n' : '') + phrase;
       }
       autoExpand(spTarget);
+      // Confirm-answer inputs hold their value in a data model — fire input so it syncs.
+      if (spTarget.classList && spTarget.classList.contains('cr-ans')) { try { spTarget.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) {} }
       scheduleAutosave();
       spTarget.focus();
       closeSmartPhrase();
@@ -6467,11 +6559,15 @@ const CR_SECTION = { clinicalNotes: 'Clinical', currentIntake: 'Current intake',
 // Push a jotted answer into its relevant chart field (which then flows into the note). Explicit,
 // one-tap — the confirm question itself never enters the note, only the answer she chose to push.
 function pushConfirmAns(idx, i) {
-  const a = _crGet(idx); const it = a[i]; if (!it || !it.ans || !it.ans.trim()) return;
+  const a = _crGet(idx); const it = a[i]; if (!it) return;
+  const inp = document.getElementById('crAns_' + idx + '_' + i);          // read the LIVE input
+  const ans = ((inp ? inp.value : it.ans) || '').trim();                  // (covers a picked / phrase)
+  if (!ans) { if (typeof toast === 'function') toast('Type the answer first'); return; }
+  it.ans = ans;
   const target = it.target || 'clinicalNotes';
   const el = document.getElementById(target + '_' + idx);
   if (el) {
-    el.value = (el.value.trim() ? el.value.replace(/\s+$/, '') + '\n' : '') + it.ans.trim();
+    el.value = (el.value.trim() ? el.value.replace(/\s+$/, '') + '\n' : '') + ans;
     el.classList.remove('from-prev');
     if (typeof autoExpand === 'function') autoExpand(el);
   }
@@ -6512,14 +6608,16 @@ function renderConfirmList(idx) {
   el.innerHTML = _crGet(idx).map((it, i) => {
     const lbl = CR_SECTION[it.target] || 'Clinical';
     const ansShown = it.done || it.ans;
-    const hasAns = it.ans && it.ans.trim();
-    const push = !hasAns ? '' : (it.pushed ? `<span class="cr-pushed">✓ in ${lbl}</span>` : `<button type="button" class="cr-push" onclick="pushConfirmAns(${idx},${i})">→ add to ${lbl}</button>`);
+    const spkey = it.target === 'currentIntake' ? 'currentIntake' : it.target === 'homeDiet' ? 'homeDiet' : it.target === 'wtHx' ? 'confirmWeight' : 'confirmClinical';
+    const pushRow = ansShown ? (it.pushed
+      ? `<div class="cr-pushrow"><span class="cr-pushed">✓ in ${lbl}</span></div>`
+      : `<div class="cr-pushrow"><button type="button" class="cr-push" onclick="pushConfirmAns(${idx},${i})">→ add to ${lbl}</button></div>`) : '';
     return `<div class="cr-item${it.done ? ' done' : ''}">
       <button type="button" class="cr-tick" onclick="toggleConfirm(${idx},${i})" aria-label="confirm">${it.done ? '☑' : '☐'}</button>
       <div class="cr-body">
         <div class="cr-q">${it.suggest ? '<span class="cr-sx" title="suggested from the notes">✨</span> ' : ''}${esc(it.q)}</div>
-        ${ansShown ? `<input type="text" class="cr-ans" placeholder="jot the answer (optional)" value="${esc(it.ans || '')}" oninput="setConfirmAns(${idx},${i},this.value)" onblur="renderConfirmList(${idx})">` : ''}
-        ${ansShown && push ? `<div class="cr-pushrow">${push}</div>` : ''}
+        ${ansShown ? `<input type="text" id="crAns_${idx}_${i}" class="cr-ans" data-spkey="${spkey}" placeholder="jot the answer — type / for phrases" value="${esc(it.ans || '')}" oninput="setConfirmAns(${idx},${i},this.value)">` : ''}
+        ${pushRow}
       </div>
       <button type="button" class="cr-del" onclick="removeConfirm(${idx},${i})" aria-label="remove">✕</button>
     </div>`;
