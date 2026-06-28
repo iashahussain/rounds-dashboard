@@ -803,6 +803,11 @@
   .stream-divider { margin: 16px 4px 8px; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: var(--text-muted); text-transform: uppercase; border-top: 1px dashed var(--border); padding-top: 11px; }
   .stream-divider.wl-done { color: var(--text-faint); }
   .stream-divider.wl-done ~ .patient-card { opacity: .6; }
+  /* Tap a number on the progress line to jump to that worklist group. */
+  .prog-jump { cursor: pointer; padding: 1px 3px; border-radius: 5px; }
+  .prog-jump:hover { text-decoration: underline; }
+  .stream-divider.grp-flash { animation: grpFlash 1.4s ease; border-radius: 6px; }
+  @keyframes grpFlash { 0%,100% { background: transparent; } 18% { background: rgba(120,160,255,.22); } }
   /* Confirm on rounds — bedside checklist (highlighter band) */
   .confirm-rounds .section-title { color: #BA7517; }
   .cr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1802,6 +1807,11 @@ function closeIPPanelLog() {
 }
 
 function startOPDConsult(idx) {
+  // v106: never let an open IP chart keep accruing time while in an OPD consult — close
+  // its panel-timing segment and stop the per-patient banner. (setMode already does this on
+  // tab switch; this covers starting a consult by any path, preventing the double-count.)
+  closeIPPanelLog();
+  if (typeof stopFocusTimer === 'function') stopFocusTimer();
   opdConsultLog.forEach(e => { if (!e.endTime) e.endTime = Date.now(); });
   opdConsultLog.push({ idx, startTime: Date.now(), endTime: null });
   ensureOPDTimerLoop();
@@ -2004,11 +2014,18 @@ function _engagedMs(sessions, thrMin){
 // (not at log time) because the live detector can't know rounds will follow. A patient
 // opened post-rounds who is NOT yet seen stays "precharting" (likely a new pick-up).
 function reclassifyFinalising(ipEntries) {
-  let roundsStart = Infinity;
-  ipEntries.forEach(e => { if (e.phase === 'rounds' && e.startTime < roundsStart) roundsStart = e.startTime; });
-  if (!isFinite(roundsStart)) return ipEntries;
+  // Per-patient (v106): a precharting segment only becomes "finalising" (the post-rounds
+  // write-up) when it happens AFTER *that patient's own* first rounds segment. The old
+  // version compared against the day's first rounds for any patient, which swept a genuine
+  // second pre-charting block (new referrals charted before their own rounds) into
+  // finalising — the "everything recorded under finalising" bug.
+  const firstRounds = {};
+  ipEntries.forEach(e => {
+    if (e.phase === 'rounds' && (firstRounds[e.idx] == null || e.startTime < firstRounds[e.idx]))
+      firstRounds[e.idx] = e.startTime;
+  });
   return ipEntries.map(e =>
-    (e.phase === 'precharting' && e.startTime >= roundsStart && seenSet.has(e.idx))
+    (e.phase === 'precharting' && seenSet.has(e.idx) && firstRounds[e.idx] != null && e.startTime >= firstRounds[e.idx])
       ? Object.assign({}, e, { phase: 'finalising' })
       : e
   );
@@ -2130,6 +2147,14 @@ function buildWorklogText() {
   lines.push(`Device: ${detectDevice()} · Phase detected: ${detectPhase()}`);
   lines.push('');
 
+  // Worklist funnel — same numbers as the on-screen progress line, so the three surfaces agree.
+  const fn = worklistFunnel();
+  if (fn.charted > 0) {
+    lines.push('WORKLIST');
+    lines.push(`  Charted ${fn.charted} · Pre-charted ${fn.pre} · Seen ${fn.seen} · Notes done ${fn.done}`);
+    lines.push('');
+  }
+
   const shift = computeShiftSummary(dayBoundary, _ttBreakMin);
   if (shift.day > 0) {
     lines.push(`TIME ON SHIFT — wall-clock (breaks over ${_ttBreakMin} min removed)`);
@@ -2157,7 +2182,8 @@ function buildWorklogText() {
       const breakdown = parts.length ? ` — ${parts.join(' · ')} → ` : ' — ';
       const p = patients[r.idx];
       const tags = p ? ` · ${ageBand(p)} · ${caseCategory(p)}` : '';
-      lines.push(`Patient ${i+1} (${r.tag}${tags})${breakdown}Total ${fmtDuration(r.total)}`);
+      const doneMark = noteDoneSet.has(r.idx) ? ' · ✓ note done' : '';
+      lines.push(`Patient ${i+1} (${r.tag}${tags})${breakdown}Total ${fmtDuration(r.total)}${doneMark}`);
     });
     lines.push(`IP subtotal: ${fmtDuration(ipTotal)}`);
     lines.push('');
@@ -2278,7 +2304,7 @@ function renderTimeTrackingModal() {
         <tbody>
           ${ipRows.map(r => `
             <tr>
-              <td><div style="font-weight:600">${esc(r.name)}</div><div style="font-size:10px;color:var(--text-muted)">PRN ${esc(r.prn||'')}</div></td>
+              <td><div style="font-weight:600">${esc(r.name)}${noteDoneSet.has(r.idx) ? ' <span style="color:var(--accent)" title="Note finalised">✓</span>' : ''}</div><div style="font-size:10px;color:var(--text-muted)">PRN ${esc(r.prn||'')}</div></td>
               <td>${fmtDuration(r.precharting)}</td>
               <td>${fmtDuration(r.rounds)}</td>
               <td>${fmtDuration(r.finalising)}</td>
@@ -2376,6 +2402,7 @@ function renderTimeTrackingModal() {
           return `<div class="tt-shift">${sum.setup>0?row('Set-up (triage)', sum.setup):''}${row('Precharting', sum.precharting)}${row('Rounds', sum.rounds)}${row('Finalising', sum.finalising)}${sum.opd>0?row('OPD consults', sum.opd):''}${row('Day total', sum.day, true)}</div>`; })()}
         <div style="font-size:11px;color:var(--text-muted);margin:6px 2px 0">Counts the whole time you're working (incl. reading in Vesalius / walking the ward); only gaps longer than ${_ttBreakMin} min are treated as breaks. Tune the cutoff above if a long bedside or a short break is mis-counted.</div>
 
+        ${(() => { const fn = worklistFunnel(); return fn.charted > 0 ? `<div class="tt-section-label" style="margin-top:18px">Worklist</div><div style="font-size:12px;color:var(--text-primary);padding:2px 2px 0">📋 ${fn.charted} charted · ✍ ${fn.pre} pre-charted · 👁 ${fn.seen} seen · ✅ ${fn.done} notes done</div>` : ''; })()}
         <div class="tt-section-label" style="margin-top:18px">Active in-chart time per patient <span style="font-weight:400;color:var(--text-faint)">— focused dashboard only; undercounts true effort</span></div>
         ${ipHtml}
         <div class="tt-section-label" style="margin-top:18px">OPD consults</div>
@@ -2705,15 +2732,20 @@ function updateStats() {
   set('fb-over65',  '65+',         nO65);
   set('fb-charted',  '✓ Charted',   nChart);
 
-  // Worklist progress summary (single line): the funnel selected → pre-charted → seen → done.
-  // notes-done is shown as a fraction OF the pre-charted patients (how much of your work is finalised).
-  const nPre = patients.filter((_, i) => chartedSet.has(i) && isPrecharted(i)).length;
-  const nDoneOfPre = patients.filter((_, i) => chartedSet.has(i) && isPrecharted(i) && noteDoneSet.has(i)).length;
+  // Worklist progress summary (single line): the funnel charted → pre-charted → seen → done,
+  // each a plain count (note-done counts every finished note, not just pre-charted ones).
+  // Every number is a tap-target that jumps to its worklist group.
+  const f = worklistFunnel();
   const sp = document.getElementById('seenProgress');
   if (sp) {
-    if (nChart > 0) {
+    if (f.charted > 0) {
       sp.style.display = 'block';
-      sp.textContent = `📋 ${nChart} charted · ✍ ${nPre} pre-charted · 👁 ${nSeen} seen · ✅ ${nDoneOfPre}/${nPre} notes done`;
+      sp.innerHTML = [
+        `<span class="prog-jump" onclick="jumpToGroup('all')">📋 ${f.charted} charted</span>`,
+        `<span class="prog-jump" onclick="jumpToGroup('rounds')">✍ ${f.pre} pre-charted</span>`,
+        `<span class="prog-jump" onclick="jumpToGroup('notes')">👁 ${f.seen} seen</span>`,
+        `<span class="prog-jump" onclick="jumpToGroup('done')">✅ ${f.done} notes done</span>`
+      ].join(' · ');
     } else {
       sp.style.display = 'none';
     }
@@ -2725,6 +2757,31 @@ function setFilter(f, el) {
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   renderList();
+}
+
+// Quick-nav (v106): tapping a number on the progress line switches to the Charted
+// worklist (keeping its current sorting) and scrolls to the matching group, flashing it.
+function jumpToGroup(grp) {
+  if (currentMode !== 'ip' && typeof setMode === 'function') setMode('ip');
+  if (currentFilter !== 'charted') {
+    const btn = document.getElementById('fb-charted');
+    if (btn) setFilter('charted', btn);
+    else { currentFilter = 'charted'; renderList(); }
+  }
+  const go = () => {
+    const list = document.getElementById('patientList');
+    if (!list) return;
+    if (grp === 'all') { list.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    const d = list.querySelector(`.stream-divider[data-grp="${grp}"]`);
+    if (d) {
+      d.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      d.classList.add('grp-flash');
+      setTimeout(() => d.classList.remove('grp-flash'), 1400);
+    } else {
+      toast('No patients in that group yet');
+    }
+  };
+  requestAnimationFrame(() => requestAnimationFrame(go));
 }
 
 // ── AUTO NUTRITION-PRIORITY (v84) ───────────────────────────────────────
@@ -2819,6 +2876,17 @@ function isPrecharted(idx) {
   const cd = (currentMode === 'op' ? opdChartData : chartData)[idx];
   if (!cd) return false;
   return PRECHART_KEYS.some(k => typeof cd[k] === 'string' && cd[k].trim() !== '');
+}
+// Single source of truth for the worklist funnel (IP, chartData) — used by the progress
+// line, the worklog text and the time-tracking modal so all three always agree.
+function worklistFunnel() {
+  const pre = i => { const cd = chartData[i]; return !!cd && PRECHART_KEYS.some(k => typeof cd[k] === 'string' && cd[k].trim() !== ''); };
+  return {
+    charted: patients.filter((_, i) => chartedSet.has(i)).length,
+    pre:     patients.filter((_, i) => chartedSet.has(i) && pre(i)).length,
+    seen:    patients.filter((_, i) => chartedSet.has(i) && seenSet.has(i)).length,
+    done:    patients.filter((_, i) => chartedSet.has(i) && noteDoneSet.has(i)).length
+  };
 }
 
 function renderList() {
@@ -2948,15 +3016,15 @@ function renderList() {
     const rounds    = rest.filter(p => !seenSet.has(ix(p)) &&  isPrecharted(ix(p))); // pre-charted, awaiting rounds
     const toPre     = rest.filter(p => !seenSet.has(ix(p)) && !isPrecharted(ix(p))); // selected, not pre-charted
     [toPre, rounds, noteWrite, done].forEach(g => g.sort(byPriority));
-    const sect = (lbl, arr, extra) => arr.length ? `<div class="stream-divider${extra || ''}">${lbl} · ${arr.length}</div>` + arr.map(cardHTML).join('') : '';
-    const TOPRE = ['⏳ To pre-chart', toPre], ROUNDS = ['🩺 Pre-charted · rounds pending', rounds], NOTES = ['✍ Seen · notes to write', noteWrite];
+    const sect = (lbl, arr, grp, extra) => arr.length ? `<div class="stream-divider${extra || ''}" data-grp="${grp}">${lbl} · ${arr.length}</div>` + arr.map(cardHTML).join('') : '';
+    const TOPRE = ['⏳ To pre-chart', toPre, 'topre'], ROUNDS = ['🩺 Pre-charted · rounds pending', rounds, 'rounds'], NOTES = ['✍ Seen · notes to write', noteWrite, 'notes'];
     // Phase-aware order: on rounds → rounds-pending first; finalising → notes-to-write first;
     // otherwise (set-up / pre-charting) → to-pre-chart first. Done is always last.
     const phase = (typeof livePhase === 'function') ? livePhase() : 'precharting';
     const order = phase === 'rounds' ? [ROUNDS, NOTES, TOPRE]
                 : phase === 'finalising' ? [NOTES, ROUNDS, TOPRE]
                 : [TOPRE, ROUNDS, NOTES];
-    list.innerHTML = order.map(([lbl, arr]) => sect(lbl, arr)).join('') + sect('✓ Done · notes finished', done, ' wl-done');
+    list.innerHTML = order.map(([lbl, arr, grp]) => sect(lbl, arr, grp)).join('') + sect('✓ Done · notes finished', done, 'done', ' wl-done');
     return;
   }
 
