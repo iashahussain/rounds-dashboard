@@ -6703,16 +6703,37 @@ const CR_GI_SX = [
   [/\b(?:early\s+)?satiety\b/i, 'early satiety']
 ];
 function _csGet(idx) { try { return JSON.parse(document.getElementById('confirmSuggested_' + idx)?.value || '[]'); } catch (_) { return []; } }
+// True if the clause before this match negates the finding (no/not/nil/denies/(-)/"no hx of"),
+// UNLESS a positive cue (has/complains/present…) appears after the negation — so "No hx of
+// fever / Vomiting" is negated, but "no nausea but has vomiting" still flags vomiting.
+function _crNegated(win) {
+  const negRe = /\b(?:no|not|nil|without|denies|denied|negative|absent|resolved|nkda)\b|no\s+h\/?o|\(\s*-\s*\)/ig;
+  let last = -1, m;
+  while ((m = negRe.exec(win))) last = m.index + m[0].length;
+  if (last === -1) return false;
+  return !/\b(?:has|having|c\/o|complain|positive|present|ongoing|active|new|develop)\b/i.test(win.slice(last));
+}
+// Symptom is present (not just mentioned): at least one occurrence is in a non-negated clause.
+function _crMentionedPositively(re, txt) {
+  const g = new RegExp(re.source, re.flags.replace('g', '') + 'g');
+  let m;
+  while ((m = g.exec(txt)) !== null) {
+    const segStart = Math.max(txt.lastIndexOf('\n', m.index - 1), txt.lastIndexOf('.', m.index - 1), txt.lastIndexOf(';', m.index - 1));
+    if (!_crNegated(txt.slice(segStart + 1, m.index))) return true;
+    if (g.lastIndex === m.index) g.lastIndex++;
+  }
+  return false;
+}
 function suggestConfirms(idx) {
-  const txt = ((document.getElementById('docNote_' + idx)?.value || '') + ' ' + (document.getElementById('wtHx_' + idx)?.value || ''));
+  const txt = ((document.getElementById('docNote_' + idx)?.value || '') + '\n' + (document.getElementById('wtHx_' + idx)?.value || ''));
   if (!txt.trim()) return;
   const offered = _csGet(idx); const items = _crGet(idx);
   const seen = k => offered.includes(k) || items.some(it => it._k === k);
   let added = false;
   const add = (k, q, target) => { if (seen(k)) return; items.push({ q, done: false, ans: '', target, _k: k, suggest: true }); offered.push(k); added = true; };
-  CR_GI_SX.forEach(([re, label]) => { if (re.test(txt)) add('gi:' + label, 'Still having ' + label + '?', 'clinicalNotes'); });
-  if (/\bweight\s*loss|\blost\s+\d|\bwt\s*loss|losing weight|unintentional[^.]*loss|\bdropped\s+\d+\s*kg/i.test(txt)) add('weightloss', 'Weight loss?', 'wtHx');
-  if (/\b(?:poor|reduced|decreased|low|inadequate)\s+(?:oral\s+)?intake|not eating|barely eating|poor appetite|anorexi|skipping meals/i.test(txt)) add('lowintake', 'Decreased intake pre-admission?', 'homeDiet');
+  CR_GI_SX.forEach(([re, label]) => { if (_crMentionedPositively(re, txt)) add('gi:' + label, 'Still having ' + label + '?', 'clinicalNotes'); });
+  if (_crMentionedPositively(/\bweight\s*loss|\blost\s+\d|\bwt\s*loss|losing weight|unintentional[^.]*loss|\bdropped\s+\d+\s*kg/i, txt)) add('weightloss', 'Weight loss?', 'wtHx');
+  if (_crMentionedPositively(/\b(?:poor|reduced|decreased|low|inadequate)\s+(?:oral\s+)?intake|not eating|barely eating|poor appetite|anorexi|skipping meals/i, txt)) add('lowintake', 'Decreased intake pre-admission?', 'homeDiet');
   if (added) {
     const cr = document.getElementById('confirmRounds_' + idx); if (cr) cr.value = JSON.stringify(items);
     const cs = document.getElementById('confirmSuggested_' + idx); if (cs) cs.value = JSON.stringify(offered);
