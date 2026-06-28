@@ -2282,20 +2282,46 @@ function buildFnbEmail() {
   L.push('Thank you so much.', '', 'Best regards,', 'Iasha');
   return { text: L.join('\n'), count: rows.length };
 }
+// Opens a preview/edit window so she can eyeball (and tweak) the email before copying.
 function copyFnbEmail() {
   const r = buildFnbEmail();
   if (!r) { toast('No F&B diet orders filled in yet'); return; }
-  const txt = r.text;
-  const done = () => toast(`F&B email copied — ${r.count} patient${r.count === 1 ? '' : 's'} ✓`);
+  let modal = document.getElementById('fnbEmailModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'fnbEmailModal';
+    modal.className = 'tt-modal-backdrop';
+    modal.onclick = e => { if (e.target === modal) closeFnbEmail(); };
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div class="tt-modal-card" style="max-width:580px">
+      <div class="tt-modal-head">
+        <div>
+          <div style="font-size:16px;font-weight:600">📧 F&B diet-change email</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${r.count} patient${r.count === 1 ? '' : 's'} · review &amp; edit, then copy</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn-primary btn-small" onclick="copyFnbEmailFromModal()">📋 Copy</button>
+          <button class="btn-ghost btn-small" onclick="closeFnbEmail()">✕ Close</button>
+        </div>
+      </div>
+      <div class="tt-modal-body">
+        <textarea id="fnbEmailText" class="field" style="width:100%;min-height:360px;font-family:var(--mono);font-size:12.5px;line-height:1.55;white-space:pre-wrap">${esc(r.text)}</textarea>
+      </div>
+    </div>`;
+}
+function closeFnbEmail() { const m = document.getElementById('fnbEmailModal'); if (m) m.style.display = 'none'; }
+function copyFnbEmailFromModal() {
+  const ta = document.getElementById('fnbEmailText');
+  const txt = ta ? ta.value : '';
+  if (!txt.trim()) return;
+  const done = () => { toast('F&B email copied ✓'); closeFnbEmail(); };
   const fallback = () => {
-    const ta = document.createElement('textarea');
-    ta.value = txt;
-    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
-    document.body.appendChild(ta);
     ta.focus(); ta.select();
     try { document.execCommand('copy'); done(); }
     catch (e) { toast('Copy failed — text printed in console'); console.log(txt); }
-    document.body.removeChild(ta);
   };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(fallback);
   else fallback();
@@ -6416,10 +6442,6 @@ function renderPrechart(idx) {
           </div>
         </div>
         <div class="form-group" style="margin-top:8px">
-          <label>🍽 F&amp;B diet order <span style="font-weight:400;color:var(--text-muted);font-size:10px">— goes into the F&amp;B email, not the clinical note</span></label>
-          <textarea class="field field-sm" id="fnbOrder_${idx}" placeholder="e.g. Normal Diet- Avoid egg. Include a serve of mashed potatoes with lunch &amp; dinner">${esc(saved.fnbOrder||'')}</textarea>
-        </div>
-        <div class="form-group" style="margin-top:8px">
           <label>🍽 Current Intake in Hospital</label>
           <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx},'intake')" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Estimate current intake (Formula Calc)</button>
           <textarea class="field field-sm" id="currentIntake_${idx}" placeholder="e.g. Eating 50% of meals, accepting porridge, refusing meat. Tolerating ORS...">${esc(saved.currentIntake||'')}</textarea>
@@ -6660,6 +6682,10 @@ function renderPrechart(idx) {
           <label>✏️ Intervention</label>
           <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx})" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Feeding regimen (Formula Calc)</button>
           <textarea class="field field-lg" id="intervention_${idx}" placeholder="Diet order, formula, tube feeding plan, ONS, food service instructions, counselling...">${esc(saved.intervention||'')}</textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label>🍽 F&amp;B diet order <span style="font-weight:400;color:var(--text-muted);font-size:10px">— copy your food-service line here; goes into the F&amp;B email, not the clinical note</span></label>
+          <textarea class="field field-sm" id="fnbOrder_${idx}" placeholder="e.g. Normal Diet- Avoid egg. Include a serve of mashed potatoes with lunch &amp; dinner">${esc(saved.fnbOrder||'')}</textarea>
         </div>
         <div class="form-group">
           <label>👁 Monitoring & Evaluation <span style="font-size:10px;font-weight:500;color:var(--accent);background:var(--accent-light);padding:1px 6px;border-radius:999px;margin-left:6px">/ phrases</span></label>
