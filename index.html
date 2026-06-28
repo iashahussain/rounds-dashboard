@@ -828,6 +828,16 @@
   .cr-pushrow { margin-top: 5px; }
   .cr-push { font-size: 11px; background: #0F6E56; color: #fff; border: none; border-radius: 999px; padding: 3px 10px; cursor: pointer; font-family: var(--sans); }
   .cr-pushed { font-size: 11px; color: #0F6E56; font-weight: 600; }
+  /* Since-last-review — read-only review card (you choose whether it goes in the note) */
+  .slr-card { margin: 0 0 12px; background: #EAF2FB; border: 1px solid #9FC2E8; border-radius: 8px; padding: 9px 12px; }
+  body.dark .slr-card { background: #15233a; border-color: #2f4d77; }
+  .slr-head { font-size: 12px; font-weight: 800; color: #1f5b9e; letter-spacing: .02em; }
+  body.dark .slr-head { color: #8db8e8; }
+  .slr-sub { font-weight: 400; font-size: 10.5px; color: var(--text-muted); margin-left: 6px; }
+  .slr-lines { font-size: 13px; color: #143a63; line-height: 1.5; margin: 6px 0 8px; }
+  body.dark .slr-lines { color: #cfe0f2; }
+  .slr-btn { font-size: 12px; font-weight: 700; background: #1f5b9e; color: #fff; border: none; border-radius: 999px; padding: 5px 14px; cursor: pointer; font-family: var(--sans); }
+  .slr-btn.in { background: #0F6E56; }
   /* Card triage chips + copy-PRN (v90) */
   .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 7px; flex-wrap: wrap; }
   .prn-copy { font-family: var(--mono); font-size: 10px; color: var(--text-muted); background: var(--surface2); border: 1px solid var(--border-soft); border-radius: 6px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
@@ -2417,12 +2427,24 @@ function renderTimeTrackingModal() {
 document.getElementById('headerDate').textContent =
   new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
-// Autosave — listen for any input/change inside the prechart panel
+// Autosave — listen for any input/change inside the prechart panel.
+// Also live-refresh the Since-last-review card when a field it depends on changes.
+const SLR_FIELD_RE = /^(prevPlan_|status_|lft_|wt_|wtUsed_)/;
+const SLR_OPD_FIELD_RE = /^(opPrevPlan_|opStatus_|opLft_|opWt_|opWtUsed_)/;
+function _slrRefresh(target) {
+  if (typeof renderSinceLastReview !== 'function') return;
+  const id = target.id || '', nm = target.name || '';
+  if (currentMode === 'op' && typeof opdActiveIdx !== 'undefined' && opdActiveIdx != null) {
+    if (SLR_OPD_FIELD_RE.test(id) || nm.startsWith('opSessionType_')) renderSinceLastReview(opdActiveIdx, true);
+  } else if (activeIdx != null) {
+    if (SLR_FIELD_RE.test(id) || nm.startsWith('sessionType_')) renderSinceLastReview(activeIdx, false);
+  }
+}
 document.addEventListener('input', e => {
-  if (e.target.closest('#prechartPanel')) scheduleAutosave();
+  if (e.target.closest('#prechartPanel')) { scheduleAutosave(); _slrRefresh(e.target); }
 });
 document.addEventListener('change', e => {
-  if (e.target.closest('#prechartPanel')) scheduleAutosave();
+  if (e.target.closest('#prechartPanel')) { scheduleAutosave(); _slrRefresh(e.target); }
 });
 
 // v59: persist any open IP panel-open duration on tab close / refresh
@@ -3740,8 +3762,9 @@ function applySectionStates(mode, idx) {
     if (sectionState[key] !== undefined) {
       sec.classList.toggle('collapsed', sectionState[key]);
     } else if (isMobile) {
-      // Default: only docnote and clinical open, rest collapsed
-      const defaultOpen = ['docnote','clinical'];
+      // Default: Confirm-on-rounds (bedside, must be visible so she doesn't forget it),
+      // docnote and clinical open; rest collapsed.
+      const defaultOpen = ['confirm','docnote','clinical'];
       sec.classList.toggle('collapsed', !defaultOpen.includes(s));
     }
   });
@@ -4534,6 +4557,7 @@ function saveOPDChart(idx, silent) {
   opdChartData[idx] = {
     docNote: g(`opDocNote_${idx}`), labsPaste: g(`opLabsPaste_${idx}`),
     sessionType: radio(`opSessionType_${idx}`),
+    slrInclude: (opdChartData[idx] || {}).slrInclude || false, // since-last-review opt-in
     pmhText: g(`opPmhText_${idx}`),
     companion: g(`opCompanion_${idx}`),
     referredBy: g(`opReferredBy_${idx}`),
@@ -4667,8 +4691,8 @@ function generateOPDNote(idx) {
   if (socialHx) note += `\nSocial history:\n${socialHx}\n`;
   note += `\n`;
 
-  // Since last review (review patients with a previous note pasted)
-  if (/review/i.test(sessionTypeOP)) {
+  // Since last review — only when opted in via the review card (no longer auto-inserted)
+  if (/review/i.test(sessionTypeOP) && (opdChartData[idx] || {}).slrInclude) {
     note += sinceLastReviewBlock(g(`opPrevPlan_${idx}`), { wt, crp: statusLabs, alb: statusLabs, lft });
   }
 
@@ -5567,6 +5591,9 @@ function renderOPDPrechart(idx) {
   </div>
   <div class="prechart-wrap"><div class="prechart-content" id="oppc${idx}">
 
+    <!-- SINCE LAST REVIEW — read-only review card; you choose whether it enters the note -->
+    <div id="opSlrCard_${idx}" class="slr-card" style="display:none"></div>
+
     <!-- DOCTOR NOTES -->
     <div class="section" data-s="docnote">
       <div class="section-header">
@@ -5997,6 +6024,7 @@ function renderOPDPrechart(idx) {
   </div>`;
   applySectionStates('op', idx);
   markRadioStates();
+  renderSinceLastReview(idx, true);
   expandAllTextareas();
   setTimeout(updateStickyHeader, 50);
   setTimeout(() => showMobileFloatNav(idx, 'op'), 100);
@@ -6070,6 +6098,9 @@ function renderPrechart(idx) {
         <div id="crList_${idx}" class="cr-list"></div>
       </div>
     </div>
+
+    <!-- SINCE LAST REVIEW — read-only review card; you choose whether it enters the note -->
+    <div id="slrCard_${idx}" class="slr-card" style="display:none"></div>
 
     <!-- DOCTOR NOTE IMPORT -->
     <div class="section" data-s="docnote">
@@ -6624,6 +6655,7 @@ function renderPrechart(idx) {
   applySectionStates('ip', idx);
   markRadioStates();
   renderConfirmList(idx);
+  renderSinceLastReview(idx);
   expandAllTextareas();
   setTimeout(updateStickyHeader, 50);
   setTimeout(() => showMobileFloatNav(idx, 'ip'), 100);
@@ -8043,8 +8075,9 @@ function growthInsertDx() {
 // Build a "Since last review" change summary by parsing the pasted previous note
 // (itself a past dashboard note, so it's structured) against today's values.
 // Returns '' if nothing reliable can be computed.
-function sinceLastReviewBlock(prevText, cur) {
-  if (!prevText || !prevText.trim()) return '';
+// Compute the since-last-review deltas as an array of lines (weight + key labs).
+function slrLines(prevText, cur) {
+  if (!prevText || !prevText.trim()) return [];
   const grab = (re) => { const m = prevText.match(re); return m ? m[1] : null; };
   const firstNum = (s) => { const m = (s || '').match(/(-?\d+(?:\.\d+)?)/); return m ? m[1] : null; };
   const lines = [];
@@ -8058,17 +8091,69 @@ function sinceLastReviewBlock(prevText, cur) {
     lines.push(`Weight: ${curWt} kg (${chg})`);
   }
 
-  // A few key labs — best-effort; silently omitted if not found in both
-  const labRow = (label, prevRe, curField) => {
-    const prev = grab(prevRe);
-    const now = firstNum(curField);
-    if (prev && now && prev !== now) lines.push(`${label}: ${now} (was ${prev})`);
+  // A few key labs — best-effort; silently omitted if not found in both.
+  // Both prev (last note) and now (current cluster string) are matched with the SAME
+  // analyte-specific regex, so "Hb 8.9, Alb 3.7, CRP 5.88" yields Alb=3.7 / CRP=5.88 —
+  // NOT the first number in the string (which was wrongly tagging both as Hb's 8.9).
+  const labRow = (label, re, curSrc) => {
+    const pm = prevText.match(re); const prev = pm ? pm[1] : null;
+    const cm = (curSrc || '').match(re); const now = cm ? cm[1] : null;
+    if (prev && now && prev !== now) {
+      const dir = parseFloat(now) > parseFloat(prev) ? ' ↑' : ' ↓';
+      lines.push(`${label}: ${now} (was ${prev})${dir}`);
+    }
   };
-  labRow('CRP', /\bCRP[:\s]*(-?\d+(?:\.\d+)?)/i, cur.crp);
-  labRow('Albumin', /\b(?:Albumin|Alb)[:\s]*(-?\d+(?:\.\d+)?)/i, cur.alb || cur.lft);
-
+  labRow('CRP', /\bCRP\b[:\s]*(-?\d+(?:\.\d+)?)/i, cur.crp);
+  labRow('Albumin', /\b(?:Albumin|Alb)\b[:\s]*(-?\d+(?:\.\d+)?)/i, cur.alb || cur.lft);
+  return lines;
+}
+function sinceLastReviewBlock(prevText, cur) {
+  const lines = slrLines(prevText, cur);
   if (!lines.length) return '';
   return `SINCE LAST REVIEW\n${lines.join('\n')}\n\n`;
+}
+
+// Live "Since last review" review card (IP) — computes deltas from the pasted previous note
+// + the current weight/status/LFT fields, shown read-only near the top of the chart. It does
+// NOT auto-enter the note; tapping "Insert into note" sets chartData[idx].slrInclude, which
+// generateNote honours. (Her ask: review the change before it goes in the note.)
+function computeSlrLines(idx, opd) {
+  const G = id => document.getElementById(id)?.value || '';
+  const prevText = G(`${opd ? 'opPrevPlan' : 'prevPlan'}_${idx}`);
+  const wt = G(`${opd ? 'opWtUsed' : 'wtUsed'}_${idx}`) || G(`${opd ? 'opWt' : 'wt'}_${idx}`);
+  const statusLabs = G(`${opd ? 'opStatus' : 'status'}_${idx}`);
+  const lft = G(`${opd ? 'opLft' : 'lft'}_${idx}`);
+  return slrLines(prevText, { wt, crp: statusLabs, alb: statusLabs, lft });
+}
+function renderSinceLastReview(idx, opd) {
+  const card = document.getElementById(`${opd ? 'opSlrCard' : 'slrCard'}_${idx}`);
+  if (!card) return;
+  const store = opd ? opdChartData : chartData;
+  const st = (store[idx] || {}).sessionType
+    || (document.querySelector(`input[name="${opd ? 'opSessionType' : 'sessionType'}_${idx}"]:checked`) || {}).value || 'Dietetic Review';
+  const lines = /review/i.test(st) ? computeSlrLines(idx, opd) : [];
+  if (!lines.length) { card.style.display = 'none'; card.innerHTML = ''; return; }
+  const inNote = !!(store[idx] || {}).slrInclude;
+  card.style.display = 'block';
+  card.innerHTML =
+    `<div class="slr-head">📊 Since last review<span class="slr-sub">review before adding — not auto-inserted</span></div>` +
+    `<div class="slr-lines">${lines.map(l => esc(l)).join('<br>')}</div>` +
+    `<button type="button" class="slr-btn${inNote ? ' in' : ''}" onclick="toggleSlrInsert(${idx},${opd ? 'true' : 'false'})">${inNote ? '✓ In note — tap to remove' : '→ Insert into note'}</button>`;
+}
+function toggleSlrInsert(idx, opd) {
+  const store = opd ? opdChartData : chartData;
+  const saved = store[idx] || (store[idx] = {});
+  saved.slrInclude = !saved.slrInclude;
+  renderSinceLastReview(idx, opd);
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
+  const ns = opd ? opdNoteStore : noteStore;
+  const gen = opd ? generateOPDNote : generateNote;
+  if (ns[idx] != null && typeof gen === 'function') {
+    gen(idx); // already generated → update the note in place
+    toast(saved.slrInclude ? '✓ Added to note' : 'Removed from note');
+  } else {
+    toast(saved.slrInclude ? '✓ Will be included when you generate the note' : 'Removed');
+  }
 }
 
 function generateNote(idx) {
@@ -8225,8 +8310,8 @@ function generateNote(idx) {
   if (socialHx) note += `\nSocial history:\n${socialHx}\n`;
   note += `\n`;
 
-  // ── SINCE LAST REVIEW (review patients with a previous note pasted) ──
-  if (/review/i.test(sessionType)) {
+  // ── SINCE LAST REVIEW ── only when she's opted in via the review card (no longer auto-inserted)
+  if (/review/i.test(sessionType) && (chartData[idx] || {}).slrInclude) {
     note += sinceLastReviewBlock(g(`prevPlan_${idx}`), { wt, crp: statusLabs, alb: statusLabs, lft });
   }
 
@@ -8438,6 +8523,7 @@ function saveChart(idx, silent) {
     confirmSuggested: g(`confirmSuggested_${idx}`),
     pmhText: g(`pmhText_${idx}`),
     sessionType: radio(`sessionType_${idx}`),
+    slrInclude: (chartData[idx] || {}).slrInclude || false, // since-last-review opt-in (no backing field)
     priority: priorityMap[idx] || '',
     labsPaste: g(`labsPaste_${idx}`),
     wt: g(`wt_${idx}`), wtSource: radio(`wtSource_${idx}`), wtDate: g(`wtDate_${idx}`), ht: g(`ht_${idx}`), bmi: g(`bmi_${idx}`),
