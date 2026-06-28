@@ -1388,7 +1388,8 @@
     <option value="finalising">⏱ Finalising</option>
   </select>
   <span id="prechartTotalTimer" class="prechart-total" style="display:none" title="Total time precharting today (pauses during OPD)">⏱ Precharting <span class="pt-time">0:00</span></span>
-  <button class="btn-ghost btn-small" onclick="openTimeTrackingModal()" style="margin-left:auto" title="View time spent per patient today">⏱ Time tracking</button>
+  <button class="btn-ghost btn-small" onclick="copyFnbEmail()" style="margin-left:auto" title="Copy the F&amp;B diet-change email for all charted patients with an F&amp;B order">📧 F&amp;B email</button>
+  <button class="btn-ghost btn-small" onclick="openTimeTrackingModal()" title="View time spent per patient today">⏱ Time tracking</button>
   <button class="btn-ghost" id="darkModeBtn" onclick="toggleDarkMode()" style="font-size:11px;padding:5px 12px;border-radius:var(--r-pill)">🌙 Dark</button>
 </div>
 
@@ -2252,6 +2253,52 @@ function copyTimeTrackingWorklog() {
   } else {
     fallback();
   }
+}
+
+// ── F&B DIET-CHANGE EMAIL ──────────────────────────────────────────────────
+// End-of-shift: builds the plain-text email to the F&B (Food & Beverage) team from every
+// charted inpatient that has an "F&B diet order" filled in, sorted by room. Boilerplate
+// top/bottom match her usual email; Room + PRN + name come straight from the patient.
+function buildFnbEmail() {
+  const rows = [];
+  patients.forEach((p, i) => {
+    if (!chartedSet.has(i)) return;
+    const order = (((chartData[i] || {}).fnbOrder) || (document.getElementById(`fnbOrder_${i}`)?.value) || '').trim();
+    if (order) rows.push({ p, order, rn: parseInt(String(p.roomNo || '').replace(/\D/g, ''), 10) });
+  });
+  if (!rows.length) return null;
+  rows.sort((a, b) => (isNaN(a.rn) ? 9e9 : a.rn) - (isNaN(b.rn) ? 9e9 : b.rn));
+  const intro = rows.length === 1
+    ? "Please make the following change to this patient's diet."
+    : "Please make the following changes to these patients' diets.";
+  const L = ['Dear F&B team', '', intro, ''];
+  rows.forEach(({ p, order }) => {
+    const loc = [p.roomNo ? `Room ${p.roomNo}` : '', p.prn || ''].filter(Boolean).join('  ');
+    if (loc) L.push(loc);
+    L.push(p.name || '');
+    L.push(order);
+    L.push('');
+  });
+  L.push('Thank you so much.', '', 'Best regards,', 'Iasha');
+  return { text: L.join('\n'), count: rows.length };
+}
+function copyFnbEmail() {
+  const r = buildFnbEmail();
+  if (!r) { toast('No F&B diet orders filled in yet'); return; }
+  const txt = r.text;
+  const done = () => toast(`F&B email copied — ${r.count} patient${r.count === 1 ? '' : 's'} ✓`);
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); done(); }
+    catch (e) { toast('Copy failed — text printed in console'); console.log(txt); }
+    document.body.removeChild(ta);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(fallback);
+  else fallback();
 }
 
 function openTimeTrackingModal() {
@@ -6369,6 +6416,10 @@ function renderPrechart(idx) {
           </div>
         </div>
         <div class="form-group" style="margin-top:8px">
+          <label>🍽 F&amp;B diet order <span style="font-weight:400;color:var(--text-muted);font-size:10px">— goes into the F&amp;B email, not the clinical note</span></label>
+          <textarea class="field field-sm" id="fnbOrder_${idx}" placeholder="e.g. Normal Diet- Avoid egg. Include a serve of mashed potatoes with lunch &amp; dinner">${esc(saved.fnbOrder||'')}</textarea>
+        </div>
+        <div class="form-group" style="margin-top:8px">
           <label>🍽 Current Intake in Hospital</label>
           <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx},'intake')" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Estimate current intake (Formula Calc)</button>
           <textarea class="field field-sm" id="currentIntake_${idx}" placeholder="e.g. Eating 50% of meals, accepting porridge, refusing meat. Tolerating ORS...">${esc(saved.currentIntake||'')}</textarea>
@@ -8587,6 +8638,7 @@ function saveChart(idx, silent) {
     foodAllergies: g(`foodAllergies_${idx}`), foodIntolerances: g(`foodIntolerances_${idx}`),
     g6pd: radio(`g6pd_${idx}`),
     hospitalDiet: g(`hospitalDiet_${idx}`),
+    fnbOrder: g(`fnbOrder_${idx}`),
     currentIntake: g(`currentIntake_${idx}`), homeDiet: g(`homeDiet_${idx}`),
     showMeals: document.getElementById(`showMeals_${idx}`)?.checked || false,
     mealBreakfast: g(`mealBreakfast_${idx}`),
