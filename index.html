@@ -6827,6 +6827,11 @@ function importPrevNote(idx, cfg) {
   // Anthropometry (numbers + history)
   const an = sec['ANTHROPOMETRY'] || '';
   fill(F.wt, inSec(an, /Weight:\s*([\d.]+)\s*kg/i));
+  // Measured-weight date — from the "Weight: N kg (Source, DD/MM/YYYY)" parenthetical.
+  // Convert DD/MM/YYYY back to the date input's YYYY-MM-DD.
+  const wtParen = inSec(an, /Weight:\s*[\d.]+\s*kg\s*\(([^)]*)\)/i);
+  const wtDM = wtParen && wtParen.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (wtDM) { let y = wtDM[3]; if (y.length === 2) y = '20' + y; fill(F.wtDate, `${y}-${wtDM[2].padStart(2,'0')}-${wtDM[1].padStart(2,'0')}`); }
   fill(F.ht, inSec(an, /Height:\s*([\d.]+)\s*cm/i));
   fill(F.bmi, inSec(an, /BMI(?:\/WFL)?:\s*([\d.]+)/i));
   fill(F.wtChg, inSec(an, /Weight change:\s*([^\n]+)/i));
@@ -6942,7 +6947,7 @@ function parsePrevPlan(idx) {
   importPrevNote(idx, {
     prevId: 'prevPlan', banner: 'labsBanner', labMode: 'clusters',
     intakeLabel: 'Estimated current intake:',
-    fields: { pmh:'pmhText', social:'socialHx', wt:'wt', ht:'ht', bmi:'bmi',
+    fields: { pmh:'pmhText', social:'socialHx', wt:'wt', wtDate:'wtDate', ht:'ht', bmi:'bmi',
       wtChg:'wtChg', wtHx:'wtHx', nutStatus:'nutStatus',
       elytes:'elytes', renal:'renal', status:'status', lft:'lft', glyc:'glyc',
       lipids:'lipids', iron:'iron', micros:'micros', fbc:'fbc', other:'other',
@@ -6960,7 +6965,7 @@ function parseOPDPrevPlan(idx) {
   importPrevNote(idx, {
     prevId: 'opPrevPlan', banner: 'opLabsBanner', labMode: 'clusters',
     intakeLabel: 'Estimated intake:',
-    fields: { pmh:'opPmhText', social:'opSocialHx', wt:'opWt', ht:'opHt', bmi:'opBmi',
+    fields: { pmh:'opPmhText', social:'opSocialHx', wt:'opWt', wtDate:'opWtDate', ht:'opHt', bmi:'opBmi',
       wtChg:'opWtChg', wtHx:'opWtHx', nutStatus:'opNutStatus',
       elytes:'opElytes', renal:'opRenal', status:'opStatus', lft:'opLft', glyc:'opGlyc',
       lipids:'opLipids', iron:'opIron', micros:'opMicros', thyroid:'opThyroid', fbc:'opFbc', other:'opOther',
