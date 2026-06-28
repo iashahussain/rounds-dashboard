@@ -5201,20 +5201,25 @@ function parseNutritionHighlights(idx) {
 // ──────────────────────────────────────────
 //  PMH PARSER — extract from doctor's notes
 // ──────────────────────────────────────────
+// Extract a Past-History / PMH block from pasted doctor's notes. Tolerant of the header
+// wording TTH doctors actually use ("Past History:", "PMHx", "Medical Hx", "Background"…)
+// and captures the WHOLE block — multi-line, dated entries, bullet lists — up to the next
+// blank line or known clinical section, rather than stopping at the first capitalised line.
+function extractPMHBlock(text) {
+  if (!text || !text.trim()) return '';
+  const hdr = /(?:^|\n)[ \t]*(?:past\s+medical\s+(?:history|hx)|past\s+(?:history|hx)|medical\s+(?:history|hx)|\bpmhx?\b|background)[ \t]*[:\-–]?/i;
+  const hm = hdr.exec(text);
+  if (!hm) return '';
+  const rest = text.slice(hm.index + hm[0].length);
+  // Stop at a blank line or the next recognised clinical heading (line-anchored).
+  const stop = rest.search(/\n[ \t]*\n|\n[ \t]*(?:on\s+examination|o\/e\b|examination|investigation|invest\b|management|plan\b|impression|advice|provisional|current\s+management|vitals?|systemic|general\s+exam|social\s+history|family\s+history|diet\b|allerg|complaints?\b|hopc|h\/o\b|presenting)/i);
+  const block = stop === -1 ? rest : rest.slice(0, stop);
+  const lines = block.split('\n').map(l => l.replace(/^[\s\-•*▪·]+/, '').trim()).filter(l => l.length > 1);
+  return lines.join('\n'); // keep line breaks — dated/listed entries read better stacked
+}
 function parsePMH(idx) {
-  const text = document.getElementById(`docNote_${idx}`)?.value || '';
-  if (!text.trim()) return;
-  // Look for PMH / Medical history section
-  const pmhM = text.match(/(?:Past\s+medical\s+history|Medical\s+history|PMH|Background)[:\s]*\n([\s\S]{5,400}?)(?=\n\n|\n[A-Z][a-z]|\nOn\s+examination|\nInvestigation|\nManagement|\nAdvice|\nCurrent\s+management)/i);
-  if (!pmhM) return;
-  // Clean up the block — strip bullet dashes, extra whitespace
-  const pmhBlock = pmhM[1]
-    .split('\n')
-    .map(l => l.replace(/^[\s\-•]+/, '').trim())
-    .filter(l => l.length > 2)
-    .join(', ');
+  const pmhBlock = extractPMHBlock(document.getElementById(`docNote_${idx}`)?.value || '');
   if (!pmhBlock) return;
-  // Populate the pmhText field if empty
   const pmhField = document.getElementById(`pmhText_${idx}`);
   if (pmhField && !pmhField.value.trim()) {
     pmhField.value = pmhBlock;
@@ -5222,6 +5227,18 @@ function parsePMH(idx) {
     toast('PMH extracted from notes ✓');
   }
   const saved = chartData[idx] || (chartData[idx] = {});
+  if (!saved.parsedPMH) saved.parsedPMH = pmhBlock;
+}
+function parsePMHOPD(idx) {
+  const pmhBlock = extractPMHBlock(document.getElementById(`opDocNote_${idx}`)?.value || '');
+  if (!pmhBlock) return;
+  const pmhField = document.getElementById(`opPmhText_${idx}`);
+  if (pmhField && !pmhField.value.trim()) {
+    pmhField.value = pmhBlock;
+    autoExpand(pmhField);
+    toast('PMH extracted from notes ✓');
+  }
+  const saved = opdChartData[idx] || (opdChartData[idx] = {});
   if (!saved.parsedPMH) saved.parsedPMH = pmhBlock;
 }
 
@@ -5556,7 +5573,7 @@ function renderOPDPrechart(idx) {
         <span class="section-title">📋 Doctor's Notes / Referral</span>
       </div>
       <div class="section-body">
-        <textarea class="doc-note-area" id="opDocNote_${idx}" placeholder="Paste doctor's notes or referral letter here..." oninput="parseMedicationsOPD(${idx}); parseBiochemOPD(${idx}); parseNutritionHighlightsOPD(${idx})">${esc(saved.docNote||'')}</textarea>
+        <textarea class="doc-note-area" id="opDocNote_${idx}" placeholder="Paste doctor's notes or referral letter here..." oninput="parseMedicationsOPD(${idx}); parseBiochemOPD(${idx}); parseNutritionHighlightsOPD(${idx}); parsePMHOPD(${idx})">${esc(saved.docNote||'')}</textarea>
         <div class="form-group" style="margin-top:10px">
           <div style="font-size:var(--text-sm);font-weight:700;color:var(--text);margin-bottom:4px">Past Medical History</div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Paste or type — auto-parsed from notes above</div>
