@@ -4941,12 +4941,15 @@ function parseBiochemFromDocNote(idx) {
 function parseGTT(src) {
   if (!src) return '';
   const grab = (re) => { const m = src.match(re); return m ? { v: m[1].replace(/\.$/, ''), u: m[2] } : null; };
-  const fa = grab(/(?:Glucose\s*Fasting|Fasting\s*(?:Blood\s*)?(?:Glucose|Sugar)|\bFBS\b)[^\n]*?([0-9][0-9.]*)\s*(mg\/dL|mmol\/L)/i);
-  const h1 = grab(/(?:Glucose\s*1\s*H(?:R|OUR)?\s*PP|\b1\s*(?:H|HR|HOUR)\s*(?:PP|Post))[^\n]*?([0-9][0-9.]*)\s*(mg\/dL|mmol\/L)/i);
-  const h2 = grab(/(?:Glucose\s*2\s*H(?:R|OUR)?\s*PP|\b2\s*(?:H|HR|HOUR)\s*(?:PP|Post))[^\n]*?([0-9][0-9.]*)\s*(mg\/dL|mmol\/L)/i);
+  // Each timepoint label is LINE-ANCHORED (lab result rows start with the analyte name) so a
+  // stray "2 hour" in prose can't be mistaken for a value. Covers Vesalius "Glucose Fasting /
+  // 1H PP / 2H PP", "OGTT Fasting / 1 hour / 2 hour", "60/120 min", "1 hr / 2 hr", etc.
+  const fa = grab(/^[ \t]*(?:O?GTT[\s:.\-]*)?(?:Glucose\s*)?(?:Fasting(?:\s*(?:Blood\s*)?(?:Glucose|Sugar))?|FBS|0\s*(?:hour|hr|h|min(?:ute)?s?))\b[^\n]*?([0-9][0-9.]*)\s*(mg\/dL|mmol\/L)/im);
+  const h1 = grab(/^[ \t]*(?:O?GTT[\s:.\-]*)?(?:Glucose\s*)?(?:1\s*(?:hour|hr|h)|60\s*min(?:ute)?s?)\s*(?:PP|post)?\b[^\n]*?([0-9][0-9.]*)\s*(mg\/dL|mmol\/L)/im);
+  const h2 = grab(/^[ \t]*(?:O?GTT[\s:.\-]*)?(?:Glucose\s*)?(?:2\s*(?:hour|hr|h)|120\s*min(?:ute)?s?)\s*(?:PP|post)?\b[^\n]*?([0-9][0-9.]*)\s*(mg\/dL|mmol\/L)/im);
   if (!fa && !h1 && !h2) return '';
   const unit = (fa || h1 || h2).u || 'mg/dL';
-  return 'GTT — ' + [fa && `Fasting ${fa.v}`, h1 && `1h PP ${h1.v}`, h2 && `2h PP ${h2.v}`].filter(Boolean).join(', ') + ' ' + unit;
+  return 'OGTT — ' + [fa && `Fasting ${fa.v}`, h1 && `1h PP ${h1.v}`, h2 && `2h PP ${h2.v}`].filter(Boolean).join(', ') + ' ' + unit;
 }
 function parseBiochem(idx, text) {
   const set  = (id, val) => { const el = document.getElementById(id); if (el && val && !el.value) el.value = val; };
