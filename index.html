@@ -4585,7 +4585,8 @@ function parseBiochemOPD(idx) {
   over('Renal', J([V.urea&&`Urea ${V.urea}`, V.cr&&`Cr ${V.cr}`, V.egfr&&`eGFR ${V.egfr}`]));
   over('Status', J([V.hb&&`Hb ${V.hb}`, V.alb&&`Alb ${V.alb}`, V.crp&&`CRP ${V.crp}`, V.esr&&`ESR ${V.esr}`]));
   over('Lft', J([V.alt&&`ALT ${V.alt}`, V.ast&&`AST ${V.ast}`, V.alp&&`ALP ${V.alp}`, V.ggt&&`GGT ${V.ggt}`, V.bili&&`Bili ${V.bili}`]));
-  over('Glyc', J([V.glu&&`Glucose ${V.glu}`, V.hba1c&&`HbA1c ${V.hba1c}`]));
+  const gttStr=parseGTT(s); if(gttStr) V.glu=null;
+  over('Glyc', J([gttStr||null, V.glu&&`Glucose ${V.glu}`, V.hba1c&&`HbA1c ${V.hba1c}`]));
   over('Lipids', J([V.tc&&`Chol ${V.tc}`, V.ldl&&`LDL ${V.ldl}`, V.hdl&&`HDL ${V.hdl}`, V.tg&&`TG ${V.tg}`]));
   over('Iron', J([V.ferritin&&`Ferritin ${V.ferritin}`, V.iron&&`Iron ${V.iron}`, V.tibc&&`TIBC ${V.tibc}`, V.tsat&&`T.sat ${V.tsat}`]));
   over('Micros', J([V.b12&&`B12 ${V.b12}`, V.folate&&`Folate ${V.folate}`, V.vitd&&`Vit D ${V.vitd}`, V.zinc&&`Zinc ${V.zinc}`]));
@@ -4933,6 +4934,20 @@ function parseBiochemFromDocNote(idx) {
   parseBiochem(idx, text);
 }
 
+// Glucose Tolerance Test — pull each timed glucose (Fasting / 1h PP / 2h PP) into one line.
+// The result value sits right before its unit, so the "(8 - 12 HOURS…)" reference text in the
+// fasting row isn't mistaken for a value. Returns '' when no GTT labels are present (so a normal
+// random/fasting glucose is left to the usual parser). Regex literals avoid \\-escaping pitfalls.
+function parseGTT(src) {
+  if (!src) return '';
+  const grab = (re) => { const m = src.match(re); return m ? { v: m[1].replace(/\.$/, ''), u: m[2] } : null; };
+  const fa = grab(/(?:Glucose\s*Fasting|Fasting\s*(?:Blood\s*)?(?:Glucose|Sugar)|\bFBS\b)[^\n]*?([0-9][0-9.]*)\s*(mg\/dL|mmol\/L)/i);
+  const h1 = grab(/(?:Glucose\s*1\s*H(?:R|OUR)?\s*PP|\b1\s*(?:H|HR|HOUR)\s*(?:PP|Post))[^\n]*?([0-9][0-9.]*)\s*(mg\/dL|mmol\/L)/i);
+  const h2 = grab(/(?:Glucose\s*2\s*H(?:R|OUR)?\s*PP|\b2\s*(?:H|HR|HOUR)\s*(?:PP|Post))[^\n]*?([0-9][0-9.]*)\s*(mg\/dL|mmol\/L)/i);
+  if (!fa && !h1 && !h2) return '';
+  const unit = (fa || h1 || h2).u || 'mg/dL';
+  return 'GTT — ' + [fa && `Fasting ${fa.v}`, h1 && `1h PP ${h1.v}`, h2 && `2h PP ${h2.v}`].filter(Boolean).join(', ') + ' ' + unit;
+}
 function parseBiochem(idx, text) {
   const set  = (id, val) => { const el = document.getElementById(id); if (el && val && !el.value) el.value = val; };
   const over = (id, val) => { const el = document.getElementById(id); if (el && val) { el.value = val; el.classList.remove('from-prev'); if (el.tagName === 'TEXTAREA' && typeof autoExpand === 'function') autoExpand(el); } };
@@ -5065,7 +5080,8 @@ function parseBiochem(idx, text) {
   setF('renal', J([V.urea && `Urea ${V.urea}`, V.cr && `Cr ${V.cr}`, V.egfr && `eGFR ${V.egfr}`]));
   setF('status', J([V.hb && `Hb ${V.hb}`, V.alb && `Alb ${V.alb}`, V.crp && `CRP ${V.crp}`, V.procal && `Procal ${V.procal}`, V.esr && `ESR ${V.esr}`]));
   setF('lft', J([V.alt && `ALT ${V.alt}`, V.ast && `AST ${V.ast}`, V.alp && `ALP ${V.alp}`, V.ggt && `GGT ${V.ggt}`, V.bili && `Bili ${V.bili}`]));
-  setF('glyc', J([V.glu && `Glucose ${V.glu}`, V.hba1c && `HbA1c ${V.hba1c}`, cbgBlock && `CBG ${cbgBlock}`]));
+  const gttStr = parseGTT(src); if (gttStr) V.glu = null; // GTT supersedes a bogus single "Glucose"
+  setF('glyc', J([gttStr || null, V.glu && `Glucose ${V.glu}`, V.hba1c && `HbA1c ${V.hba1c}`, cbgBlock && `CBG ${cbgBlock}`]));
   setF('lipids', J([V.tc && `Chol ${V.tc}`, V.ldl && `LDL ${V.ldl}`, V.hdl && `HDL ${V.hdl}`, V.tg && `TG ${V.tg}`]));
   setF('iron', J([V.ferritin && `Ferritin ${V.ferritin}`, V.iron && `Iron ${V.iron}`, V.tibc && `TIBC ${V.tibc}`, V.tsat && `T.sat ${V.tsat}`]));
   setF('micros', J([V.b12 && `B12 ${V.b12}`, V.folate && `Folate ${V.folate}`, V.vitd && `Vit D ${V.vitd}`, V.zinc && `Zinc ${V.zinc}`]));
