@@ -5774,7 +5774,7 @@ function renderOPDPrechart(idx) {
         <div class="form-grid-3">
           <div class="form-group">
             <label>⚖️ Weight (kg)</label>
-            <input type="text" id="opWt_${idx}" inputmode="decimal" value="${esc(saved.wt||'')}" placeholder="e.g. 14.5" oninput="calcBMIFields('opWt_${idx}','opHt_${idx}','opBmi_${idx}')">
+            <input type="text" id="opWt_${idx}" inputmode="decimal" value="${esc(saved.wt||'')}" placeholder="e.g. 14.5" oninput="handleAnthroInput('opWt_${idx}','opHt_${idx}','opBmi_${idx}')">
             <div class="radio-group" style="margin-top:4px">
               ${['Measured','Reported','Estimated'].map(v=>`<input type="radio" name="opWtSource_${idx}" class="radio-opt" id="opWts${v}_${idx}" value="${v}" ${(saved.wtSource||'Measured')===v?'checked':''}><label class="radio-label" for="opWts${v}_${idx}" style="font-size:10px">${v}</label>`).join('')}
             </div>
@@ -5783,7 +5783,7 @@ function renderOPDPrechart(idx) {
           </div>
           <div class="form-group">
             <label>📐 Height (cm)</label>
-            <input type="text" id="opHt_${idx}" inputmode="decimal" value="${esc(saved.ht||'')}" placeholder="e.g. 105" oninput="calcBMIFields('opWt_${idx}','opHt_${idx}','opBmi_${idx}')">
+            <input type="text" id="opHt_${idx}" inputmode="decimal" value="${esc(saved.ht||'')}" placeholder="e.g. 105" oninput="handleAnthroInput('opWt_${idx}','opHt_${idx}','opBmi_${idx}')">
           </div>
           <div class="form-group">
             <label>📊 BMI / Weight-for-Length <span style="font-size:9px;color:var(--text-muted);font-weight:400">(auto)</span></label>
@@ -6511,7 +6511,7 @@ function renderPrechart(idx) {
         <div class="form-grid-3">
           <div class="form-group">
             <label>⚖️ Weight (kg)</label>
-            <input type="text" id="wt_${idx}" inputmode="decimal" value="${esc(saved.wt||'')}" placeholder="e.g. 14.5" oninput="calcBMIFields('wt_${idx}','ht_${idx}','bmi_${idx}')">
+            <input type="text" id="wt_${idx}" inputmode="decimal" value="${esc(saved.wt||'')}" placeholder="e.g. 14.5" oninput="handleAnthroInput('wt_${idx}','ht_${idx}','bmi_${idx}')">
             <div class="radio-group" style="margin-top:4px">
               ${['Measured','Reported','Estimated'].map(v=>`<input type="radio" name="wtSource_${idx}" class="radio-opt" id="wts${v}_${idx}" value="${v}" ${(saved.wtSource||'Measured')===v?'checked':''}><label class="radio-label" for="wts${v}_${idx}" style="font-size:10px">${v}</label>`).join('')}
             </div>
@@ -6520,7 +6520,7 @@ function renderPrechart(idx) {
           </div>
           <div class="form-group">
             <label>📐 Height (cm)</label>
-            <input type="text" id="ht_${idx}" inputmode="decimal" value="${esc(saved.ht||'')}" placeholder="e.g. 105" oninput="calcBMIFields('wt_${idx}','ht_${idx}','bmi_${idx}')">
+            <input type="text" id="ht_${idx}" inputmode="decimal" value="${esc(saved.ht||'')}" placeholder="e.g. 105" oninput="handleAnthroInput('wt_${idx}','ht_${idx}','bmi_${idx}')">
           </div>
           <div class="form-group">
             <label>📊 BMI / Weight-for-Length <span style="font-size:9px;color:var(--text-muted);font-weight:400">(auto)</span></label>
@@ -7529,6 +7529,32 @@ function calcBMIFields(wtId, htId, bmiId) {
     el.classList.remove('from-prev');
     el.dispatchEvent(new Event('input', { bubbles: true })); // trigger autosave/auto-grow
   }
+}
+
+// Vesalius combined wt/ht copy — pasting "102.5 KG / 156.7 CM (41.74)" (either order) into the
+// Weight OR Height box auto-splits it into Weight / Height / BMI. Keeps Vesalius' own BMI when
+// present, otherwise computes it. Returns true when it distributed so the caller skips the
+// normal single-field BMI calc.
+function anthroPasteDistribute(wtId, htId, bmiId) {
+  const wtEl = document.getElementById(wtId), htEl = document.getElementById(htId), bmiEl = document.getElementById(bmiId);
+  let wt, ht, bmi, hit = false;
+  for (const v of [wtEl && wtEl.value, htEl && htEl.value]) {
+    if (!v) continue;
+    let m = v.match(/([\d.]+)\s*kg\s*\/\s*([\d.]+)\s*cm(?:\s*\(([\d.]+)\))?/i);
+    if (m) { wt = m[1]; ht = m[2]; bmi = m[3]; hit = true; break; }
+    m = v.match(/([\d.]+)\s*cm\s*\/\s*([\d.]+)\s*kg(?:\s*\(([\d.]+)\))?/i);
+    if (m) { ht = m[1]; wt = m[2]; bmi = m[3]; hit = true; break; }
+  }
+  if (!hit) return false;
+  if (wtEl && wt) wtEl.value = wt;
+  if (htEl && ht) htEl.value = ht;
+  if (bmi && bmiEl) { bmiEl.value = bmi; bmiEl.classList.remove('from-prev'); }
+  else calcBMIFields(wtId, htId, bmiId);
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
+  return true;
+}
+function handleAnthroInput(wtId, htId, bmiId) {
+  if (!anthroPasteDistribute(wtId, htId, bmiId)) calcBMIFields(wtId, htId, bmiId);
 }
 
 // v82: in-app paediatric z-scores using the ported WHO/CDC LMS engine — fills the
