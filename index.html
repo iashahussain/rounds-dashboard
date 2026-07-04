@@ -1817,17 +1817,29 @@ function closeIPPanelLog() {
   });
 }
 
-function startOPDConsult(idx) {
-  // v106: never let an open IP chart keep accruing time while in an OPD consult — close
-  // its panel-timing segment and stop the per-patient banner. (setMode already does this on
-  // tab switch; this covers starting a consult by any path, preventing the double-count.)
+// Core: open a consult session for idx. Closes any IP chart timing + any other open consult
+// first (v106), so time never double-counts across IP/OPD or between two OPD patients.
+function _openOPDConsult(idx) {
   closeIPPanelLog();
   if (typeof stopFocusTimer === 'function') stopFocusTimer();
   opdConsultLog.forEach(e => { if (!e.endTime) e.endTime = Date.now(); });
   opdConsultLog.push({ idx, startTime: Date.now(), endTime: null });
   ensureOPDTimerLoop();
+}
+function startOPDConsult(idx) {
+  _openOPDConsult(idx);
   if (typeof renderOPDPrechart === 'function') renderOPDPrechart(idx);
   toast('Consult started ▶');
+}
+// v116: auto-start the consult timer the FIRST time an OPD patient's chart is opened, so a
+// forgotten ▶ never loses the consult. Skips patients who already have a session (running →
+// leave it; already ended → don't re-time a review). Manual ▶/■ still work. Toggle: _opdAutoStart.
+let _opdAutoStart = true;
+function maybeAutoStartOPDConsult(idx) {
+  if (!_opdAutoStart) return;
+  if (opdConsultLog.some(e => e.idx === idx)) return; // already has a session (open or closed)
+  _openOPDConsult(idx);
+  toast('Consult timer started ▶ (auto)');
 }
 
 function endOPDConsult(idx) {
@@ -5645,6 +5657,7 @@ function renderOPDList() {
 function selectOPDPatient(i) {
   closeIPPanelLog(); // v59: close any open IP panel timing entry
   opdActiveIdx = i;
+  maybeAutoStartOPDConsult(i); // v116: begin timing the consult on first open
   renderOPDList();
   renderOPDPrechart(i);
   autoCollapseOnMobile();
