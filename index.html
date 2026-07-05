@@ -16,15 +16,15 @@
 <link rel="icon" type="image/png" href="icon-192.png">
 <style>
   :root {
-    --bg: #f4f2ee;
+    --bg: #f5f4f9;
     --surface: #ffffff;
-    --surface2: #f8f6f2;
-    --surface3: #eeebe4;
-    --border: #e0dbd2;
-    --border-soft: #e8e4dc;
-    --text: #1a1714;
-    --text-muted: #6b6560;
-    --text-faint: #9c9489;
+    --surface2: #f5f3fa;
+    --surface3: #eae7f1;
+    --border: #e5e1ed;
+    --border-soft: #edeaf4;
+    --text: #201d28;
+    --text-muted: #6c6676;
+    --text-faint: #9a94a5;
     --accent: #6b4e9e;
     --accent-mid: #7a5aae;
     --accent-light: #ece7f6;
@@ -61,15 +61,15 @@
   }
 
   body.dark {
-    --bg: #1c1a18;
-    --surface: #252320;
-    --surface2: #2e2b28;
-    --surface3: #363330;
-    --border: #3a3735;
-    --border-soft: #322f2c;
-    --text: #f0ece8;
-    --text-muted: #a8a09a;
-    --text-faint: #706860;
+    --bg: #141218;
+    --surface: #1e1b26;
+    --surface2: #272332;
+    --surface3: #2f2b3a;
+    --border: #332e3f;
+    --border-soft: #2a2634;
+    --text: #ebe8f1;
+    --text-muted: #a29bb0;
+    --text-faint: #6e687c;
     --accent: #a98ce6;
     --accent-mid: #9a7bdc;
     --accent-light: #241e36;
@@ -86,28 +86,28 @@
   body.dark .patient-card { background: var(--surface); }
   body.dark .patient-card.active { background: var(--accent-light); }
   body.dark input[type="text"], body.dark select, body.dark textarea {
-    background: #302d2a; color: #f0ece8; border-color: #3a3735;
+    background: #272233; color: #ebe8f1; border-color: #332e3f;
   }
-  body.dark input::placeholder, body.dark textarea::placeholder { color: #706860; }
-  body.dark label { color: #c8c0b8; }
-  body.dark .form-group label { color: #c8c0b8; }
-  body.dark .radio-label, body.dark .check-label { background: #302d2a; color: #c0b8b0; border-color: #3a3a3a; }
-  body.dark .section-done-btn { background: #2a2724 !important; color: #a8a09a !important; border-color: #3a3735 !important; }
-  body.dark .filter-btn { background: #302d2a; color: #a0988e; }
+  body.dark input::placeholder, body.dark textarea::placeholder { color: #6e687c; }
+  body.dark label { color: #c3bcd0; }
+  body.dark .form-group label { color: #c3bcd0; }
+  body.dark .radio-label, body.dark .check-label { background: #272233; color: #bdb4cc; border-color: #3a3545; }
+  body.dark .section-done-btn { background: #26222f !important; color: #a29bb0 !important; border-color: #332e3f !important; }
+  body.dark .filter-btn { background: #272233; color: #9a94a8; }
   body.dark .note-section { border-top-color: var(--accent); }
   body.dark .note-header { background: var(--surface2); border-bottom-color: var(--border); }
   body.dark .note-body { background: var(--surface); }
-  body.dark .note-body { background: #252320 !important; }
-  body.dark .note-output { color: #f0ece8; }
-  body.dark .note-output .note-section-header { color: #f0ece8 !important; }
+  body.dark .note-body { background: #1e1b26 !important; }
+  body.dark .note-output { color: #ebe8f1; }
+  body.dark .note-output .note-section-header { color: #ebe8f1 !important; }
   body.dark .note-output .note-divider { color: #4a4540 !important; }
   body.dark .note-placeholder { color: #605850; }
   body.dark .clinical-divider { border-top-color: #3a2a1a; }
-  body.dark .sga-label { background: #302d2a; border-color: #3a3735; color: #c0b8b0; }
+  body.dark .sga-label { background: #272233; border-color: #332e3f; color: #bdb4cc; }
   body.dark .prechart-header { background: var(--surface); }
   body.dark .prechart-header .sub-dx { color: #e8e4de; }
-  body.dark .card-dx { color: #f0ece8; }
-  body.dark .prechart-header .sub { color: #a8a09a; }
+  body.dark .card-dx { color: #ebe8f1; }
+  body.dark .prechart-header .sub { color: #a29bb0; }
   body.dark .med-flag { background: #2a2000; color: #c8a84a; border-color: #5a4a00; }
   /* Per-domain section colours — dark mode (v72) */
   body.dark .section[data-s="anthro"]   { --sec:#5dcaa5; --sec-bg:#0d241d; }
@@ -120,8 +120,8 @@
   body.dark .section[data-s="social"]   { --sec:#cfcdc4; --sec-bg:#201f1b; }
   body.dark .section[data-s="meds"]     { --sec:#ed93b1; --sec-bg:#24121a; }
   body.dark .section { border-top-color: #2a2a2a; border-right-color: #2a2a2a; border-bottom-color: #2a2a2a; }
-  body.dark .hint { color: #706860; }
-  body.dark .card-meta, body.dark .card-dx { color: #a8a09a; }
+  body.dark .hint { color: #6e687c; }
+  body.dark .card-meta, body.dark .card-dx { color: #a29bb0; }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -129,8 +129,8 @@
   /* Match <html> bg to the app bg so any area the mobile keyboard reveals below
      the page reads as the page background, not OS black. .dark is mirrored onto
      <html> in toggleDarkMode so this tracks dark mode. Values match --bg. */
-  html { background: #f4f2ee; }
-  html.dark { background: #1c1a18; }
+  html { background: #f5f4f9; }
+  html.dark { background: #141218; }
   body {
     font-size: var(--text-base);
     font-family: var(--sans);
@@ -1335,6 +1335,37 @@
 </head>
 <body>
 
+<!-- ── Monochrome icon set (v119: replaces colourful emojis in the persistent UI) ── -->
+<style>
+  .ic{width:1em;height:1em;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:-0.14em;flex:none}
+  .sec-ic{width:16px;height:16px;margin-right:8px;vertical-align:-0.16em;opacity:.9}
+  .section-title{display:inline-flex;align-items:center}
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="16.5" x2="15" y2="16.5"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 4v16"/><path d="M6 8h12"/><path d="M6 8l-3 5.5a3 3 0 0 0 6 0z"/><path d="M18 8l-3 5.5a3 3 0 0 0 6 0z"/><path d="M8.5 20h7"/></symbol>
+  <symbol id="i-vitals" viewBox="0 0 24 24"><polyline points="2 12 6 12 9 20 15 4 18 12 22 12"/></symbol>
+  <symbol id="i-bowl" viewBox="0 0 24 24"><path d="M3 11h18a9 9 0 0 1-18 0z"/><path d="M9 7c0-1.2 1.2-1.6 1.2-3M13 7c0-1.2 1.2-1.6 1.2-3"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 13.5h7L11 22l9-11.5h-7z"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M9 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3"/><polyline points="9 13.5 11 15.5 15 11"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-7 8-7s8 2.8 8 7"/></symbol>
+  <symbol id="i-bed" viewBox="0 0 24 24"><path d="M3 8v11"/><path d="M3 14h17a1.5 1.5 0 0 1 1.5 1.5V19"/><path d="M6.5 14v-2.2A1.8 1.8 0 0 1 8.3 10h3.4a1.8 1.8 0 0 1 1.8 1.8V14"/></symbol>
+  <symbol id="i-plus-sq" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M12 8v8M8 12h8"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 8.5A2 2 0 0 0 7 21h10a2 2 0 0 0 2-3.5L14 9V3"/><path d="M7.5 15h9"/></symbol>
+  <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><line x1="12" y1="13" x2="12" y2="9"/><line x1="9.5" y1="2.5" x2="14.5" y2="2.5"/></symbol>
+  <symbol id="i-coffee" viewBox="0 0 24 24"><path d="M17 8h1.5a3 3 0 0 1 0 6H17"/><path d="M3 8h14v7a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"/><line x1="7" y1="2.5" x2="7" y2="4.5"/><line x1="11" y1="2.5" x2="11" y2="4.5"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 6.6 6.6 0 0 0 21 12.8z"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="4 6.5 12 12.5 20 6.5"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3.2l5.3 5.6a7.5 7.5 0 1 1-10.6 0z"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v16h16"/><polyline points="7 15 11 10 14 13 19 7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8 5.9 18.1M18.1 5.9l1.7-1.7"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+</svg>
+
 <!-- Crash-recovery banner (shown on load if a localStorage auto-save exists) -->
 <div id="recoveryBanner" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 16px;background:var(--accent-light);border-bottom:2px solid var(--accent)">
   <span style="font-size:13px;color:var(--text);font-weight:600">↩️ Unsaved charting found<span id="recoveryWhen"></span>.</span>
@@ -1378,7 +1409,7 @@
     📂 Load Session
     <input type="file" id="sessionFileInput" accept=".json" style="display:none" onchange="loadSession(this)">
   </label>
-  <button class="btn-ghost btn-small" id="breakBtn" onclick="toggleBreak()" title="Pause time tracking while you step away">☕ Break</button>
+  <button class="btn-ghost btn-small" id="breakBtn" onclick="toggleBreak()" title="Pause time tracking while you step away"><svg class="ic"><use href="#i-coffee"/></svg> Break</button>
   <span id="sessionStatus" style="font-size:11px;color:var(--text-muted);margin-left:4px"></span>
   <span id="autosaveStatus" style="font-size:11px;color:var(--text-muted);margin-left:4px" title="Charting is auto-saved to this device"></span>
   <select id="phaseSelect" onchange="setManualPhase(this.value)" title="What you're doing now — sets how time is recorded (set to Finalising when finalising notes)" style="font-size:11px;padding:4px 8px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);color:var(--text);margin-left:6px;cursor:pointer">
@@ -1388,9 +1419,9 @@
     <option value="finalising">⏱ Finalising</option>
   </select>
   <span id="prechartTotalTimer" class="prechart-total" style="display:none" title="Total time precharting today (pauses during OPD)">⏱ Precharting <span class="pt-time">0:00</span></span>
-  <button class="btn-ghost btn-small" onclick="copyFnbEmail()" style="margin-left:auto" title="Copy the F&amp;B diet-change email for all charted patients with an F&amp;B order">📧 F&amp;B email</button>
-  <button class="btn-ghost btn-small" onclick="openTimeTrackingModal()" title="View time spent per patient today">⏱ Time tracking</button>
-  <button class="btn-ghost" id="darkModeBtn" onclick="toggleDarkMode()" style="font-size:11px;padding:5px 12px;border-radius:var(--r-pill)">🌙 Dark</button>
+  <button class="btn-ghost btn-small" onclick="copyFnbEmail()" style="margin-left:auto" title="Copy the F&amp;B diet-change email for all charted patients with an F&amp;B order"><svg class="ic"><use href="#i-mail"/></svg> F&amp;B email</button>
+  <button class="btn-ghost btn-small" onclick="openTimeTrackingModal()" title="View time spent per patient today"><svg class="ic"><use href="#i-timer"/></svg> Time tracking</button>
+  <button class="btn-ghost" id="darkModeBtn" onclick="toggleDarkMode()" style="font-size:11px;padding:5px 12px;border-radius:var(--r-pill)"><svg class="ic"><use href="#i-moon"/></svg> Dark</button>
 </div>
 
 <div class="layout">
@@ -1404,8 +1435,8 @@
 
       <!-- MODE TABS -->
       <div class="mode-tabs">
-        <button class="mode-tab active" id="tabIP" onclick="setMode('ip')">🏥 Inpatient</button>
-        <button class="mode-tab" id="tabOP" onclick="setMode('op')">🩺 OPD</button>
+        <button class="mode-tab active" id="tabIP" onclick="setMode('ip')"><svg class="ic"><use href="#i-bed"/></svg> Inpatient</button>
+        <button class="mode-tab" id="tabOP" onclick="setMode('op')"><svg class="ic"><use href="#i-user"/></svg> OPD</button>
       </div>
 
       <!-- ── INPATIENT PANEL ── -->
@@ -1433,13 +1464,13 @@
           <button class="filter-btn"        id="fb-infant" data-f="infant"  onclick="setFilter('infant',this)">&lt;2y</button>
           <button class="filter-btn"        id="fb-toddler" data-f="toddler" onclick="setFilter('toddler',this)">2–5y</button>
           <button class="filter-btn"        id="fb-child" data-f="child"   onclick="setFilter('child',this)">5–18y</button>
-          <button class="filter-btn"        id="fb-icu" data-f="icu"     onclick="setFilter('icu',this)">🏥 ICU</button>
-          <button class="filter-btn"        id="fb-w3" data-f="w3"       onclick="setFilter('w3',this)">🛏 Ward 3</button>
-          <button class="filter-btn"        id="fb-w4" data-f="w4"       onclick="setFilter('w4',this)">🛏 Ward 4</button>
-          <button class="filter-btn"        id="fb-w5" data-f="w5"       onclick="setFilter('w5',this)">🛏 Ward 5</button>
-          <button class="filter-btn"        id="fb-tube" data-f="tube"    onclick="setFilter('tube',this)">🧪 Tube fed</button>
+          <button class="filter-btn"        id="fb-icu" data-f="icu"     onclick="setFilter('icu',this)"><svg class="ic"><use href="#i-plus-sq"/></svg> ICU</button>
+          <button class="filter-btn"        id="fb-w3" data-f="w3"       onclick="setFilter('w3',this)"><svg class="ic"><use href="#i-bed"/></svg> Ward 3</button>
+          <button class="filter-btn"        id="fb-w4" data-f="w4"       onclick="setFilter('w4',this)"><svg class="ic"><use href="#i-bed"/></svg> Ward 4</button>
+          <button class="filter-btn"        id="fb-w5" data-f="w5"       onclick="setFilter('w5',this)"><svg class="ic"><use href="#i-bed"/></svg> Ward 5</button>
+          <button class="filter-btn"        id="fb-tube" data-f="tube"    onclick="setFilter('tube',this)"><svg class="ic"><use href="#i-flask"/></svg> Tube fed</button>
           <button class="filter-btn"        id="fb-over65" data-f="over65"  onclick="setFilter('over65',this)">65+</button>
-          <button class="filter-btn"        id="fb-charted" data-f="charted" onclick="setFilter('charted',this)">✓ Charted</button>
+          <button class="filter-btn"        id="fb-charted" data-f="charted" onclick="setFilter('charted',this)"><svg class="ic"><use href="#i-check"/></svg> Charted</button>
         </div>
         <div id="seenProgress" style="display:none;font-size:12px;font-weight:700;color:var(--accent);margin-top:8px"></div>
       </div>
@@ -2848,10 +2879,10 @@ function updateStats() {
     if (f.charted > 0) {
       sp.style.display = 'block';
       sp.innerHTML = [
-        `<span class="prog-jump" onclick="jumpToGroup('all')">📋 ${f.charted} charted</span>`,
-        `<span class="prog-jump" onclick="jumpToGroup('rounds')">✍ ${f.pre} pre-charted</span>`,
-        `<span class="prog-jump" onclick="jumpToGroup('notes')">👁 ${f.seen} seen</span>`,
-        `<span class="prog-jump" onclick="jumpToGroup('done')">✅ ${f.done} notes done</span>`
+        `<span class="prog-jump" onclick="jumpToGroup('all')"><svg class="ic"><use href="#i-file"/></svg> ${f.charted} charted</span>`,
+        `<span class="prog-jump" onclick="jumpToGroup('rounds')"><svg class="ic"><use href="#i-pen"/></svg> ${f.pre} pre-charted</span>`,
+        `<span class="prog-jump" onclick="jumpToGroup('notes')"><svg class="ic"><use href="#i-eye"/></svg> ${f.seen} seen</span>`,
+        `<span class="prog-jump" onclick="jumpToGroup('done')"><svg class="ic"><use href="#i-check"/></svg> ${f.done} notes done</span>`
       ].join(' · ');
     } else {
       sp.style.display = 'none';
@@ -3794,7 +3825,7 @@ function toggleDarkMode() {
   const isDark = document.body.classList.toggle('dark');
   document.documentElement.classList.toggle('dark', isDark); // keep <html> bg in sync
   localStorage.setItem('tth-dark', isDark ? '1' : '0');
-  document.getElementById('darkModeBtn').textContent = isDark ? '☀️ Light' : '🌙 Dark';
+  document.getElementById('darkModeBtn').innerHTML = isDark ? '<svg class="ic"><use href="#i-sun"/></svg> Light' : '<svg class="ic"><use href="#i-moon"/></svg> Dark';
 }
 // Restore preference on load
 (function() {
@@ -3802,7 +3833,7 @@ function toggleDarkMode() {
     document.body.classList.add('dark');
     document.documentElement.classList.add('dark');
     const btn = document.getElementById('darkModeBtn');
-    if (btn) btn.textContent = '☀️ Light';
+    if (btn) btn.innerHTML = '<svg class="ic"><use href="#i-sun"/></svg> Light';
   }
 })();
 // ──────────────────────────────────────────
@@ -5702,7 +5733,7 @@ function renderOPDPrechart(idx) {
     <!-- DOCTOR NOTES -->
     <div class="section" data-s="docnote">
       <div class="section-header">
-        <span class="section-title">📋 Doctor's Notes / Referral</span>
+        <span class="section-title"><svg class="ic sec-ic"><use href="#i-file"/></svg>Doctor's Notes / Referral</span>
       </div>
       <div class="section-body">
         <textarea class="doc-note-area" id="opDocNote_${idx}" placeholder="Paste doctor's notes or referral letter here..." oninput="parseMedicationsOPD(${idx}); parseBiochemOPD(${idx}); parseNutritionHighlightsOPD(${idx}); parsePMHOPD(${idx})">${esc(saved.docNote||'')}</textarea>
@@ -5782,7 +5813,7 @@ function renderOPDPrechart(idx) {
 
     <!-- ANTHROPOMETRY -->
     <div class="section" data-s="anthro">
-      <div class="section-header"><span class="section-title">⚖️ Anthropometry</span></div>
+      <div class="section-header"><span class="section-title"><svg class="ic sec-ic"><use href="#i-scale"/></svg>Anthropometry</span></div>
       <div class="section-body">
         <div class="form-grid-3">
           <div class="form-group">
@@ -5885,7 +5916,7 @@ function renderOPDPrechart(idx) {
     <!-- CLINICAL -->
     <div class="section" data-s="clinical">
       <div class="section-header">
-        <span class="section-title">🩺 Clinical Assessment</span>
+        <span class="section-title"><svg class="ic sec-ic"><use href="#i-vitals"/></svg>Clinical Assessment</span>
         <button class="btn-ghost btn-small" onclick="parseNutritionHighlightsOPD(${idx})" style="font-size:11px">↻ Flag from notes</button>
       </div>
       <div class="section-body">
@@ -5962,7 +5993,7 @@ function renderOPDPrechart(idx) {
 
     <!-- DIET HISTORY -->
     <div class="section" data-s="diet">
-      <div class="section-header"><span class="section-title">🥗 Diet History</span></div>
+      <div class="section-header"><span class="section-title"><svg class="ic sec-ic"><use href="#i-bowl"/></svg>Diet History</span></div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:10px">
           <label>📌 Previous dietetic input</label>
@@ -6027,7 +6058,7 @@ function renderOPDPrechart(idx) {
 
     <!-- SOCIAL HISTORY -->
     <div class="section" data-s="social">
-      <div class="section-header"><span class="section-title">🏠 Social History</span></div>
+      <div class="section-header"><span class="section-title"><svg class="ic sec-ic"><use href="#i-home"/></svg>Social History</span></div>
       <div class="section-body">
         <textarea class="field" id="opSocialHx_${idx}" placeholder="Lives with: &#10;Cooking & shopping: &#10;School / work: &#10;Activity level: &#10;Barriers:">${esc(saved.socialHx||'')}</textarea>
       
@@ -6037,7 +6068,7 @@ function renderOPDPrechart(idx) {
 
     <!-- NUTRITIONAL REQUIREMENTS -->
     <div class="section" data-s="reqs">
-      <div class="section-header"><span class="section-title">⚡ Nutritional Requirements</span></div>
+      <div class="section-header"><span class="section-title"><svg class="ic sec-ic"><use href="#i-bolt"/></svg>Nutritional Requirements</span></div>
       <div class="section-body">
         <button type="button" class="btn-ghost btn-small" onclick="openNourishCal(${idx})" style="margin:0 0 10px;font-size:11px;padding:3px 10px">⚡ Calculate requirements (NourishCal)</button>
         <div class="form-grid-3">
@@ -6115,16 +6146,16 @@ function renderOPDPrechart(idx) {
     <div style="height:16px"></div>
   </div>
   <div class="jump-nav" id="opJumpNav_${idx}">
-    <button class="jump-nav-btn" onclick="jumpToSection('docnote',${idx})" title="Doctor's Notes"><span class="jn-icon">📋</span><span class="jn-label">Dr Notes</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('clinical',${idx})" title="Clinical"><span class="jn-icon">🩺</span><span class="jn-label">Clinical</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('biochem',${idx})" title="Biochem / Labs"><span class="jn-icon">🩸</span><span class="jn-label">Biochem</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('nfpe',${idx})" title="Physical Findings"><span class="jn-icon">💪</span><span class="jn-label">Physical</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('diet',${idx})" title="Diet History"><span class="jn-icon">🥗</span><span class="jn-label">Diet</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('anthro',${idx})" title="Anthropometry"><span class="jn-icon">⚖️</span><span class="jn-label">Anthro</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('social',${idx})" title="Social History"><span class="jn-icon">🏠</span><span class="jn-label">Social</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('reqs',${idx})" title="Requirements"><span class="jn-icon">⚡</span><span class="jn-label">Reqs</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('plan',${idx})" title="Plan"><span class="jn-icon">✏️</span><span class="jn-label">Plan</span></button>
-    <button class="jump-nav-btn" onclick="copyOPDNote(${idx})" title="Copy generated note"><span class="jn-icon">📑</span><span class="jn-label">Copy Note</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('docnote',${idx})" title="Doctor's Notes"><span class="jn-icon"><svg class="ic"><use href="#i-file"/></svg></span><span class="jn-label">Dr Notes</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('clinical',${idx})" title="Clinical"><span class="jn-icon"><svg class="ic"><use href="#i-vitals"/></svg></span><span class="jn-label">Clinical</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('biochem',${idx})" title="Biochem / Labs"><span class="jn-icon"><svg class="ic"><use href="#i-drop"/></svg></span><span class="jn-label">Biochem</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('nfpe',${idx})" title="Physical Findings"><span class="jn-icon"><svg class="ic"><use href="#i-user"/></svg></span><span class="jn-label">Physical</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('diet',${idx})" title="Diet History"><span class="jn-icon"><svg class="ic"><use href="#i-bowl"/></svg></span><span class="jn-label">Diet</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('anthro',${idx})" title="Anthropometry"><span class="jn-icon"><svg class="ic"><use href="#i-scale"/></svg></span><span class="jn-label">Anthro</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('social',${idx})" title="Social History"><span class="jn-icon"><svg class="ic"><use href="#i-home"/></svg></span><span class="jn-label">Social</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('reqs',${idx})" title="Requirements"><span class="jn-icon"><svg class="ic"><use href="#i-bolt"/></svg></span><span class="jn-label">Reqs</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('plan',${idx})" title="Plan"><span class="jn-icon"><svg class="ic"><use href="#i-pen"/></svg></span><span class="jn-label">Plan</span></button>
+    <button class="jump-nav-btn" onclick="copyOPDNote(${idx})" title="Copy generated note"><span class="jn-icon"><svg class="ic"><use href="#i-copy"/></svg></span><span class="jn-label">Copy Note</span></button>
   </div>
   </div>`;
   applySectionStates('op', idx);
@@ -6183,7 +6214,7 @@ function renderPrechart(idx) {
     <!-- CONFIRM ON ROUNDS — bedside checklist, captured while pre-charting, NEVER added to the note -->
     <div class="section confirm-rounds" data-s="confirm">
       <div class="section-header">
-        <span class="section-title">🔦 Confirm on rounds</span>
+        <span class="section-title"><svg class="ic sec-ic"><use href="#i-clip"/></svg>Confirm on rounds</span>
         <span style="font-size:11px;color:var(--text-muted)">Bedside checklist — never goes in the note</span>
       </div>
       <div class="section-body">
@@ -6210,7 +6241,7 @@ function renderPrechart(idx) {
     <!-- DOCTOR NOTE IMPORT -->
     <div class="section" data-s="docnote">
       <div class="section-header">
-        <span class="section-title">📋 Doctor's Notes / HOPC Import</span>
+        <span class="section-title"><svg class="ic sec-ic"><use href="#i-file"/></svg>Doctor's Notes / HOPC Import</span>
         <span style="font-size:11px;color:var(--text-muted)">Paste doctor notes for reference below</span>
       </div>
       <div class="section-body">
@@ -6286,7 +6317,7 @@ function renderPrechart(idx) {
     <!-- CLINICAL -->
     <div class="section" data-s="clinical">
       <div class="section-header">
-        <span class="section-title">🩺 Clinical Assessment</span>
+        <span class="section-title"><svg class="ic sec-ic"><use href="#i-vitals"/></svg>Clinical Assessment</span>
         <button class="btn-ghost btn-small" onclick="parseClinicalFlags(${idx})" style="font-size:11px">↻ Flag from doctor's notes</button>
       </div>
       <div class="section-body">
@@ -6362,7 +6393,7 @@ function renderPrechart(idx) {
     <!-- PHYSICAL FINDINGS -->
     <div class="section" data-s="nfpe">
       <div class="section-header" onclick="toggleSection(this)" data-skey="nfpe">
-        <span class="section-title">💪 Physical Findings</span>
+        <span class="section-title"><svg class="ic sec-ic"><use href="#i-user"/></svg>Physical Findings</span>
         <span style="font-size:11px;color:var(--text-muted)">NFPE · SGA · Tube</span>
       </div>
       <div class="section-body">
@@ -6445,7 +6476,7 @@ function renderPrechart(idx) {
       </div>
     </div>
     <div class="section" data-s="diet">
-      <div class="section-header"><span class="section-title">🥗 Diet & Nutrition History</span><span style="font-size:10px;color:var(--text-muted);font-weight:400">type / for quick phrases</span></div>
+      <div class="section-header"><span class="section-title"><svg class="ic sec-ic"><use href="#i-bowl"/></svg>Diet & Nutrition History</span><span style="font-size:10px;color:var(--text-muted);font-weight:400">type / for quick phrases</span></div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:10px">
           <label>📌 Previous dietetic input</label>
@@ -6519,7 +6550,7 @@ function renderPrechart(idx) {
 
     <!-- ANTHROPOMETRY -->
     <div class="section" data-s="anthro">
-      <div class="section-header"><span class="section-title">⚖️ Anthropometry</span></div>
+      <div class="section-header"><span class="section-title"><svg class="ic sec-ic"><use href="#i-scale"/></svg>Anthropometry</span></div>
       <div class="section-body">
         <div class="form-grid-3">
           <div class="form-group">
@@ -6623,7 +6654,7 @@ function renderPrechart(idx) {
       </div>
     </div>
     <div class="section" data-s="social">
-      <div class="section-header"><span class="section-title">🏠 Social History</span></div>
+      <div class="section-header"><span class="section-title"><svg class="ic sec-ic"><use href="#i-home"/></svg>Social History</span></div>
       <div class="section-body">
         <div class="form-group">
           <textarea class="field" id="socialHx_${idx}" placeholder="Lives with: e.g. husband and 3 children&#10;Cooking & shopping: self / family / carer&#10;Support: grandma helps with childcare / lives alone&#10;School / work: grade 5 / working full time&#10;Hobbies / activity level: active / sedentary&#10;Barriers: financial / language / literacy&#10;Other: travelling from island / bystander present">${esc(saved.socialHx||'')}</textarea>
@@ -6639,7 +6670,7 @@ function renderPrechart(idx) {
     <!-- NUTRITIONAL REQUIREMENTS (NutriCalc paste) -->
     <div class="section" data-s="reqs">
       <div class="section-header">
-        <span class="section-title">⚡ Nutritional Requirements</span>
+        <span class="section-title"><svg class="ic sec-ic"><use href="#i-bolt"/></svg>Nutritional Requirements</span>
         <span style="font-size:11px;color:var(--text-muted)">Paste NutriCalc output or enter manually</span>
       </div>
       <div class="section-body">
@@ -6683,7 +6714,7 @@ function renderPrechart(idx) {
 
     <!-- ASSESSMENT & PLAN -->
     <div class="section" data-s="plan">
-      <div class="section-header"><span class="section-title">✏️ Nutrition Diagnosis & Plan</span></div>
+      <div class="section-header"><span class="section-title"><svg class="ic sec-ic"><use href="#i-pen"/></svg>Nutrition Diagnosis & Plan</span></div>
       <div class="section-body">
         <div style="margin-bottom:14px;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
           <div style="background:var(--surface2);padding:8px 14px;display:flex;justify-content:space-between;align-items:center">
@@ -6749,16 +6780,16 @@ function renderPrechart(idx) {
     <div style="height:16px"></div>
   </div>
   <div class="jump-nav" id="jumpNav_${idx}">
-    <button class="jump-nav-btn" onclick="jumpToSection('docnote',${idx})" title="Doctor's Notes"><span class="jn-icon">📋</span><span class="jn-label">Dr Notes</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('clinical',${idx})" title="Clinical"><span class="jn-icon">🩺</span><span class="jn-label">Clinical</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('biochem',${idx})" title="Biochem / Labs"><span class="jn-icon">🩸</span><span class="jn-label">Biochem</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('nfpe',${idx})" title="Physical Findings"><span class="jn-icon">💪</span><span class="jn-label">Physical</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('diet',${idx})" title="Diet History"><span class="jn-icon">🥗</span><span class="jn-label">Diet</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('anthro',${idx})" title="Anthropometry"><span class="jn-icon">⚖️</span><span class="jn-label">Anthro</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('social',${idx})" title="Social History"><span class="jn-icon">🏠</span><span class="jn-label">Social</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('reqs',${idx})" title="Requirements"><span class="jn-icon">⚡</span><span class="jn-label">Reqs</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('plan',${idx})" title="Plan"><span class="jn-icon">✏️</span><span class="jn-label">Plan</span></button>
-    <button class="jump-nav-btn" onclick="copyNote(${idx})" title="Copy generated note"><span class="jn-icon">📑</span><span class="jn-label">Copy Note</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('docnote',${idx})" title="Doctor's Notes"><span class="jn-icon"><svg class="ic"><use href="#i-file"/></svg></span><span class="jn-label">Dr Notes</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('clinical',${idx})" title="Clinical"><span class="jn-icon"><svg class="ic"><use href="#i-vitals"/></svg></span><span class="jn-label">Clinical</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('biochem',${idx})" title="Biochem / Labs"><span class="jn-icon"><svg class="ic"><use href="#i-drop"/></svg></span><span class="jn-label">Biochem</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('nfpe',${idx})" title="Physical Findings"><span class="jn-icon"><svg class="ic"><use href="#i-user"/></svg></span><span class="jn-label">Physical</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('diet',${idx})" title="Diet History"><span class="jn-icon"><svg class="ic"><use href="#i-bowl"/></svg></span><span class="jn-label">Diet</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('anthro',${idx})" title="Anthropometry"><span class="jn-icon"><svg class="ic"><use href="#i-scale"/></svg></span><span class="jn-label">Anthro</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('social',${idx})" title="Social History"><span class="jn-icon"><svg class="ic"><use href="#i-home"/></svg></span><span class="jn-label">Social</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('reqs',${idx})" title="Requirements"><span class="jn-icon"><svg class="ic"><use href="#i-bolt"/></svg></span><span class="jn-label">Reqs</span></button>
+    <button class="jump-nav-btn" onclick="jumpToSection('plan',${idx})" title="Plan"><span class="jn-icon"><svg class="ic"><use href="#i-pen"/></svg></span><span class="jn-label">Plan</span></button>
+    <button class="jump-nav-btn" onclick="copyNote(${idx})" title="Copy generated note"><span class="jn-icon"><svg class="ic"><use href="#i-copy"/></svg></span><span class="jn-label">Copy Note</span></button>
   </div>
   </div>`;
   applySectionStates('ip', idx);
