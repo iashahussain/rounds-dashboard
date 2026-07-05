@@ -94,6 +94,12 @@
   body.dark .radio-label, body.dark .check-label { background: #272233; color: #bdb4cc; border-color: #3a3545; }
   body.dark .section-done-btn { background: #26222f !important; color: #a29bb0 !important; border-color: #332e3f !important; }
   body.dark .filter-btn { background: #272233; color: #9a94a8; }
+  /* Dark mode: the bright lavender accent glares as a solid button fill — mute the filled
+     buttons, and give the full-width "Back to patient list" bar a calm dark ground. */
+  body.dark .btn-primary { background: #6c53a4; color: #f1ecfb; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  body.dark .btn-primary:hover { background: #7a62b3; }
+  body.dark .room-chip { background: #4a3d70; color: #ece5fb; }
+  body.dark .prechart-collapse-btn { background: #221d2e; color: #c4b6e8; }
   body.dark .note-section { border-top-color: var(--accent); }
   body.dark .note-header { background: var(--surface2); border-bottom-color: var(--border); }
   body.dark .note-body { background: var(--surface); }
@@ -406,7 +412,7 @@
 
   .section                    { border-left-color: var(--sec, var(--border)); }
   .section .section-header    { background: var(--sec-bg, var(--surface2)); }
-  .section .section-title     { color: var(--sec, var(--text-muted)); }
+  .section .section-title     { color: var(--text); }   /* monochrome titles; section colour kept on the border + header tint */
   .section[data-s="plan"]     .section-title  { font-weight: 800; }
 
   /* Per-section completion dot (v72): hollow = empty, filled (in the section's
@@ -416,14 +422,15 @@
   .sec-dot.filled { border-color:transparent; background: var(--sec, var(--accent)); }
 
   /* Floating-nav labels tinted to their section colour (v72) */
-  .mfn-btn[data-s="anthro"]   .mfn-label { color:#5dcaa5; }
-  .mfn-btn[data-s="biochem"]  .mfn-label { color:#f09595; }
-  .mfn-btn[data-s="clinical"] .mfn-label { color:#efaa3a; }
-  .mfn-btn[data-s="nfpe"]     .mfn-label { color:#afa9ec; }
-  .mfn-btn[data-s="diet"]     .mfn-label { color:#acd36f; }
-  .mfn-btn[data-s="reqs"]     .mfn-label { color:#85b7eb; }
-  .mfn-btn[data-s="plan"]     .mfn-label { color:#f0997b; }
-  .mfn-btn[data-s="social"]   .mfn-label { color:#cfcdc4; }
+  /* Quick-nav: icon + label share the section colour (colour-cohesive wayfinding). */
+  .mfn-btn[data-s="anthro"]   .mfn-label, .mfn-btn[data-s="anthro"]   .mfn-icon { color:#5dcaa5; }
+  .mfn-btn[data-s="biochem"]  .mfn-label, .mfn-btn[data-s="biochem"]  .mfn-icon { color:#f09595; }
+  .mfn-btn[data-s="clinical"] .mfn-label, .mfn-btn[data-s="clinical"] .mfn-icon { color:#efaa3a; }
+  .mfn-btn[data-s="nfpe"]     .mfn-label, .mfn-btn[data-s="nfpe"]     .mfn-icon { color:#afa9ec; }
+  .mfn-btn[data-s="diet"]     .mfn-label, .mfn-btn[data-s="diet"]     .mfn-icon { color:#acd36f; }
+  .mfn-btn[data-s="reqs"]     .mfn-label, .mfn-btn[data-s="reqs"]     .mfn-icon { color:#85b7eb; }
+  .mfn-btn[data-s="plan"]     .mfn-label, .mfn-btn[data-s="plan"]     .mfn-icon { color:#f0997b; }
+  .mfn-btn[data-s="social"]   .mfn-label, .mfn-btn[data-s="social"]   .mfn-icon { color:#cfcdc4; }
 
   /* Traffic-light severity for graded radios — Mild/Moderate/Severe (v72) */
   .radio-opt[value$="grade-1"]:checked + .radio-label { background:#faeeda; color:#854f0b; border-color:#e0b057; }
@@ -1364,6 +1371,8 @@
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8 5.9 18.1M18.1 5.9l1.7-1.7"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.7 5.8L19.5 10.5 13.7 12.3 12 18l-1.7-5.7L4.5 10.5l5.8-1.7z"/><path d="M18.5 3.5l.6 2 2 .6-2 .6-.6 2-.6-2-2-.6 2-.6z"/></symbol>
+  <symbol id="i-pill" viewBox="0 0 24 24"><rect x="2.5" y="8" width="19" height="8" rx="4" transform="rotate(-45 12 12)"/><path d="M8.5 8.5l7 7"/></symbol>
 </svg>
 
 <!-- Crash-recovery banner (shown on load if a localStorage auto-save exists) -->
@@ -5759,7 +5768,7 @@ function renderOPDPrechart(idx) {
         <!-- Labs & Meds inline panel -->
         <div style="margin-top:14px;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
           <div style="background:var(--accent-faint);padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.lm-arrow').style.transform=this.nextElementSibling.style.display==='none'?'rotate(-90deg)':'rotate(0deg)'">
-            <span style="font-size:var(--text-sm);font-weight:700;color:var(--accent);letter-spacing:.05em;text-transform:uppercase">🩸 Labs & Investigations</span>
+            <span style="font-size:var(--text-sm);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;display:inline-flex;align-items:center;gap:7px"><svg class="ic"><use href="#i-drop"/></svg>Labs & Investigations</span>
             <span class="lm-arrow" style="font-size:11px;color:var(--text-muted);transition:transform .2s">▾</span>
           </div>
           <div style="padding:14px;display:none">
@@ -5792,7 +5801,7 @@ function renderOPDPrechart(idx) {
 
         <div style="margin-top:10px;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
           <div style="background:var(--accent-faint);padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.lm-arrow').style.transform=this.nextElementSibling.style.display==='none'?'rotate(-90deg)':'rotate(0deg)'">
-            <span style="font-size:var(--text-sm);font-weight:700;color:var(--accent);letter-spacing:.05em;text-transform:uppercase">💊 Nutritionally Relevant Medications</span>
+            <span style="font-size:var(--text-sm);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;display:inline-flex;align-items:center;gap:7px"><svg class="ic"><use href="#i-pill"/></svg>Nutritionally Relevant Medications</span>
             <span class="lm-arrow" style="font-size:11px;color:var(--text-muted);transition:transform .2s">▾</span>
           </div>
           <div style="padding:14px;display:none">
@@ -6260,7 +6269,7 @@ function renderPrechart(idx) {
         <!-- Labs & Meds inline panel -->
         <div style="margin-top:14px;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
           <div style="background:var(--accent-faint);padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.lm-arrow').style.transform=this.nextElementSibling.style.display==='none'?'rotate(-90deg)':'rotate(0deg)'">
-            <span style="font-size:var(--text-sm);font-weight:700;color:var(--accent);letter-spacing:.05em;text-transform:uppercase">🩸 Labs & Investigations</span>
+            <span style="font-size:var(--text-sm);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;display:inline-flex;align-items:center;gap:7px"><svg class="ic"><use href="#i-drop"/></svg>Labs & Investigations</span>
             <span class="lm-arrow" style="font-size:11px;color:var(--text-muted);transition:transform .2s">▾</span>
           </div>
           <div style="padding:14px;display:none">
@@ -6294,7 +6303,7 @@ function renderPrechart(idx) {
 
         <div style="margin-top:10px;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
           <div style="background:var(--accent-faint);padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.lm-arrow').style.transform=this.nextElementSibling.style.display==='none'?'rotate(-90deg)':'rotate(0deg)'">
-            <span style="font-size:var(--text-sm);font-weight:700;color:var(--accent);letter-spacing:.05em;text-transform:uppercase">💊 Nutritionally Relevant Medications</span>
+            <span style="font-size:var(--text-sm);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;display:inline-flex;align-items:center;gap:7px"><svg class="ic"><use href="#i-pill"/></svg>Nutritionally Relevant Medications</span>
             <span class="lm-arrow" style="font-size:11px;color:var(--text-muted);transition:transform .2s">▾</span>
           </div>
           <div style="padding:14px;display:none">
@@ -8921,17 +8930,17 @@ function toast(msg, dur=2000) {
   <!-- Mobile floating nav (vertical, draggable) -->
   <div id="mobileFloatNav">
     <div class="mfn-grip" id="mfnGrip" title="Drag to move · docks left or right"><span class="mfn-grip-dots">⠿</span></div>
-    <button class="mfn-btn" onclick="mobileJump('docnote')"><span class="mfn-icon">📋</span><span class="mfn-label">Notes</span></button>
-    <button class="mfn-btn" data-s="clinical" onclick="mobileJump('clinical')"><span class="mfn-icon">🩺</span><span class="mfn-label">Clinical</span></button>
-    <button class="mfn-btn" data-s="biochem" onclick="mobileJump('biochem')"><span class="mfn-icon">🩸</span><span class="mfn-label">Biochem</span></button>
-    <button class="mfn-btn" data-s="nfpe" onclick="mobileJump('nfpe')"><span class="mfn-icon">💪</span><span class="mfn-label">Physical</span></button>
-    <button class="mfn-btn" data-s="diet" onclick="mobileJump('diet')"><span class="mfn-icon">🥗</span><span class="mfn-label">Diet</span></button>
-    <button class="mfn-btn" data-s="anthro" onclick="mobileJump('anthro')"><span class="mfn-icon">⚖️</span><span class="mfn-label">Anthro</span></button>
-    <button class="mfn-btn" data-s="social" onclick="mobileJump('social')"><span class="mfn-icon">🏠</span><span class="mfn-label">Social</span></button>
-    <button class="mfn-btn" data-s="reqs" onclick="mobileJump('reqs')"><span class="mfn-icon">⚡</span><span class="mfn-label">Reqs</span></button>
-    <button class="mfn-btn" data-s="plan" onclick="mobileJump('plan')"><span class="mfn-icon">✏️</span><span class="mfn-label">Plan</span></button>
+    <button class="mfn-btn" onclick="mobileJump('docnote')"><span class="mfn-icon"><svg class="ic"><use href="#i-file"/></svg></span><span class="mfn-label">Notes</span></button>
+    <button class="mfn-btn" data-s="clinical" onclick="mobileJump('clinical')"><span class="mfn-icon"><svg class="ic"><use href="#i-vitals"/></svg></span><span class="mfn-label">Clinical</span></button>
+    <button class="mfn-btn" data-s="biochem" onclick="mobileJump('biochem')"><span class="mfn-icon"><svg class="ic"><use href="#i-drop"/></svg></span><span class="mfn-label">Biochem</span></button>
+    <button class="mfn-btn" data-s="nfpe" onclick="mobileJump('nfpe')"><span class="mfn-icon"><svg class="ic"><use href="#i-user"/></svg></span><span class="mfn-label">Physical</span></button>
+    <button class="mfn-btn" data-s="diet" onclick="mobileJump('diet')"><span class="mfn-icon"><svg class="ic"><use href="#i-bowl"/></svg></span><span class="mfn-label">Diet</span></button>
+    <button class="mfn-btn" data-s="anthro" onclick="mobileJump('anthro')"><span class="mfn-icon"><svg class="ic"><use href="#i-scale"/></svg></span><span class="mfn-label">Anthro</span></button>
+    <button class="mfn-btn" data-s="social" onclick="mobileJump('social')"><span class="mfn-icon"><svg class="ic"><use href="#i-home"/></svg></span><span class="mfn-label">Social</span></button>
+    <button class="mfn-btn" data-s="reqs" onclick="mobileJump('reqs')"><span class="mfn-icon"><svg class="ic"><use href="#i-bolt"/></svg></span><span class="mfn-label">Reqs</span></button>
+    <button class="mfn-btn" data-s="plan" onclick="mobileJump('plan')"><span class="mfn-icon"><svg class="ic"><use href="#i-pen"/></svg></span><span class="mfn-label">Plan</span></button>
     <div class="mfn-divider"></div>
-    <button class="mfn-btn" onclick="if(_mfnIdx){if(_mfnIdx.mode==='op')generateOPDNote(_mfnIdx.idx);else generateNote(_mfnIdx.idx);}"><span class="mfn-icon">✨</span><span class="mfn-label">Generate</span></button>
+    <button class="mfn-btn" onclick="if(_mfnIdx){if(_mfnIdx.mode==='op')generateOPDNote(_mfnIdx.idx);else generateNote(_mfnIdx.idx);}"><span class="mfn-icon"><svg class="ic"><use href="#i-spark"/></svg></span><span class="mfn-label">Generate</span></button>
   </div>
 
 <script>
