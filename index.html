@@ -7938,6 +7938,10 @@ function openNourishCal(idx) {
   ).toString();
   if (!parseFloat(wt)) wt = latestSerialWeight(idx, opd) || wt;   // serial-only fallback (IP + OPD)
   const wtNum = parseFloat(wt);
+  const htNum = parseFloat((opd
+    ? (document.getElementById('opHt_' + idx)?.value || (opdChartData[idx] || {}).ht || '')
+    : (document.getElementById('ht_' + idx)?.value || (chartData[idx] || {}).ht || '')
+  ).toString());
   const ageY = (typeof p.ageYears === 'number') ? p.ageYears : parseFloat(p.ageRaw);
   const paeds = p.isPaeds || (ageY != null && !isNaN(ageY) && ageY < 18);
   const params = new URLSearchParams({ embed: '1' });
@@ -7949,6 +7953,7 @@ function openNourishCal(idx) {
     if (!isNaN(ageY)) params.set('agey', Math.round(ageY));
   }
   if (wtNum > 0) params.set('wt', wtNum);
+  if (htNum > 0) params.set('ht', htNum);
   if (p.sex === 'M' || p.sex === 'F') params.set('sex', p.sex);
   const ov = document.createElement('div');
   ov.id = 'nourishCalOverlay'; ov.className = 'pes-overlay';
