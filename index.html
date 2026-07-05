@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <!-- PWA: installable + offline (added v71) -->
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#1a5c3a">
+<meta name="theme-color" content="#6b4e9e">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -25,10 +25,10 @@
     --text: #1a1714;
     --text-muted: #6b6560;
     --text-faint: #9c9489;
-    --accent: #1a5c3a;
-    --accent-mid: #236b45;
-    --accent-light: #e8f2ec;
-    --accent-faint: #f0f7f3;
+    --accent: #6b4e9e;
+    --accent-mid: #7a5aae;
+    --accent-light: #ece7f6;
+    --accent-faint: #f5f2fb;
     --new: #166534;
     --new-bg: #dcfce7;
     --paeds: #1a4a8a;
@@ -70,10 +70,10 @@
     --text: #f0ece8;
     --text-muted: #a8a09a;
     --text-faint: #706860;
-    --accent: #4a9e70;
-    --accent-mid: #3d8a60;
-    --accent-light: #162a1e;
-    --accent-faint: #0e1a12;
+    --accent: #a98ce6;
+    --accent-mid: #9a7bdc;
+    --accent-light: #241e36;
+    --accent-faint: #191324;
     --new-bg: #0d2016;
     --infant-bg: #2a1010;
     --toddler-bg: #2a1800;
@@ -82,7 +82,7 @@
     --warn-bg: #2a1010;
   }
 
-  body.dark header { background: #1a2e22; }
+  body.dark header { background: #201a30; }
   body.dark .patient-card { background: var(--surface); }
   body.dark .patient-card.active { background: var(--accent-light); }
   body.dark input[type="text"], body.dark select, body.dark textarea {
@@ -283,8 +283,8 @@
     position: relative;
     box-shadow: 0 1px 4px rgba(0,0,0,.06);
   }
-  .patient-card:hover { border-color: var(--accent); box-shadow: 0 4px 14px rgba(26,92,58,.12); transform: translateY(-1px); }
-  .patient-card.active { border-color: var(--accent); background: var(--accent-light); box-shadow: 0 4px 14px rgba(26,92,58,.18); }
+  .patient-card:hover { border-color: var(--accent); box-shadow: 0 4px 14px rgba(107,78,158,.12); transform: translateY(-1px); }
+  .patient-card.active { border-color: var(--accent); background: var(--accent-light); box-shadow: 0 4px 14px rgba(107,78,158,.18); }
   .patient-card.new-admit  { border-left: 4px solid #166534; }
   .patient-card.infant     { border-left: 4px solid #b91c1c; }
   .patient-card.toddler    { border-left: 4px solid #c2410c; }
@@ -310,7 +310,7 @@
   .badge-toddler{ background: #fff0e0; color: #c2410c; }
   .badge-child  { background: #fef9c3; color: #854d0e; }
   .badge-adult  { background: var(--adult-bg); color: var(--adult); }
-  .badge-charted{ background: #e8f2ec; color: var(--accent); }
+  .badge-charted{ background: #ece7f6; color: var(--accent); }
   .badge-seen   { background: #e0eefb; color: #185fa5; }
   body.dark .badge-seen { background: #14304a; color: #85b7eb; }
   /* Seen patients fade back in the list so unseen ones stand out; the open card stays full strength */
@@ -402,7 +402,7 @@
   .section[data-s="plan"]     { --sec:#993c1d; --sec-bg:#faece7; }
   .section[data-s="social"]   { --sec:#5f5e5a; --sec-bg:#f1efe8; }
   .section[data-s="meds"]     { --sec:#993556; --sec-bg:#fbeaf0; }
-  .section[data-s="docnote"]  { border-left-color: rgba(26,92,58,.25); }
+  .section[data-s="docnote"]  { border-left-color: rgba(107,78,158,.25); }
 
   .section                    { border-left-color: var(--sec, var(--border)); }
   .section .section-header    { background: var(--sec-bg, var(--surface2)); }
@@ -449,7 +449,7 @@
     width: 100%;
     transition: border-color .15s, box-shadow .15s;
   }
-  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,92,58,.1); }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(107,78,158,.1); }
   /* Auto-detail: looks like a text input, expands like a textarea */
   textarea.auto-detail {
     min-height: 38px;
@@ -569,7 +569,7 @@
     font-weight: 500;
     transition: all .15s;
   }
-  .sga-opt[value="A"]:checked + .sga-label { background: #e8f2ec; border-color: var(--accent); color: var(--accent); }
+  .sga-opt[value="A"]:checked + .sga-label { background: #ece7f6; border-color: var(--accent); color: var(--accent); }
   .sga-opt[value="B"]:checked + .sga-label { background: var(--new-bg); border-color: var(--new); color: var(--new); }
   .sga-opt[value="C"]:checked + .sga-label { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
 
@@ -748,7 +748,7 @@
   .pes-head { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--surface2); flex-shrink: 0; }
   .pes-headrow { display: flex; gap: 8px; align-items: center; }
   .pes-head input { width: 100%; font-family: var(--sans); font-size: 14px; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); }
-  .pes-head input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,92,58,.1); }
+  .pes-head input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(107,78,158,.1); }
   .pes-close { background: transparent; border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 7px 10px; font-size: 14px; cursor: pointer; flex-shrink: 0; }
   .pes-done { background: var(--accent); color: #fff; border: none; border-radius: 999px; padding: 7px 16px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: var(--sans); flex-shrink: 0; }
   .pes-preview { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; color: var(--text); max-height: 92px; overflow-y: auto; }
