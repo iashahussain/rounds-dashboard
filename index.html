@@ -624,6 +624,23 @@
   .jump-nav-btn .jn-icon { font-size: 15px; line-height: 1; }
   .jump-nav-btn .jn-label { font-size: 8px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; line-height: 1.1; text-align: center; font-family: var(--sans); }
   .jump-nav-btn:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+  /* Desktop jump-nav: per-section colour on icon + label (mirrors the mobile quick-nav) */
+  .jump-nav-btn[data-s="anthro"]   .jn-icon, .jump-nav-btn[data-s="anthro"]   .jn-label { color:#0f6e56; }
+  .jump-nav-btn[data-s="biochem"]  .jn-icon, .jump-nav-btn[data-s="biochem"]  .jn-label { color:#a32d2d; }
+  .jump-nav-btn[data-s="clinical"] .jn-icon, .jump-nav-btn[data-s="clinical"] .jn-label { color:#854f0b; }
+  .jump-nav-btn[data-s="nfpe"]     .jn-icon, .jump-nav-btn[data-s="nfpe"]     .jn-label { color:#534ab7; }
+  .jump-nav-btn[data-s="diet"]     .jn-icon, .jump-nav-btn[data-s="diet"]     .jn-label { color:#3b6d11; }
+  .jump-nav-btn[data-s="reqs"]     .jn-icon, .jump-nav-btn[data-s="reqs"]     .jn-label { color:#185fa5; }
+  .jump-nav-btn[data-s="plan"]     .jn-icon, .jump-nav-btn[data-s="plan"]     .jn-label { color:#993c1d; }
+  .jump-nav-btn[data-s="social"]   .jn-icon, .jump-nav-btn[data-s="social"]   .jn-label { color:#5f5e5a; }
+  body.dark .jump-nav-btn[data-s="anthro"]   .jn-icon, body.dark .jump-nav-btn[data-s="anthro"]   .jn-label { color:#5dcaa5; }
+  body.dark .jump-nav-btn[data-s="biochem"]  .jn-icon, body.dark .jump-nav-btn[data-s="biochem"]  .jn-label { color:#f09595; }
+  body.dark .jump-nav-btn[data-s="clinical"] .jn-icon, body.dark .jump-nav-btn[data-s="clinical"] .jn-label { color:#efaa3a; }
+  body.dark .jump-nav-btn[data-s="nfpe"]     .jn-icon, body.dark .jump-nav-btn[data-s="nfpe"]     .jn-label { color:#afa9ec; }
+  body.dark .jump-nav-btn[data-s="diet"]     .jn-icon, body.dark .jump-nav-btn[data-s="diet"]     .jn-label { color:#acd36f; }
+  body.dark .jump-nav-btn[data-s="reqs"]     .jn-icon, body.dark .jump-nav-btn[data-s="reqs"]     .jn-label { color:#85b7eb; }
+  body.dark .jump-nav-btn[data-s="plan"]     .jn-icon, body.dark .jump-nav-btn[data-s="plan"]     .jn-label { color:#f0997b; }
+  body.dark .jump-nav-btn[data-s="social"]   .jn-icon, body.dark .jump-nav-btn[data-s="social"]   .jn-label { color:#cfcdc4; }
   @media (max-width: 768px) { .jump-nav { display: none; } .prechart-wrap { grid-template-columns: 1fr; } }
 
 
@@ -1383,6 +1400,12 @@
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h3.6l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.3-5.8"/><polyline points="20.5 3.5 20.5 8 16 8"/></symbol>
+  <symbol id="i-cutlery" viewBox="0 0 24 24"><path d="M6 3v18"/><path d="M4 3v3M8 3v3"/><path d="M4 6a2 2 0 0 0 4 0"/><path d="M16.5 3c-1.4 0-2.3 2.4-2.3 5.3S15.5 13 16.5 13v8"/></symbol>
+  <symbol id="i-swallow" viewBox="0 0 24 24"><path d="M9 4c0 2.2 6 2.2 6 0"/><path d="M10 5v7a2 2 0 0 0 4 0V5"/><circle cx="12" cy="16" r="1.6"/></symbol>
+  <symbol id="i-tooth" viewBox="0 0 24 24"><path d="M12 3c-2.6 0-4.5 1.6-4.5 4 0 1.9.9 2.9 1.1 5.6.2 2.6.5 5.4 1.3 5.4.75 0 1-1.7 1.2-4 .1-1.3.3-1.9.9-1.9s.8.6.9 1.9c.2 2.3.45 4 1.2 4 .8 0 1.1-2.8 1.3-5.4.2-2.7 1.1-3.7 1.1-5.6 0-2.4-1.9-4-4.5-4z"/></symbol>
+  <symbol id="i-nausea" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.2 14.6c1-1 2-1 2.6 0 .6 1 1.6 1 2.6 0 .4-.4.8-.5 1.2-.4"/><path d="M8.4 9.5h1.5M14.1 9.5h1.5"/></symbol>
+  <symbol id="i-bowel" viewBox="0 0 24 24"><path d="M5 5h8a3 3 0 0 1 0 6H8a3 3 0 0 0 0 6h11"/></symbol>
+  <symbol id="i-stomach" viewBox="0 0 24 24"><path d="M8.5 3v3.5a4 4 0 0 0 4 4h1.6a3.2 3.2 0 0 1 0 6.4A6.6 6.6 0 0 1 7.5 10.4"/></symbol>
 </svg>
 
 <!-- Crash-recovery banner (shown on load if a localStorage auto-save exists) -->
@@ -5945,34 +5968,34 @@ function renderOPDPrechart(idx) {
         </div>
         <div class="form-grid" style="gap:8px">
           <div class="form-group">
-            <label>😋 Appetite</label>
+            <label><svg class="ic"><use href="#i-cutlery"/></svg> Appetite</label>
             <div class="radio-group">${['Good','Fair','Poor','Anorexia'].map(v=>`<input type="radio" name="opAppetite_${idx}" class="radio-opt" id="opAp${v}_${idx}" value="${v}" ${saved.appetite===v?'checked':''}><label class="radio-label" for="opAp${v}_${idx}">${v}</label>`).join('')}</div>
             <div class="radio-group" style="margin-top:5px">${['Improving','Stable','Worsening'].map(v=>`<input type="radio" name="opAppetiteTrend_${idx}" class="radio-opt" id="opApt${v}_${idx}" value="${v}" ${saved.appetiteTrend===v?'checked':''}><label class="radio-label" for="opApt${v}_${idx}" style="font-size:10px">${v}</label>`).join('')}</div>
             <textarea class="field auto-detail" id="opAppetiteDetail_${idx}" placeholder="e.g. Poor for 3 days, eating <25% of meals" style="margin-top:5px;min-height:38px">${esc(saved.appetiteDetail||'')}</textarea>
           </div>
           <div class="form-group">
-            <label>👅 Swallowing</label>
+            <label><svg class="ic"><use href="#i-swallow"/></svg> Swallowing</label>
             <div class="radio-group">${['Normal','Difficulty swallowing','Dysphagia','Unsafe','NGT/PEG'].map(v=>`<input type="radio" name="opSwallow_${idx}" class="radio-opt" id="opSw${v.replace(/\//,'')}_${idx}" value="${v}" ${saved.swallow===v?'checked':''}><label class="radio-label" for="opSw${v.replace(/\//,'')}_${idx}">${v}</label>`).join('')}</div>
             <textarea class="field auto-detail" id="opSwallowDetail_${idx}" placeholder="e.g. Coughing on thin fluids, tolerates puree" style="margin-top:5px;min-height:38px">${esc(saved.swallowDetail||'')}</textarea>
           </div>
           <div class="form-group">
-            <label>🦷 Chewing</label>
+            <label><svg class="ic"><use href="#i-tooth"/></svg> Chewing</label>
             <div class="radio-group">${['Normal','Difficulty chewing','Pain on chewing','No teeth / dentures'].map(v=>`<input type="radio" name="opChewing_${idx}" class="radio-opt" id="opCh${v.replace(/[\s\/]/g,'')}_${idx}" value="${v}" ${saved.chewing===v?'checked':''}><label class="radio-label" for="opCh${v.replace(/[\s\/]/g,'')}_${idx}">${v}</label>`).join('')}</div>
             <textarea class="field auto-detail" id="opChewingDetail_${idx}" placeholder="e.g. Dental pain, poorly fitting dentures" style="margin-top:5px;min-height:38px">${esc(saved.chewingDetail||'')}</textarea>
           </div>
           <div class="form-group">
-            <label>🤢 Nausea / Vomiting</label>
+            <label><svg class="ic"><use href="#i-nausea"/></svg> Nausea / Vomiting</label>
             <div class="radio-group">${['Nil N&V','Nausea','Vomiting','Nausea & Vomiting'].map(v=>`<input type="radio" name="opNv_${idx}" class="radio-opt" id="opNv${v.replace(/[\s&]/g,'')}_${idx}" value="${v}" ${saved.nv===v?'checked':''}><label class="radio-label" for="opNv${v.replace(/[\s&]/g,'')}_${idx}">${v}</label>`).join('')}</div>
             <textarea class="field auto-detail" id="opNvDetail_${idx}" placeholder="e.g. 3x/day, bilious" style="margin-top:5px;min-height:38px">${esc(saved.nvDetail||'')}</textarea>
           </div>
           <div class="form-group">
-            <label>💩 Bowels</label>
+            <label><svg class="ic"><use href="#i-bowel"/></svg> Bowels</label>
             <div class="radio-group">${['Normal','Open','Loose stools','Stoma'].map(v=>`<input type="radio" name="opBowels_${idx}" class="radio-opt" id="opBw${v}_${idx}" value="${v}" ${saved.bowels===v?'checked':''}><label class="radio-label" for="opBw${v}_${idx}">${v}</label>`).join('')}</div>
             <input type="text" id="opBowelsLastOpened_${idx}" value="${esc(saved.bowelsLastOpened||'')}" placeholder="📅 Last opened on... e.g. today / 2 days ago / 14 Jun" style="margin-top:5px;width:100%">
             <textarea class="field auto-detail" id="opBowelsDetail_${idx}" placeholder="e.g. 3x loose / watery / hard pellets" style="margin-top:5px;min-height:38px">${esc(saved.bowelsDetail||'')}</textarea>
           </div>
           <div class="form-group">
-            <label>GI Symptoms <span style="font-weight:400;color:var(--text-muted)">(select all that apply)</span></label>
+            <label><svg class="ic"><use href="#i-stomach"/></svg> GI Symptoms <span style="font-weight:400;color:var(--text-muted)">(select all that apply)</span></label>
             <div class="checkbox-group">
               ${[['dist','Distension'],['pain','Abdominal pain'],['hb','Heartburn / reflux'],['flatus','Excess flatus'],['cramps','Abdominal cramps'],['bloat','Bloating']].map(([key,label])=>{
                 const savedArr = saved.giArr||[];
@@ -6166,14 +6189,14 @@ function renderOPDPrechart(idx) {
   </div>
   <div class="jump-nav" id="opJumpNav_${idx}">
     <button class="jump-nav-btn" onclick="jumpToSection('docnote',${idx})" title="Doctor's Notes"><span class="jn-icon"><svg class="ic"><use href="#i-file"/></svg></span><span class="jn-label">Dr Notes</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('clinical',${idx})" title="Clinical"><span class="jn-icon"><svg class="ic"><use href="#i-vitals"/></svg></span><span class="jn-label">Clinical</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('biochem',${idx})" title="Biochem / Labs"><span class="jn-icon"><svg class="ic"><use href="#i-drop"/></svg></span><span class="jn-label">Biochem</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('nfpe',${idx})" title="Physical Findings"><span class="jn-icon"><svg class="ic"><use href="#i-user"/></svg></span><span class="jn-label">Physical</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('diet',${idx})" title="Diet History"><span class="jn-icon"><svg class="ic"><use href="#i-bowl"/></svg></span><span class="jn-label">Diet</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('anthro',${idx})" title="Anthropometry"><span class="jn-icon"><svg class="ic"><use href="#i-scale"/></svg></span><span class="jn-label">Anthro</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('social',${idx})" title="Social History"><span class="jn-icon"><svg class="ic"><use href="#i-home"/></svg></span><span class="jn-label">Social</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('reqs',${idx})" title="Requirements"><span class="jn-icon"><svg class="ic"><use href="#i-bolt"/></svg></span><span class="jn-label">Reqs</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('plan',${idx})" title="Plan"><span class="jn-icon"><svg class="ic"><use href="#i-pen"/></svg></span><span class="jn-label">Plan</span></button>
+    <button class="jump-nav-btn" data-s="clinical" onclick="jumpToSection('clinical',${idx})" title="Clinical"><span class="jn-icon"><svg class="ic"><use href="#i-vitals"/></svg></span><span class="jn-label">Clinical</span></button>
+    <button class="jump-nav-btn" data-s="biochem" onclick="jumpToSection('biochem',${idx})" title="Biochem / Labs"><span class="jn-icon"><svg class="ic"><use href="#i-drop"/></svg></span><span class="jn-label">Biochem</span></button>
+    <button class="jump-nav-btn" data-s="nfpe" onclick="jumpToSection('nfpe',${idx})" title="Physical Findings"><span class="jn-icon"><svg class="ic"><use href="#i-user"/></svg></span><span class="jn-label">Physical</span></button>
+    <button class="jump-nav-btn" data-s="diet" onclick="jumpToSection('diet',${idx})" title="Diet History"><span class="jn-icon"><svg class="ic"><use href="#i-bowl"/></svg></span><span class="jn-label">Diet</span></button>
+    <button class="jump-nav-btn" data-s="anthro" onclick="jumpToSection('anthro',${idx})" title="Anthropometry"><span class="jn-icon"><svg class="ic"><use href="#i-scale"/></svg></span><span class="jn-label">Anthro</span></button>
+    <button class="jump-nav-btn" data-s="social" onclick="jumpToSection('social',${idx})" title="Social History"><span class="jn-icon"><svg class="ic"><use href="#i-home"/></svg></span><span class="jn-label">Social</span></button>
+    <button class="jump-nav-btn" data-s="reqs" onclick="jumpToSection('reqs',${idx})" title="Requirements"><span class="jn-icon"><svg class="ic"><use href="#i-bolt"/></svg></span><span class="jn-label">Reqs</span></button>
+    <button class="jump-nav-btn" data-s="plan" onclick="jumpToSection('plan',${idx})" title="Plan"><span class="jn-icon"><svg class="ic"><use href="#i-pen"/></svg></span><span class="jn-label">Plan</span></button>
     <button class="jump-nav-btn" onclick="copyOPDNote(${idx})" title="Copy generated note"><span class="jn-icon"><svg class="ic"><use href="#i-copy"/></svg></span><span class="jn-label">Copy Note</span></button>
   </div>
   </div>`;
@@ -6352,7 +6375,7 @@ function renderPrechart(idx) {
         </div>
         <div class="form-grid" style="gap:8px">
           <div class="form-group">
-            <label>😋 Appetite</label>
+            <label><svg class="ic"><use href="#i-cutlery"/></svg> Appetite</label>
             <div class="radio-group">
               ${['Good','Fair','Poor','Anorexia'].map(v=>`<input type="radio" name="appetite_${idx}" class="radio-opt" id="ap${v}_${idx}" value="${v}" ${saved.appetite===v?'checked':''}><label class="radio-label" for="ap${v}_${idx}">${v}</label>`).join('')}
             </div>
@@ -6362,28 +6385,28 @@ function renderPrechart(idx) {
             <textarea class="field auto-detail" id="appetiteDetail_${idx}" placeholder="e.g. Poor for 3 days, eating <25% of meals" style="margin-top:5px;min-height:38px;rows=1">${esc(saved.appetiteDetail||'')}</textarea>
           </div>
           <div class="form-group" style="margin-top:8px">
-            <label>👅 Swallowing</label>
+            <label><svg class="ic"><use href="#i-swallow"/></svg> Swallowing</label>
             <div class="radio-group">
               ${['Normal','Difficulty swallowing','Dysphagia','Unsafe','NGT/PEG'].map(v=>`<input type="radio" name="swallow_${idx}" class="radio-opt" id="sw${v.replace(/\//,'')}_${idx}" value="${v}" ${saved.swallow===v?'checked':''}><label class="radio-label" for="sw${v.replace(/\//,'')}_${idx}">${v}</label>`).join('')}
             </div>
             <textarea class="field auto-detail" id="swallowDetail_${idx}" placeholder="e.g. Coughing on thin fluids, tolerates puree" style="margin-top:5px;min-height:38px;rows=1">${esc(saved.swallowDetail||'')}</textarea>
           </div>
           <div class="form-group" style="margin-top:8px">
-            <label>🦷 Chewing</label>
+            <label><svg class="ic"><use href="#i-tooth"/></svg> Chewing</label>
             <div class="radio-group">
               ${['Normal','Difficulty chewing','Pain on chewing','No teeth / dentures'].map(v=>`<input type="radio" name="chewing_${idx}" class="radio-opt" id="ch${v.replace(/[\s\/]/g,'')}_${idx}" value="${v}" ${saved.chewing===v?'checked':''}><label class="radio-label" for="ch${v.replace(/[\s\/]/g,'')}_${idx}">${v}</label>`).join('')}
             </div>
             <textarea class="field auto-detail" id="chewingDetail_${idx}" placeholder="e.g. Dental pain, poorly fitting dentures" style="margin-top:5px;min-height:38px;rows=1">${esc(saved.chewingDetail||'')}</textarea>
           </div>
           <div class="form-group" style="margin-top:8px">
-            <label>🤢 Nausea / Vomiting</label>
+            <label><svg class="ic"><use href="#i-nausea"/></svg> Nausea / Vomiting</label>
             <div class="radio-group">
               ${['Nil N&V','Nausea','Vomiting','Nausea & Vomiting'].map(v=>`<input type="radio" name="nv_${idx}" class="radio-opt" id="nv${v.replace(/[\s&]/g,'')}_${idx}" value="${v}" ${saved.nv===v?'checked':''}><label class="radio-label" for="nv${v.replace(/[\s&]/g,'')}_${idx}">${v}</label>`).join('')}
             </div>
             <textarea class="field auto-detail" id="nvDetail_${idx}" placeholder="Episodes: e.g. 3x/day, bilious, blood-tinged" style="margin-top:5px;min-height:38px;rows=1">${esc(saved.nvDetail||'')}</textarea>
           </div>
           <div class="form-group" style="margin-top:8px">
-            <label>💩 Bowels</label>
+            <label><svg class="ic"><use href="#i-bowel"/></svg> Bowels</label>
             <div class="radio-group">
               ${['Normal','Open','Loose stools','Stoma'].map(v=>`<input type="radio" name="bowels_${idx}" class="radio-opt" id="bw${v}_${idx}" value="${v}" ${saved.bowels===v?'checked':''}><label class="radio-label" for="bw${v}_${idx}">${v}</label>`).join('')}
             </div>
@@ -6391,7 +6414,7 @@ function renderPrechart(idx) {
             <textarea class="field auto-detail" id="bowelsDetail_${idx}" placeholder="e.g. 5x loose today / watery / hard pellets" style="margin-top:5px;min-height:38px;rows=1">${esc(saved.bowelsDetail||'')}</textarea>
           </div>
           <div class="form-group" style="margin-top:8px">
-            <label>🫄 GI Symptoms</label>
+            <label><svg class="ic"><use href="#i-stomach"/></svg> GI Symptoms</label>
             <div class="checkbox-group">
               ${[['dist','Distension'],['pain','Abdominal pain'],['hb','Heartburn / reflux'],['flatus','Excess flatus'],['cramps','Abdominal cramps'],['bloat','Bloating']].map(([key,label])=>{
                 const savedArr = saved.giArr||[];
@@ -6800,14 +6823,14 @@ function renderPrechart(idx) {
   </div>
   <div class="jump-nav" id="jumpNav_${idx}">
     <button class="jump-nav-btn" onclick="jumpToSection('docnote',${idx})" title="Doctor's Notes"><span class="jn-icon"><svg class="ic"><use href="#i-file"/></svg></span><span class="jn-label">Dr Notes</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('clinical',${idx})" title="Clinical"><span class="jn-icon"><svg class="ic"><use href="#i-vitals"/></svg></span><span class="jn-label">Clinical</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('biochem',${idx})" title="Biochem / Labs"><span class="jn-icon"><svg class="ic"><use href="#i-drop"/></svg></span><span class="jn-label">Biochem</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('nfpe',${idx})" title="Physical Findings"><span class="jn-icon"><svg class="ic"><use href="#i-user"/></svg></span><span class="jn-label">Physical</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('diet',${idx})" title="Diet History"><span class="jn-icon"><svg class="ic"><use href="#i-bowl"/></svg></span><span class="jn-label">Diet</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('anthro',${idx})" title="Anthropometry"><span class="jn-icon"><svg class="ic"><use href="#i-scale"/></svg></span><span class="jn-label">Anthro</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('social',${idx})" title="Social History"><span class="jn-icon"><svg class="ic"><use href="#i-home"/></svg></span><span class="jn-label">Social</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('reqs',${idx})" title="Requirements"><span class="jn-icon"><svg class="ic"><use href="#i-bolt"/></svg></span><span class="jn-label">Reqs</span></button>
-    <button class="jump-nav-btn" onclick="jumpToSection('plan',${idx})" title="Plan"><span class="jn-icon"><svg class="ic"><use href="#i-pen"/></svg></span><span class="jn-label">Plan</span></button>
+    <button class="jump-nav-btn" data-s="clinical" onclick="jumpToSection('clinical',${idx})" title="Clinical"><span class="jn-icon"><svg class="ic"><use href="#i-vitals"/></svg></span><span class="jn-label">Clinical</span></button>
+    <button class="jump-nav-btn" data-s="biochem" onclick="jumpToSection('biochem',${idx})" title="Biochem / Labs"><span class="jn-icon"><svg class="ic"><use href="#i-drop"/></svg></span><span class="jn-label">Biochem</span></button>
+    <button class="jump-nav-btn" data-s="nfpe" onclick="jumpToSection('nfpe',${idx})" title="Physical Findings"><span class="jn-icon"><svg class="ic"><use href="#i-user"/></svg></span><span class="jn-label">Physical</span></button>
+    <button class="jump-nav-btn" data-s="diet" onclick="jumpToSection('diet',${idx})" title="Diet History"><span class="jn-icon"><svg class="ic"><use href="#i-bowl"/></svg></span><span class="jn-label">Diet</span></button>
+    <button class="jump-nav-btn" data-s="anthro" onclick="jumpToSection('anthro',${idx})" title="Anthropometry"><span class="jn-icon"><svg class="ic"><use href="#i-scale"/></svg></span><span class="jn-label">Anthro</span></button>
+    <button class="jump-nav-btn" data-s="social" onclick="jumpToSection('social',${idx})" title="Social History"><span class="jn-icon"><svg class="ic"><use href="#i-home"/></svg></span><span class="jn-label">Social</span></button>
+    <button class="jump-nav-btn" data-s="reqs" onclick="jumpToSection('reqs',${idx})" title="Requirements"><span class="jn-icon"><svg class="ic"><use href="#i-bolt"/></svg></span><span class="jn-label">Reqs</span></button>
+    <button class="jump-nav-btn" data-s="plan" onclick="jumpToSection('plan',${idx})" title="Plan"><span class="jn-icon"><svg class="ic"><use href="#i-pen"/></svg></span><span class="jn-label">Plan</span></button>
     <button class="jump-nav-btn" onclick="copyNote(${idx})" title="Copy generated note"><span class="jn-icon"><svg class="ic"><use href="#i-copy"/></svg></span><span class="jn-label">Copy Note</span></button>
   </div>
   </div>`;
