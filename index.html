@@ -96,10 +96,14 @@
   body.dark .filter-btn { background: #272233; color: #9a94a8; }
   /* Dark mode: the bright lavender accent glares as a solid button fill — mute the filled
      buttons, and give the full-width "Back to patient list" bar a calm dark ground. */
-  /* Filled buttons in dark mode use the same solid purple as the active Inpatient/OPD pill
-     (var(--accent)) — the earlier muted purple read as washed-out / too light. */
-  body.dark .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
-  body.dark .btn-primary:hover { background: var(--accent-mid); }
+  /* Filled purple in dark mode — a rich but not-glary purple, shared by the active
+     Inpatient/OPD pill, the primary buttons (Parse List, Generate, Add) and Restore.
+     (--accent #a98ce6 stays for text/icons/borders where it reads well on dark.) */
+  body.dark .btn-primary,
+  body.dark .mode-tab.active { background: #7d61c4; border-color: #7d61c4; color: #fff; }
+  body.dark .btn-primary { box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  body.dark .btn-primary:hover,
+  body.dark .mode-tab.active:hover { background: #8b70d2; border-color: #8b70d2; }
   body.dark .room-chip { background: #4a3d70; color: #ece5fb; }
   body.dark .prechart-collapse-btn { background: #221d2e; color: #c4b6e8; }
   body.dark .note-section { border-top-color: var(--accent); }
@@ -1378,12 +1382,13 @@
   <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 14 8"/></symbol>
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h3.6l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.3-5.8"/><polyline points="20.5 3.5 20.5 8 16 8"/></symbol>
 </svg>
 
 <!-- Crash-recovery banner (shown on load if a localStorage auto-save exists) -->
 <div id="recoveryBanner" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 16px;background:var(--accent-light);border-bottom:2px solid var(--accent)">
   <span style="font-size:13px;color:var(--text);font-weight:600">↩️ Unsaved charting found<span id="recoveryWhen"></span>.</span>
-  <button class="btn-small" style="background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:var(--r-pill);padding:6px 14px;cursor:pointer;font-weight:600" onclick="restoreAutosave()">Restore</button>
+  <button class="btn-primary btn-small" style="border-radius:var(--r-pill);padding:6px 14px;cursor:pointer;font-weight:600" onclick="restoreAutosave()">Restore</button>
   <button class="btn-ghost btn-small" onclick="dismissRecovery()">Dismiss</button>
 </div>
 
@@ -1411,7 +1416,7 @@
 </div>
 
 <header>
-  <h1>TTH Dietetics — Ward Round Dashboard</h1>
+  <h1>Dietetics — Ward Rounds Dashboard</h1>
   <div class="header-eyebrow">🏥 Ward Round Workspace</div>
   <div class="meta" id="headerDate"></div>
 </header>
@@ -2360,7 +2365,7 @@ function copyFnbEmail() {
           <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${r.count} patient${r.count === 1 ? '' : 's'} · review &amp; edit, then copy</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
-          <button class="btn-primary btn-small" onclick="copyFnbEmailFromModal()">📋 Copy</button>
+          <button class="btn-primary btn-small" onclick="copyFnbEmailFromModal()"><svg class="ic"><use href="#i-copy"/></svg> Copy</button>
           <button class="btn-ghost btn-small" onclick="closeFnbEmail()">✕ Close</button>
         </div>
       </div>
@@ -5726,7 +5731,7 @@ function renderOPDPrechart(idx) {
       </div>
       <div class="prechart-actions">
         <button class="btn-ghost btn-small session-toggle" onclick="toggleSessionType(${idx},'opSt','opSessToggle_${idx}')" id="opSessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
-        <button class="btn-primary btn-small hide-mobile" onclick="generateOPDNote(${idx})">Generate Note</button>
+        <button class="btn-primary btn-small hide-mobile" onclick="generateOPDNote(${idx})"><svg class="ic"><use href="#i-spark"/></svg> Generate Note</button>
         <button class="btn-ghost btn-small ${seenSet.has(idx)?'btn-seen-active':''}" onclick="toggleSeen(${idx})" id="opSeenBtn_${idx}">${seenSet.has(idx)?'👁 Seen':'👁 Mark Seen'}</button>
         <button class="btn-ghost btn-small clear-all-btn" style="color:var(--warn);border-color:var(--warn)" onclick="clearOPDChart(${idx})" title="Clear all fields for this patient (asks first)">🗑 Clear all</button>
         ${(() => {
@@ -6145,11 +6150,11 @@ function renderOPDPrechart(idx) {
     <!-- GENERATE NOTE -->
     <div class="note-section" id="opNoteSection_${idx}">
       <div class="note-header">
-        <h3>📋 Vesalius OPD Note</h3>
+        <h3><svg class="ic"><use href="#i-file"/></svg> Vesalius OPD Note</h3>
         <div style="display:flex;gap:8px">
-          <button class="btn-ghost btn-small" onclick="generateOPDNote(${idx})">Generate / Refresh</button>
-          <button class="btn-ghost btn-small" id="opNoteEditBtn_${idx}" onclick="toggleEditNote(${idx}, true)">✏️ Edit</button>
-          <button class="btn-ghost btn-small" onclick="copyOPDNote(${idx})">📋 Copy</button>
+          <button class="btn-ghost btn-small" onclick="generateOPDNote(${idx})"><svg class="ic"><use href="#i-refresh"/></svg> Generate / Refresh</button>
+          <button class="btn-ghost btn-small" id="opNoteEditBtn_${idx}" onclick="toggleEditNote(${idx}, true)"><svg class="ic"><use href="#i-pen"/></svg> Edit</button>
+          <button class="btn-ghost btn-small" onclick="copyOPDNote(${idx})"><svg class="ic"><use href="#i-copy"/></svg> Copy</button>
         </div>
       </div>
       <div class="note-body">
@@ -6215,7 +6220,7 @@ function renderPrechart(idx) {
         </div>
       </div>
       <div class="prechart-actions">
-        <button class="btn-primary btn-small hide-mobile" onclick="generateNote(${idx})">Generate Note</button>
+        <button class="btn-primary btn-small hide-mobile" onclick="generateNote(${idx})"><svg class="ic"><use href="#i-spark"/></svg> Generate Note</button>
         <button class="btn-ghost btn-small ${seenSet.has(idx)?'btn-seen-active':''}" onclick="toggleSeen(${idx})" id="seenBtn_${idx}">${seenSet.has(idx)?'👁 Seen':'👁 Mark Seen'}</button>
         <button class="btn-ghost btn-small session-toggle" onclick="toggleSessionType(${idx},'st','sessToggle_${idx}')" id="sessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
         <button class="btn-ghost btn-small hide-mobile ${noteDoneSet.has(idx)?'btn-seen-active':''}" onclick="markNoteDone(${idx})" id="noteDoneBtn_${idx}">${noteDoneSet.has(idx)?'✅ Done':'✅ Note Done'}</button>
@@ -6776,11 +6781,11 @@ function renderPrechart(idx) {
     <!-- GENERATE NOTE -->
     <div class="note-section" id="noteSection_${idx}">
       <div class="note-header">
-        <h3>📋 Vesalius ADIME Note</h3>
+        <h3><svg class="ic"><use href="#i-file"/></svg> Vesalius ADIME Note</h3>
         <div style="display:flex;gap:8px">
-          <button class="btn-ghost btn-small" onclick="generateNote(${idx})">Generate / Refresh</button>
-          <button class="btn-ghost btn-small" id="noteEditBtn_${idx}" onclick="toggleEditNote(${idx}, false)">✏️ Edit</button>
-          <button class="btn-ghost btn-small" onclick="copyNote(${idx})">📋 Copy</button>
+          <button class="btn-ghost btn-small" onclick="generateNote(${idx})"><svg class="ic"><use href="#i-refresh"/></svg> Generate / Refresh</button>
+          <button class="btn-ghost btn-small" id="noteEditBtn_${idx}" onclick="toggleEditNote(${idx}, false)"><svg class="ic"><use href="#i-pen"/></svg> Edit</button>
+          <button class="btn-ghost btn-small" onclick="copyNote(${idx})"><svg class="ic"><use href="#i-copy"/></svg> Copy</button>
         </div>
       </div>
       <div class="note-body">
@@ -8821,14 +8826,14 @@ function toggleEditNote(idx, opd) {
     el.classList.remove('note-placeholder');
     if (opd) { if (typeof saveOPDChart === 'function') saveOPDChart(idx, true); }
     else if (typeof scheduleAutosave === 'function') scheduleAutosave();
-    if (btn) btn.innerHTML = '✏️ Edit';
+    if (btn) btn.innerHTML = '<svg class="ic"><use href="#i-pen"/></svg> Edit';
     if (typeof toast === 'function') toast('Note updated ✓', 1400);
   } else {
     const plain = store[idx];
     if (!plain) { if (typeof toast === 'function') toast('Generate the note first'); return; }
     el.innerHTML = `<textarea class="note-edit-area" spellcheck="true" style="width:100%;min-height:340px;font-family:var(--mono);font-size:12.5px;line-height:1.5;border:1px solid var(--accent);border-radius:6px;padding:10px;resize:vertical;box-sizing:border-box">${esc(plain)}</textarea>`;
     const t = el.querySelector('textarea'); if (t) t.focus();
-    if (btn) btn.innerHTML = '✓ Done';
+    if (btn) btn.innerHTML = '<svg class="ic"><use href="#i-check"/></svg> Done';
   }
 }
 
