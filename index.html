@@ -96,8 +96,10 @@
   body.dark .filter-btn { background: #272233; color: #9a94a8; }
   /* Dark mode: the bright lavender accent glares as a solid button fill — mute the filled
      buttons, and give the full-width "Back to patient list" bar a calm dark ground. */
-  body.dark .btn-primary { background: #6c53a4; color: #f1ecfb; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
-  body.dark .btn-primary:hover { background: #7a62b3; }
+  /* Filled buttons in dark mode use the same solid purple as the active Inpatient/OPD pill
+     (var(--accent)) — the earlier muted purple read as washed-out / too light. */
+  body.dark .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  body.dark .btn-primary:hover { background: var(--accent-mid); }
   body.dark .room-chip { background: #4a3d70; color: #ece5fb; }
   body.dark .prechart-collapse-btn { background: #221d2e; color: #c4b6e8; }
   body.dark .note-section { border-top-color: var(--accent); }
@@ -1373,6 +1375,9 @@
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.7 5.8L19.5 10.5 13.7 12.3 12 18l-1.7-5.7L4.5 10.5l5.8-1.7z"/><path d="M18.5 3.5l.6 2 2 .6-2 .6-.6 2-.6-2-2-.6 2-.6z"/></symbol>
   <symbol id="i-pill" viewBox="0 0 24 24"><rect x="2.5" y="8" width="19" height="8" rx="4" transform="rotate(-45 12 12)"/><path d="M8.5 8.5l7 7"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 14 8"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h3.6l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
 </svg>
 
 <!-- Crash-recovery banner (shown on load if a localStorage auto-save exists) -->
@@ -1413,9 +1418,9 @@
 
 <div class="session-bar">
   <span>Session:</span>
-  <button class="btn-ghost btn-small" onclick="saveSession()">💾 Save Session</button>
+  <button class="btn-ghost btn-small" onclick="saveSession()"><svg class="ic"><use href="#i-save"/></svg> Save Session</button>
   <label class="btn-ghost btn-small" style="cursor:pointer;margin:0">
-    📂 Load Session
+    <svg class="ic"><use href="#i-folder"/></svg> Load Session
     <input type="file" id="sessionFileInput" accept=".json" style="display:none" onchange="loadSession(this)">
   </label>
   <button class="btn-ghost btn-small" id="breakBtn" onclick="toggleBreak()" title="Pause time tracking while you step away"><svg class="ic"><use href="#i-coffee"/></svg> Break</button>
@@ -1771,7 +1776,7 @@ function toggleBreak() {
 }
 function updateBreakBtn() {
   const b = document.getElementById('breakBtn');
-  if (b) { b.textContent = _onBreak ? '▶ Resume' : '☕ Break'; b.classList.toggle('on-break', _onBreak); }
+  if (b) { b.innerHTML = _onBreak ? '<svg class="ic"><use href="#i-play"/></svg> Resume' : '<svg class="ic"><use href="#i-coffee"/></svg> Break'; b.classList.toggle('on-break', _onBreak); }
 }
 function updateIPBanner() {
   const banner = document.getElementById('ipAwarenessBanner');
