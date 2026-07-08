@@ -4,7 +4,7 @@
    - The page itself (navigations): network-first so you always get the latest version when
      online, falling back to the cached copy when offline.
    Bump CACHE on each deploy so old assets are cleared.                                   */
-const CACHE = 'tth-rounds-v79';
+const CACHE = 'tth-rounds-v80';
 const CORE = [
   './',
   './index.html',

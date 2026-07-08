@@ -3041,7 +3041,7 @@ function effectivePriority(p) {
   if (neo && !manual) return { band: 9, badge: null, score: 0, reasons: [], neo: true };
   const auto = neo ? computeNeonatePriority(p) : computeAutoPriority(p);
   let band, badge;
-  if (manual === 'ref') { band = 0; badge = { lbl: 'REF', col: M.ref.col, manual: true }; }
+  if (manual === 'ref') { band = 0; badge = { lbl: '<svg class="ic"><use href="#i-bell"/></svg> REF', col: M.ref.col, manual: true }; }
   else if (manual === 'high') { band = 1; badge = { lbl: '⬆ HIGH', col: M.high.col, manual: true }; }
   else if (manual === 'med') { band = 2; badge = { lbl: '● MED', col: M.med.col, manual: true }; }
   else if (manual === 'low') { band = 3; badge = { lbl: '⬇ LOW', col: M.low.col, manual: true }; }
