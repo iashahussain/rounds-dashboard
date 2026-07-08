@@ -4093,6 +4093,15 @@ function saveSession() {
 function exportAnonymised() {
   const clone = JSON.parse(JSON.stringify(buildSessionData()));
 
+  // The generated notes live only in noteStore/opdNoteStore (rebuilt live from the
+  // fields), so they aren't in buildSessionData(). Pull them in here so the note
+  // prose travels with the export — the scrub below turns each note's opening line
+  // "… — <name>, <age> <sex> …" into "… — Patient N, <age> <sex> …".
+  clone.notes = {};
+  try { Object.keys(noteStore).forEach(k => { if (noteStore[k]) clone.notes[k] = noteStore[k]; }); } catch (_) {}
+  clone.opdNotes = {};
+  try { Object.keys(opdNoteStore).forEach(k => { if (opdNoteStore[k]) clone.opdNotes[k] = opdNoteStore[k]; }); } catch (_) {}
+
   const tokens = [];            // {raw, to} — text to scrub out of free-text
   const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const addTokens = (parts, label) => {
@@ -4120,7 +4129,7 @@ function exportAnonymised() {
   });
   const out = JSON.parse(json);
   out._anonymised = true;
-  out._note = 'De-identified for analysis. Patient names, PRN, room, consultant and admission dates removed; each patient’s own name auto-scrubbed from free-text. Please REVIEW the notes for any OTHER names (relatives, doctors) before sharing.';
+  out._note = 'De-identified for analysis. Patient names, PRN, room, consultant and admission dates removed; each patient’s own name/PRN auto-scrubbed from all free-text AND from the generated notes (their opening “… — Name, age sex” line becomes “… — Patient N, …”). Please REVIEW the notes for any OTHER names (relatives, doctors) before sharing.';
 
   const d = new Date();
   const pad = n => String(n).padStart(2, '0');
