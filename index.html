@@ -1372,6 +1372,8 @@
   .section-title{display:inline-flex;align-items:center}
   /* Clinical sub-label icons — larger + a touch bolder than inline chrome icons. */
   .lbl-ic{width:1.5em;height:1.5em;stroke-width:2;vertical-align:-0.38em;margin-right:3px}
+  /* Priority dot — keeps the red/amber/green meaning without an emoji. */
+  .pdot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:0.02em;margin-right:1px}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="16.5" x2="15" y2="16.5"/></symbol>
@@ -1408,6 +1410,7 @@
   <symbol id="i-nausea" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.2 14.6c1-1 2-1 2.6 0 .6 1 1.6 1 2.6 0 .4-.4.8-.5 1.2-.4"/><path d="M8.4 9.5h1.5M14.1 9.5h1.5"/></symbol>
   <symbol id="i-bowel" viewBox="0 0 24 24"><path d="M5 5h8a3 3 0 0 1 0 6H8a3 3 0 0 0 0 6h11"/></symbol>
   <symbol id="i-stomach" viewBox="0 0 24 24"><path d="M8.5 3v3.5a4 4 0 0 0 4 4h1.6a3.2 3.2 0 0 1 0 6.4A6.6 6.6 0 0 1 7.5 10.4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><polyline points="3.5 6 20.5 6"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M6.5 6l1 14a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1l1-14"/><line x1="10" y1="10.5" x2="10" y2="17"/><line x1="14" y1="10.5" x2="14" y2="17"/></symbol>
 </svg>
 
 <!-- Crash-recovery banner (shown on load if a localStorage auto-save exists) -->
@@ -3038,7 +3041,7 @@ function effectivePriority(p) {
   if (neo && !manual) return { band: 9, badge: null, score: 0, reasons: [], neo: true };
   const auto = neo ? computeNeonatePriority(p) : computeAutoPriority(p);
   let band, badge;
-  if (manual === 'ref') { band = 0; badge = { lbl: '🔔 REF', col: M.ref.col, manual: true }; }
+  if (manual === 'ref') { band = 0; badge = { lbl: 'REF', col: M.ref.col, manual: true }; }
   else if (manual === 'high') { band = 1; badge = { lbl: '⬆ HIGH', col: M.high.col, manual: true }; }
   else if (manual === 'med') { band = 2; badge = { lbl: '● MED', col: M.med.col, manual: true }; }
   else if (manual === 'low') { band = 3; badge = { lbl: '⬇ LOW', col: M.low.col, manual: true }; }
@@ -3162,11 +3165,11 @@ function renderList() {
           ${p.isNew ? '<span class="badge badge-new">NEW</span>' : ''}
           <span class="badge ${badgeClass}">${badgeLabel}</span>
           ${isCharted ? (noteDoneSet.has(origIdx)
-              ? '<span class="badge" style="background:#2f7a04;color:#fff" title="Note done">✅</span>'
+              ? '<span class="badge" style="background:#2f7a04;color:#fff" title="Note done"><svg class="ic"><use href="#i-check"/></svg></span>'
               : (isPrecharted(origIdx)
                   ? '<span class="badge badge-charted" title="Pre-charted">✓</span>'
-                  : '<span class="badge" style="background:#b8860b;color:#fff" title="Selected — not pre-charted yet">⏳</span>')) : ''}
-          ${isSeen ? '<span class="badge badge-seen">👁 Seen</span>' : ''}
+                  : '<span class="badge" style="background:#b8860b;color:#fff" title="Selected — not pre-charted yet"><svg class="ic"><use href="#i-hourglass"/></svg></span>')) : ''}
+          ${isSeen ? '<span class="badge badge-seen"><svg class="ic"><use href="#i-eye"/></svg> Seen</span>' : ''}
           ${isCharted && currentFilter === 'charted' ? `<button class="badge-x" onclick="event.stopPropagation(); unchart(${origIdx})" title="Remove from Charted">✕</button>` : ''}
         </div>
       </div>
@@ -3174,13 +3177,13 @@ function renderList() {
       <div class="card-dx">${esc(p.diagnosis.substring(0,100))}${p.diagnosis.length>100?'…':''}</div>
       ${ep.reasons.length ? `<div class="prio-reasons">${ep.reasons.slice(0,3).map(r=>`<span class="rchip">${esc(r)}</span>`).join('')}</div>` : ''}
       <div class="card-foot">
-        <button class="prn-copy" onclick="event.stopPropagation();copyPRN('${esc(p.prn)}',this)" title="Copy PRN for Vesalius">⧉ PRN ${esc(p.prn)}</button>
+        <button class="prn-copy" onclick="event.stopPropagation();copyPRN('${esc(p.prn)}',this)" title="Copy PRN for Vesalius"><svg class="ic"><use href="#i-copy"/></svg> PRN ${esc(p.prn)}</button>
         ${isCharted
           ? `<span class="ses-badge ${/assess/i.test((chartData[origIdx]||{}).sessionType||'')?'ses-a':'ses-r'}" onclick="event.stopPropagation();unchart(${origIdx})" title="On worklist — tap to remove">${/assess/i.test((chartData[origIdx]||{}).sessionType||'')?'Assessment':'Review'}</span>`
           : `<span class="triage-chips">
                <button class="tchip" onclick="event.stopPropagation();triagePatient(${origIdx},'review')">Review</button>
                <button class="tchip" onclick="event.stopPropagation();triagePatient(${origIdx},'assessment')">Assess</button>
-               <button class="tchip tchip-ref" onclick="event.stopPropagation();triagePatient(${origIdx},'referral')">🔔 Ref</button>
+               <button class="tchip tchip-ref" onclick="event.stopPropagation();triagePatient(${origIdx},'referral')"><svg class="ic"><use href="#i-bell"/></svg> Ref</button>
              </span>`}
       </div>
     </div>`;
@@ -3260,10 +3263,10 @@ function fmtAge(p) {
 // ──────────────────────────────────────────
 const priorityMap = {}; // patient idx -> 'high' | 'med' | 'low'
 const PRIO_META = {
-  ref:  { label: '🔔 Referral', short: '🔔 REF', col: '#7b2ff7' },
-  high: { label: '🔴 High', short: '⬆ HIGH', col: '#c0392b' },
-  med:  { label: '🟡 Med',  short: '● MED',  col: '#b8860b' },
-  low:  { label: '🟢 Low',  short: '⬇ LOW',  col: '#1a8a4f' }
+  ref:  { label: '<svg class="ic"><use href="#i-bell"/></svg> Referral', short: 'REF', col: '#7b2ff7' },
+  high: { label: '<span class="pdot" style="background:#c0392b"></span> High', short: '⬆ HIGH', col: '#c0392b' },
+  med:  { label: '<span class="pdot" style="background:#b8860b"></span> Med',  short: '● MED',  col: '#b8860b' },
+  low:  { label: '<span class="pdot" style="background:#1a8a4f"></span> Low',  short: '⬇ LOW',  col: '#1a8a4f' }
 };
 function priorityRowHTML(idx) {
   const cur = priorityMap[idx] || '';
@@ -4292,7 +4295,7 @@ function toggleSeen(idx) {
   // Update button in header
   const btn = document.getElementById(`seenBtn_${idx}`);
   if (btn) {
-    btn.textContent = seenSet.has(idx) ? '👁 Seen' : '👁 Mark Seen';
+    btn.innerHTML = seenSet.has(idx) ? '<svg class="ic"><use href="#i-eye"/></svg> Seen' : '<svg class="ic"><use href="#i-eye"/></svg> Mark Seen';
     btn.classList.toggle('btn-seen-active', seenSet.has(idx));
   }
   if (seenSet.has(idx) && currentPanelOpen && currentPanelOpen.idx === idx) closeIPPanelLog(); // v80: end the timed session — you're done with this patient
@@ -4310,13 +4313,13 @@ function markNoteDone(idx) {
   [`noteDoneBtn_${idx}`, `opNoteDoneBtn_${idx}`, `opNoteDoneBtn2_${idx}`].forEach(id => {
     const b = document.getElementById(id);
     if (b) {
-      b.textContent = noteDoneSet.has(idx) ? '✅ Done' : '✅ Note Done';
+      b.innerHTML = noteDoneSet.has(idx) ? '<svg class="ic"><use href="#i-check"/></svg> Done' : '<svg class="ic"><use href="#i-check"/></svg> Note Done';
       b.classList.toggle('btn-seen-active', noteDoneSet.has(idx));
     }
   });
   const btn = document.getElementById(`noteDoneBtn_${idx}`);
   if (btn) {
-    btn.textContent = noteDoneSet.has(idx) ? '✅ Note Done' : '✅ Mark Note Done';
+    btn.innerHTML = noteDoneSet.has(idx) ? '<svg class="ic"><use href="#i-check"/></svg> Note Done' : '<svg class="ic"><use href="#i-check"/></svg> Mark Note Done';
     btn.classList.toggle('btn-seen-active', noteDoneSet.has(idx));
   }
   renderList();
@@ -5757,8 +5760,8 @@ function renderOPDPrechart(idx) {
       <div class="prechart-actions">
         <button class="btn-ghost btn-small session-toggle" onclick="toggleSessionType(${idx},'opSt','opSessToggle_${idx}')" id="opSessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
         <button class="btn-primary btn-small hide-mobile" onclick="generateOPDNote(${idx})"><svg class="ic"><use href="#i-spark"/></svg> Generate Note</button>
-        <button class="btn-ghost btn-small ${seenSet.has(idx)?'btn-seen-active':''}" onclick="toggleSeen(${idx})" id="opSeenBtn_${idx}">${seenSet.has(idx)?'👁 Seen':'👁 Mark Seen'}</button>
-        <button class="btn-ghost btn-small clear-all-btn" style="color:var(--warn);border-color:var(--warn)" onclick="clearOPDChart(${idx})" title="Clear all fields for this patient (asks first)">🗑 Clear all</button>
+        <button class="btn-ghost btn-small ${seenSet.has(idx)?'btn-seen-active':''}" onclick="toggleSeen(${idx})" id="opSeenBtn_${idx}">${seenSet.has(idx)?'<svg class="ic"><use href="#i-eye"/></svg> Seen':'<svg class="ic"><use href="#i-eye"/></svg> Mark Seen'}</button>
+        <button class="btn-ghost btn-small clear-all-btn" style="color:var(--warn);border-color:var(--warn)" onclick="clearOPDChart(${idx})" title="Clear all fields for this patient (asks first)"><svg class="ic"><use href="#i-trash"/></svg> Clear all</button>
         ${(() => {
           const open = opdConsultLog.find(e => e.idx === idx && !e.endTime);
           if (open) {
@@ -5793,7 +5796,7 @@ function renderOPDPrechart(idx) {
       
                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
           <span style="font-size:11px;color:var(--text-muted);align-self:center">Jump to:</span>
-          <button class="btn-ghost btn-small" onclick="jumpToSection('clinical',${idx})" style="font-size:11px;padding:4px 10px">🩺 Clinical</button>
+          <button class="btn-ghost btn-small" onclick="jumpToSection('clinical',${idx})" style="font-size:11px;padding:4px 10px"><svg class="ic"><use href="#i-vitals"/></svg> Clinical</button>
           <button class="btn-ghost btn-small" onclick="jumpToSection('nfpe',${idx})" style="font-size:11px;padding:4px 10px">💪 Physical</button>
           <button class="btn-ghost btn-small" onclick="jumpToSection('anthro',${idx})" style="font-size:11px;padding:4px 10px">⚖️ Anthro</button>
           <button class="btn-ghost btn-small" onclick="jumpToSection('diet',${idx})" style="font-size:11px;padding:4px 10px">🥗 Diet</button>
@@ -5965,7 +5968,7 @@ function renderOPDPrechart(idx) {
       </div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:8px">
-          <label>🩺 Clinical Notes <span style="font-weight:400;color:var(--text-muted)">(O2, IVF, functional capacity, other)</span></label>
+          <label><svg class="ic lbl-ic"><use href="#i-vitals"/></svg> Clinical Notes <span style="font-weight:400;color:var(--text-muted)">(O2, IVF, functional capacity, other)</span></label>
           <textarea class="field" id="opClinicalNotes_${idx}" placeholder="e.g. On 2L O2 via NC. Mobilising with support. IVF NS @ 50ml/hr...">${esc(saved.clinicalNotes||'')}</textarea>
         </div>
         <div class="form-grid" style="gap:8px">
@@ -6065,7 +6068,7 @@ function renderOPDPrechart(idx) {
         </div>
         <div class="form-group" style="margin-bottom:8px">
           <label>🍽 Current diet / intake</label>
-          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx},'intake')" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Estimate current intake (Formula Calc)</button>
+          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx},'intake')" style="margin:0 0 6px;font-size:11px;padding:3px 10px"><svg class="ic"><use href="#i-drop"/></svg> Estimate current intake (Formula Calc)</button>
           <textarea class="field field-sm" id="opCurrentDiet_${idx}" placeholder="What is the patient currently eating and drinking...">${esc(saved.currentDiet||'')}</textarea>
         </div>
         <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px">
@@ -6160,7 +6163,7 @@ function renderOPDPrechart(idx) {
         </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>✏️ Plan / Intervention</label>
-          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx})" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Feeding regimen (Formula Calc)</button>
+          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx})" style="margin:0 0 6px;font-size:11px;padding:3px 10px"><svg class="ic"><use href="#i-drop"/></svg> Feeding regimen (Formula Calc)</button>
           <textarea class="field field-lg" id="opIntervention_${idx}" placeholder="Dietary advice, supplement recommendation, education, referrals...">${esc(saved.intervention||'')}</textarea>
         </div>
         <div class="form-group">
@@ -6246,11 +6249,11 @@ function renderPrechart(idx) {
       </div>
       <div class="prechart-actions">
         <button class="btn-primary btn-small hide-mobile" onclick="generateNote(${idx})"><svg class="ic"><use href="#i-spark"/></svg> Generate Note</button>
-        <button class="btn-ghost btn-small ${seenSet.has(idx)?'btn-seen-active':''}" onclick="toggleSeen(${idx})" id="seenBtn_${idx}">${seenSet.has(idx)?'👁 Seen':'👁 Mark Seen'}</button>
+        <button class="btn-ghost btn-small ${seenSet.has(idx)?'btn-seen-active':''}" onclick="toggleSeen(${idx})" id="seenBtn_${idx}">${seenSet.has(idx)?'<svg class="ic"><use href="#i-eye"/></svg> Seen':'<svg class="ic"><use href="#i-eye"/></svg> Mark Seen'}</button>
         <button class="btn-ghost btn-small session-toggle" onclick="toggleSessionType(${idx},'st','sessToggle_${idx}')" id="sessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
-        <button class="btn-ghost btn-small hide-mobile ${noteDoneSet.has(idx)?'btn-seen-active':''}" onclick="markNoteDone(${idx})" id="noteDoneBtn_${idx}">${noteDoneSet.has(idx)?'✅ Done':'✅ Note Done'}</button>
+        <button class="btn-ghost btn-small hide-mobile ${noteDoneSet.has(idx)?'btn-seen-active':''}" onclick="markNoteDone(${idx})" id="noteDoneBtn_${idx}">${noteDoneSet.has(idx)?'<svg class="ic"><use href="#i-check"/></svg> Done':'<svg class="ic"><use href="#i-check"/></svg> Note Done'}</button>
         ${chartedSet.has(idx) ? `<button class="btn-ghost btn-small hide-mobile" onclick="unchart(${idx})" title="Remove from Charted (keeps your data)">✕ Uncharted</button>` : ''}
-        <button class="btn-ghost btn-small clear-all-btn" style="color:var(--warn);border-color:var(--warn)" onclick="clearChart(${idx})" title="Clear all fields for this patient (asks first)">🗑 Clear all</button>
+        <button class="btn-ghost btn-small clear-all-btn" style="color:var(--warn);border-color:var(--warn)" onclick="clearChart(${idx})" title="Clear all fields for this patient (asks first)"><svg class="ic"><use href="#i-trash"/></svg> Clear all</button>
       </div>
   </div>
   <div class="prechart-wrap"><div class="prechart-content" id="pc${idx}">
@@ -6372,7 +6375,7 @@ function renderPrechart(idx) {
 
         <!-- Clinical Notes — top -->
         <div class="form-group" style="margin-bottom:8px">
-          <label>🩺 Clinical Notes <span style="font-weight:400;color:var(--text-muted)">(functional capacity, O2, IV fluids, other)</span></label>
+          <label><svg class="ic lbl-ic"><use href="#i-vitals"/></svg> Clinical Notes <span style="font-weight:400;color:var(--text-muted)">(functional capacity, O2, IV fluids, other)</span></label>
           <textarea class="field" id="clinicalNotes_${idx}" placeholder="e.g. On 2L O2 via NC. Mobilising with support. IVF NS @ 50ml/hr. Bed bound...">${esc(saved.clinicalNotes||'')}</textarea>
         </div>
         <div class="form-grid" style="gap:8px">
@@ -6426,7 +6429,7 @@ function renderPrechart(idx) {
             <textarea class="field auto-detail" id="giDetail_${idx}" placeholder="GI symptom detail — e.g. epigastric pain after meals, distension worse in evenings" style="margin-top:5px;min-height:38px">${esc(saved.giDetail||'')}</textarea>
           </div>
           <div class="form-group" style="margin-top:8px">
-            <label>💧 Urine Output</label>
+            <label><svg class="ic lbl-ic"><use href="#i-drop"/></svg> Urine Output</label>
             <input type="text" id="urineOutput_${idx}" value="${esc(saved.urineOutput||'')}" placeholder="e.g. Adequate, 1.2 ml/kg/hr | Oliguric | Anuric | 800 ml/24h">
           </div>
         </div>
@@ -6550,7 +6553,7 @@ function renderPrechart(idx) {
         </div>
         <div class="form-group" style="margin-top:8px">
           <label>🍽 Current Intake in Hospital</label>
-          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx},'intake')" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Estimate current intake (Formula Calc)</button>
+          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx},'intake')" style="margin:0 0 6px;font-size:11px;padding:3px 10px"><svg class="ic"><use href="#i-drop"/></svg> Estimate current intake (Formula Calc)</button>
           <textarea class="field field-sm" id="currentIntake_${idx}" placeholder="e.g. Eating 50% of meals, accepting porridge, refusing meat. Tolerating ORS...">${esc(saved.currentIntake||'')}</textarea>
         </div>
         
@@ -6735,7 +6738,7 @@ function renderPrechart(idx) {
         </div>
         <div class="form-grid-3" style="margin-top:8px">
           <div class="form-group">
-            <label>💧 EFR (ml/day)</label>
+            <label><svg class="ic"><use href="#i-drop"/></svg> EFR (ml/day)</label>
             <input type="text" id="efr_${idx}" inputmode="decimal" value="${esc(saved.efr||'')}" placeholder="e.g. 560–780ml">
           </div>
           <div class="form-group">
@@ -6787,7 +6790,7 @@ function renderPrechart(idx) {
         </div>
         <div class="form-group" style="margin-bottom:10px">
           <label>✏️ Intervention</label>
-          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx})" style="margin:0 0 6px;font-size:11px;padding:3px 10px">💧 Feeding regimen (Formula Calc)</button>
+          <button type="button" class="btn-ghost btn-small" onclick="openFeedCalc(${idx})" style="margin:0 0 6px;font-size:11px;padding:3px 10px"><svg class="ic"><use href="#i-drop"/></svg> Feeding regimen (Formula Calc)</button>
           <textarea class="field field-lg" id="intervention_${idx}" placeholder="Diet order, formula, tube feeding plan, ONS, food service instructions, counselling...">${esc(saved.intervention||'')}</textarea>
         </div>
         <div class="form-group" style="margin-bottom:10px">
