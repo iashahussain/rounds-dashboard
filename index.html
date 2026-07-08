@@ -1402,6 +1402,7 @@
   <symbol id="i-pill" viewBox="0 0 24 24"><rect x="2.5" y="8" width="19" height="8" rx="4" transform="rotate(-45 12 12)"/><path d="M8.5 8.5l7 7"/></symbol>
   <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 14 8"/></symbol>
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h3.6l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V6z"/><polyline points="9 12 11 14 15 10"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.3-5.8"/><polyline points="20.5 3.5 20.5 8 16 8"/></symbol>
   <symbol id="i-cutlery" viewBox="0 0 24 24"><path d="M6 3v18"/><path d="M4 3v3M8 3v3"/><path d="M4 6a2 2 0 0 0 4 0"/><path d="M16.5 3c-1.4 0-2.3 2.4-2.3 5.3S15.5 13 16.5 13v8"/></symbol>
@@ -1456,6 +1457,7 @@
     <svg class="ic"><use href="#i-folder"/></svg> Load Session
     <input type="file" id="sessionFileInput" accept=".json" style="display:none" onchange="loadSession(this)">
   </label>
+  <button class="btn-ghost btn-small" onclick="exportAnonymised()" title="Save a de-identified copy (names, PRN, room, consultant removed) that's safe to share for analysis"><svg class="ic"><use href="#i-shield"/></svg> Export for analysis</button>
   <button class="btn-ghost btn-small" id="breakBtn" onclick="toggleBreak()" title="Pause time tracking while you step away"><svg class="ic"><use href="#i-coffee"/></svg> Break</button>
   <span id="sessionStatus" style="font-size:11px;color:var(--text-muted);margin-left:4px"></span>
   <span id="autosaveStatus" style="font-size:11px;color:var(--text-muted);margin-left:4px" title="Charting is auto-saved to this device"></span>
@@ -4078,6 +4080,59 @@ function saveSession() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast('Session saved ✓');
+}
+
+// ── ANONYMISED EXPORT FOR ANALYSIS ──
+// Produces a de-identified copy of the session that is safe to share for analysis.
+// Direct identifiers (name, PRN, room, consultant, admission date) are removed from
+// every patient record; each patient's own name (its parts) and consultant names are
+// also scrubbed out of ALL free-text and replaced with the patient label. Free-text
+// WORDING is otherwise kept (per the chosen setting) so it can be eyeballed for any
+// *other* names (relatives, doctors) before uploading. Chart-data keys are numeric
+// indices, so no identifiers hide in the keys.
+function exportAnonymised() {
+  const clone = JSON.parse(JSON.stringify(buildSessionData()));
+
+  const tokens = [];            // {raw, to} — text to scrub out of free-text
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const addTokens = (parts, label) => {
+    (parts || []).filter(Boolean).map(s => String(s).trim())
+      .filter(s => s.length >= 3)
+      .forEach(s => tokens.push({ raw: s, to: label }));
+  };
+  const stripPt = (p, label) => {
+    if (!p) return;
+    addTokens([p.name, ...String(p.name || '').split(/\s+/)], label);
+    if (p.consultant) addTokens([p.consultant], '[clinician]');
+    if (p.prn) addTokens([p.prn], '[ID]');   // scrub a PRN typed into free-text too
+    delete p.name; delete p.prn; delete p.roomNo;
+    delete p.consultant; delete p.doa; delete p.doaRaw;
+    p.patientLabel = label;
+  };
+
+  (clone.patients || []).forEach((p, i) => stripPt(p, `Patient ${i + 1}`));
+  (clone.opdPatients || []).forEach((p, i) => stripPt(p, `OPD Patient ${i + 1}`));
+
+  // Scrub the whole document. Longest tokens first so full names win over parts.
+  let json = JSON.stringify(clone);
+  tokens.sort((a, b) => b.raw.length - a.raw.length).forEach(t => {
+    try { json = json.replace(new RegExp('\\b' + esc(t.raw) + '\\b', 'gi'), t.to); } catch (_) {}
+  });
+  const out = JSON.parse(json);
+  out._anonymised = true;
+  out._note = 'De-identified for analysis. Patient names, PRN, room, consultant and admission dates removed; each patient’s own name auto-scrubbed from free-text. Please REVIEW the notes for any OTHER names (relatives, doctors) before sharing.';
+
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const fn = `Rounds_ANON_${pad(d.getDate())}${d.toLocaleDateString('en-GB', { month: 'short' })}_${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fn;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Anonymised file saved — glance through the notes before sharing');
 }
 
 // Restore full session state from a parsed data object (shared by file-load and
