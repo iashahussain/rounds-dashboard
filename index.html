@@ -1416,6 +1416,10 @@
   .rb-jot .row2{display:flex;gap:6px;align-items:center}
   .rb-jot input{flex:1;font-family:var(--sans);font-size:12.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--accent);background:var(--bg);color:var(--text)}
   .rb-jot .push{font-family:var(--mono);font-size:10.5px;font-weight:600;color:#fff;background:var(--accent);border:0;padding:8px 12px;border-radius:8px;white-space:nowrap;cursor:pointer}
+  .rb-addown{display:flex;gap:6px;padding:10px 11px 5px;border-top:1px solid var(--border-soft)}
+  .rb-addown input{flex:1;font-family:var(--sans);font-size:12.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
+  .rb-addown button{font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--accent);background:var(--accent-light);border:0;border-radius:8px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+  body.dark .rb-addown button{color:#cdbcf2}
   .rb-plan{background:var(--accent-faint);border:1px solid var(--border);border-left:3px solid var(--rb-plan);border-radius:12px;padding:11px 13px;font-size:13px;line-height:1.5}
   .rb-plan-goals{font-size:11px;color:var(--text-muted);margin:0 2px 5px;line-height:1.4}
   .rb-plan-edit{width:100%;box-sizing:border-box;min-height:60px;font-family:var(--sans);font-size:13px;line-height:1.5;color:var(--text);background:var(--accent-faint);border:1px solid var(--border);border-left:3px solid var(--rb-plan);border-radius:12px;padding:11px 13px;resize:vertical}
@@ -9166,7 +9170,18 @@ function rbAsk(idx){
       onSave: 'rbSaveConfirm(' + idx + ',' + i + ',this)'
     });
   });
-  return '<div class="rb-ask">' + h + '</div>';
+  h += '<div class="rb-addown"><input id="rbAddIn' + idx + '" placeholder="Add your own…" ' +
+    'onkeydown="if(event.key===\'Enter\'){event.preventDefault();rbAddOwn(' + idx + ');}">' +
+    '<button onclick="rbAddOwn(' + idx + ')">＋ Add</button></div>';
+  return '<div class="rb-ask" id="rbAsk' + idx + '">' + h + '</div>';
+}
+function rbRefreshAsk(idx){ const el = document.getElementById('rbAsk' + idx); if (el) el.outerHTML = rbAsk(idx); }
+function rbAddOwn(idx){
+  const inp = document.getElementById('rbAddIn' + idx);
+  const v = (inp ? inp.value : '').trim();
+  if (!v) { if (inp) inp.focus(); return; }
+  if (typeof addConfirm === 'function') addConfirm(idx, v);   // adds to confirmRounds (target: Clinical notes)
+  rbRefreshAsk(idx);
 }
 
 function buildRoundsBrief(idx){
