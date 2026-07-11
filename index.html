@@ -1390,6 +1390,9 @@
   body.dark .rb-flag{color:#f09595}
   .rb-allg{color:#c0392b;font-weight:700}
   body.dark .rb-allg{color:#f09595}
+  .rb-recent{color:var(--text-faint);font-size:11.5px}
+  .rb-stale{color:#b26a00;font-weight:600;font-size:11.5px}   /* amber = weight not recent */
+  body.dark .rb-stale{color:#e0a44a}
   .rb-ask{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--rb-clinical);border-radius:12px;padding:4px 4px 6px}
   .rb-hint{font-size:11px;color:var(--text-muted);padding:8px 11px 6px;line-height:1.4}
   .rb-hint b{color:var(--text);font-weight:600}
@@ -8972,6 +8975,37 @@ function rbCd(idx){ return chartData[idx] || {}; }
 function rbEsc(s){ return (typeof esc === 'function') ? esc(String(s == null ? '' : s)) : String(s == null ? '' : s); }
 function rbFlagChg(s){ return /loss|lost|-|–|↓|drop|deficit/i.test(s) ? '<span class="rb-flag">' + rbEsc(s) + '</span>' : rbEsc(s); }
 
+// Weight-recency: parse the varied date formats the app stores (ISO, dd/mm/yyyy,
+// "7 July 26", "7 Jul 26") and render "how long ago", amber if not recent (>2 weeks).
+const _RB_MON = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function rbParseDate(s){
+  if (!s) return null; s = String(s).trim(); let m;
+  if (m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)) return new Date(+m[1], +m[2] - 1, +m[3]);
+  if (m = s.match(/^(\d{1,2})[\/](\d{1,2})[\/](\d{2,4})/)) { let y = +m[3]; if (y < 100) y += 2000; return new Date(y, +m[2] - 1, +m[1]); }
+  if (m = s.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})/)) { const mo = _RB_MON.indexOf(m[2].slice(0,3).toLowerCase()); if (mo < 0) return null; let y = +m[3]; if (y < 100) y += 2000; return new Date(y, mo, +m[1]); }
+  const d = new Date(s); return isNaN(d) ? null : d;
+}
+function rbRecency(d){
+  if (!d) return null;
+  const now = new Date(); now.setHours(0,0,0,0);
+  const days = Math.floor((now - d) / 86400000);
+  if (days < 0) return { label: 'future date?', stale: true };
+  let label;
+  if (days === 0) label = 'today';
+  else if (days === 1) label = 'yesterday';
+  else if (days < 7) label = days + ' days ago';
+  else if (days < 14) label = '1 week ago';
+  else if (days < 60) label = Math.round(days / 7) + ' weeks ago';
+  else if (days < 365) label = Math.round(days / 30) + ' months ago';
+  else label = Math.round(days / 365) + ' y ago';
+  return { label, stale: days > 14 };
+}
+function rbRecencyHTML(rec, src){
+  if (!rec) return '';
+  const pre = (src && src !== 'Measured') ? rbEsc(src.toLowerCase()) + ', ' : '';
+  return '<span class="' + (rec.stale ? 'rb-stale' : 'rb-recent') + '">' + pre + rec.label + '</span>';
+}
+
 // Reference-range flagging for the bloods line. CONSERVATIVE by design: only labs
 // with unambiguous units + age-stable (or age-banded) ranges are flagged, so paeds /
 // neonatal values aren't mis-flagged. Deliberately NOT auto-flagged (units/paeds ranges
@@ -9026,12 +9060,15 @@ function rbSummary(idx){
   const wt = [];
   if (cd.wt) {
     wt.push('<b>' + rbEsc(cd.wt) + ' kg</b>');
+    const rec = rbRecency(rbParseDate(cd.wtDate)); if (rec) wt.push(rbRecencyHTML(rec, cd.wtSource));
     if (cd.bmi) wt.push('BMI ' + rbEsc(cd.bmi));
   } else {
-    let pwt = '', pht = '';
-    try { const g = JSON.parse(cd.growthData || '{}'); if (g.visits && g.visits[0]) { pwt = g.visits[0].wt || ''; pht = g.visits[0].ht || ''; } } catch (_) {}
+    let pwt = '', pht = '', pdate = '';
+    try { const g = JSON.parse(cd.growthData || '{}'); if (g.visits && g.visits[0]) { pwt = g.visits[0].wt || ''; pht = g.visits[0].ht || ''; pdate = g.visits[0].date || ''; } } catch (_) {}
     if (!pwt && cd.pediPaste) { const m = cd.pediPaste.match(/Weight \(kg\)\s+([\d.]+)/i); if (m) pwt = m[1]; }
+    if (!pdate && cd.pediPaste) { const m = cd.pediPaste.match(/\b(\d{1,2}\s+[A-Za-z]{3,}\s+\d{2,4})\b/); if (m) pdate = m[1]; }
     if (pwt) wt.push('<b>' + rbEsc(pwt) + ' kg</b>');
+    const rec = rbRecency(rbParseDate(pdate)); if (rec) wt.push(rbRecencyHTML(rec, ''));
     if (cd.wtZ) { const zn = parseFloat(cd.wtZ); wt.push('z ' + ((isFinite(zn) && (zn <= -2 || zn >= 2)) ? '<span class="rb-flag">' + rbEsc(cd.wtZ) + '</span>' : rbEsc(cd.wtZ))); }
     if (pht) wt.push('ht ' + rbEsc(pht) + ' cm');
   }
