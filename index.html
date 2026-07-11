@@ -9147,7 +9147,6 @@ function rbSummary(idx){
     if (pwt) wt.push('<b>' + rbEsc(pwt) + ' kg</b>');
     const rec = rbRecency(rbParseDate(pdate)); if (rec) wt.push(rbRecencyHTML(rec, ''));
     if (cd.wtZ) { const zn = parseFloat(cd.wtZ); wt.push('z ' + ((isFinite(zn) && (zn <= -2 || zn >= 2)) ? '<span class="rb-flag">' + rbEsc(cd.wtZ) + '</span>' : rbEsc(cd.wtZ))); }
-    if (pht) wt.push('ht ' + rbEsc(pht) + ' cm');
   }
   // Weight change: adult wtChg field, else the paeds pediPaste trend line.
   let chg = cd.wtChg || '';
@@ -9157,6 +9156,20 @@ function rbSummary(idx){
   if (cd.growthTrend) wt.push(rbEsc(cd.growthTrend));
   if (cd.wtHx && !cd.wtChg) wt.push(rbEsc(cd.wtHx.substring(0, 70)));
   if (wt.length) rows.push(rbRow('Wt', 'var(--rb-anthro)', wt.join(' · ')));
+  // Height / length — paeds gets its own line (height is often measured less often
+  // than weight, so it can be stale even when the weight is fresh). Uses the most
+  // recent visit that actually has a height, with its own "measured X ago".
+  if (!cd.ht) {
+    let pHt = '', pHtDate = '';
+    try { const g = JSON.parse(cd.growthData || '{}'); if (g.visits) { const hv = g.visits.find(v => v.ht && String(v.ht).trim()); if (hv) { pHt = hv.ht; pHtDate = hv.date || ''; } } } catch (_) {}
+    if (!pHt && cd.pediPaste) { const m = cd.pediPaste.match(/(?:Stature|Length|Height)[\s\S]{0,60}?([\d.]{2,})\s*(?:cm)?\s+\d+(?:\.\d+)?%[\s\S]*?(\d{1,2}\s+[A-Za-z]{3,}\s+\d{2,4})/i); if (m) { pHt = m[1]; pHtDate = m[2]; } }
+    if (pHt) {
+      const h = ['<b>' + rbEsc(pHt) + ' cm</b>'];
+      const hrec = rbRecency(rbParseDate(pHtDate)); if (hrec) h.push(rbRecencyHTML(hrec, ''));
+      if (cd.htZ) { const zn = parseFloat(cd.htZ); h.push('z ' + ((isFinite(zn) && (zn <= -2 || zn >= 2)) ? '<span class="rb-flag">' + rbEsc(cd.htZ) + '</span>' : rbEsc(cd.htZ))); }
+      rows.push(rbRow((p.ageYears || 0) < 2 ? 'Length' : 'Ht', 'var(--rb-anthro)', h.join(' · ')));
+    }
+  }
   // Bloods — flag out-of-reference-range values red (age/sex aware).
   const labs = [cd.status, cd.renal, cd.elytes, cd.glyc, cd.lft, cd.fbc, cd.iron, cd.micros, cd.lipids].filter(x => x && x.trim());
   if (labs.length) rows.push(rbRow('Bloods', 'var(--rb-biochem)', rbFlagLabs(labs.map(rbEsc).join(' · '), p.ageYears, p.sex)));
