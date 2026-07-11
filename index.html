@@ -9159,9 +9159,8 @@ function rbSummary(idx){
   // Clinical (salient / abnormal only)
   const clin = [];
   const lbl = (t, v) => '<span class="rb-cl">' + t + '</span> ' + v;   // "appetite: poor" so values aren't ambiguous
+  const intake = cd.intakePct || cd.currentIntake;   // shown in the Diet row, not Clinical
   if (cd.appetite && cd.appetite !== 'Good') clin.push(lbl('appetite:', rbEsc(cd.appetite).toLowerCase() + (cd.appetiteDetail ? ' (' + rbEsc(cd.appetiteDetail) + ')' : '')));
-  const intake = cd.intakePct || cd.currentIntake;
-  if (intake) clin.push(lbl('intake:', rbEsc(intake.substring(0, 40))));
   if (cd.nv && cd.nv !== 'Nil N&V') clin.push(lbl('N/V:', rbEsc(cd.nv).toLowerCase() + (cd.nvDetail ? ' (' + rbEsc(cd.nvDetail) + ')' : '')));
   if (cd.bowels && cd.bowels !== 'Normal' && cd.bowels !== 'Open') clin.push(lbl('bowels:', rbEsc(cd.bowels).toLowerCase() + (cd.bowelsLastOpened ? ' (last ' + rbEsc(cd.bowelsLastOpened) + ')' : '')));
   else if (cd.bowelsLastOpened) clin.push(lbl('bowels:', 'last ' + rbEsc(cd.bowelsLastOpened)));
@@ -9171,8 +9170,9 @@ function rbSummary(idx){
   if (cd.nfpfArr && cd.nfpfArr.some(x => x && x !== 'nil')) clin.push(lbl('exam:', 'fat/muscle loss'));
   if (cd.tube && cd.tube !== 'Nil' && cd.tube !== '') clin.push(lbl('tube:', rbEsc(cd.tube)));
   if (clin.length) rows.push(rbRow('Clinical', 'var(--rb-clinical)', clin.join(' · ')));
-  // Diet + allergies inline
+  // Diet + intake + allergies inline
   const diet = [];
+  if (intake) diet.push(lbl('intake:', rbEsc(intake.substring(0, 40))));
   if (cd.hospitalDiet) diet.push(rbEsc(cd.hospitalDiet));
   if (cd.homeDiet) diet.push('home: ' + rbEsc(cd.homeDiet.substring(0, 50)));
   const allg = [];
@@ -9209,13 +9209,11 @@ function rbRoutineCtx(idx, it){
 
 function rbItemHTML(o){
   const jot = o.hasJot ? (
-    '<div class="rb-jot"><div class="dest">→ adds to ' + rbEsc(o.dest) + ' · type / for phrases</div>' +
-    '<textarea class="rb-jotarea cr-ans" data-spkey="' + (o.spkey || 'confirmClinical') + '" placeholder="what they said…">' + rbEsc(o.savedAns || '') + '</textarea>' +
-    '<button class="push" onclick="' + o.onSave + '">Save to note</button></div>') : '';
-  const saved = (o.saved && o.savedAns) ? '<div class="rb-ctx" style="color:var(--rb-diet)">✓ ' + rbEsc(o.savedAns) + '</div>' : '';
+    '<div class="rb-jot"><div class="dest">↳ saves to ' + rbEsc(o.dest) + ' automatically · type / for phrases</div>' +
+    '<textarea class="rb-jotarea cr-ans" data-spkey="' + (o.spkey || 'confirmClinical') + '" data-rbidx="' + o.idx + '" data-rbkind="' + o.kind + '" data-rbref="' + o.ref + '" oninput="rbJotDebounce(this)" onblur="rbJotSave(this)" placeholder="what they said…">' + rbEsc(o.savedAns || '') + '</textarea></div>') : '';
   const grow = '<span class="rb-grow' + (o.hasJot ? ' rb-tap' : '') + '"' + (o.hasJot ? ' onclick="rbToggleJot(this,event)"' : '') + '>' +
     '<span class="rb-q">' + o.q + '</span>' +
-    (o.ctx ? '<div class="rb-ctx">' + o.ctx + '</div>' : '') + saved + jot + '</span>';
+    (o.ctx ? '<div class="rb-ctx">' + o.ctx + '</div>' : '') + jot + '</span>';
   return '<div class="rb-ch' + (o.done ? ' done' : '') + '">' +
     '<span class="rb-box" onclick="' + o.onTick + '"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></span>' +
     grow + '</div>';
@@ -9223,26 +9221,26 @@ function rbItemHTML(o){
 
 function rbAsk(idx){
   const cd = rbCd(idx), ba = cd.briefAsk || {};
-  let h = '<div class="rb-hint"><b>Tick</b> once you\'ve asked · <b>tap a question</b> to jot what they said (type / for phrases)</div>';
+  let h = '<div class="rb-hint"><b>Tick</b> once you\'ve asked · <b>tap a question</b> to jot the answer — it saves to the note automatically (type / for phrases)</div>';
   rbRoutineItems(idx).forEach(it => {
     const st = ba[it.k] || {};
     h += rbItemHTML({
+      idx: idx, kind: 'routine', ref: it.k,
       done: !!st.done, q: rbEsc(it.q), ctx: rbRoutineCtx(idx, it),
       onTick: "rbTickRoutine(" + idx + ",'" + it.k + "',this)",
-      hasJot: !!it.target, dest: it.dest, saved: !!st.pushed, savedAns: st.ans || '',
-      spkey: RB_SPKEY[it.target] || 'confirmClinical',
-      onSave: "rbSaveRoutine(" + idx + ",'" + it.k + "',this)"
+      hasJot: !!it.target, dest: it.dest, savedAns: st.ans || '',
+      spkey: RB_SPKEY[it.target] || 'confirmClinical'
     });
   });
   const arr = (typeof _crGet === 'function') ? _crGet(idx) : [];
   arr.forEach((c, i) => {
     h += rbItemHTML({
+      idx: idx, kind: 'confirm', ref: i,
       done: !!c.done, q: rbEsc(c.q),
       ctx: c.suggest ? '<span class="src">from doctor\'s note</span>' : '<span class="src">your note</span>',
       onTick: 'rbTickConfirm(' + idx + ',' + i + ',this)',
-      hasJot: true, dest: (CR_SECTION[c.target] || 'Clinical notes'), saved: !!c.pushed, savedAns: c.ans || '',
-      spkey: RB_SPKEY[c.target] || 'confirmClinical',
-      onSave: 'rbSaveConfirm(' + idx + ',' + i + ',this)'
+      hasJot: true, dest: (CR_SECTION[c.target] || 'Clinical notes'), savedAns: c.ans || '',
+      spkey: RB_SPKEY[c.target] || 'confirmClinical'
     });
   });
   h += '<div class="rb-addown"><input id="rbAddIn' + idx + '" placeholder="Add your own…" ' +
@@ -9321,9 +9319,40 @@ function rbToggleJot(el, ev){
   const ch = el.closest('.rb-ch'); ch.classList.toggle('open');
   if (ch.classList.contains('open')) { const ta = ch.querySelector('.rb-jot textarea'); if (ta) setTimeout(() => ta.focus(), 20); }
 }
-function rbPushToField(idx, target, val){
-  const el = document.getElementById(target + '_' + idx);
-  if (el) { el.value = (el.value.trim() ? el.value.replace(/\s+$/, '') + '\n' : '') + val; el.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(el); }
+// Put an answer into its target field. If this item had a previous answer, replace it
+// in place (so re-editing updates rather than duplicating); otherwise append.
+function rbReplaceInField(idx, target, oldVal, newVal){
+  const el = document.getElementById(target + '_' + idx); if (!el) return;
+  let v = el.value;
+  if (oldVal && v.indexOf(oldVal) !== -1) {
+    v = newVal ? v.replace(oldVal, newVal) : v.replace(oldVal, '');
+    v = v.replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '');
+  } else if (newVal) {
+    v = (v.trim() ? v.replace(/\s+$/, '') + '\n' : '') + newVal;
+  }
+  el.value = v; el.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(el);
+}
+// Auto-save the jotted answer into the note field (debounced while typing, immediate on blur).
+let _rbJotTimer = null;
+function rbJotDebounce(ta){ clearTimeout(_rbJotTimer); _rbJotTimer = setTimeout(function(){ rbJotSave(ta); }, 600); }
+function rbJotSave(ta){
+  if (!ta) return;
+  clearTimeout(_rbJotTimer);
+  const idx = +ta.dataset.rbidx, kind = ta.dataset.rbkind, ref = ta.dataset.rbref;
+  const val = (ta.value || '').trim();
+  if (kind === 'routine') {
+    const it = rbRoutineItems(idx).find(x => x.k === ref); if (!it || !it.target) return;
+    const cd = chartData[idx] || (chartData[idx] = {}); const ba = cd.briefAsk || (cd.briefAsk = {}); const st = ba[ref] || (ba[ref] = {});
+    if (val === (st.ans || '')) return;
+    rbReplaceInField(idx, it.target, st.ans || '', val);
+    st.ans = val; st.pushed = !!val;
+  } else if (kind === 'confirm') {
+    const a = (typeof _crGet === 'function') ? _crGet(idx) : []; const c = a[+ref]; if (!c) return;
+    if (val === (c.ans || '')) return;
+    rbReplaceInField(idx, c.target || 'clinicalNotes', c.ans || '', val);
+    c.ans = val; c.pushed = !!val;
+    if (typeof _crSave === 'function') _crSave(idx, a, false);
+  }
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
 function rbTickRoutine(idx, k, box){
@@ -9334,37 +9363,11 @@ function rbTickRoutine(idx, k, box){
   box.closest('.rb-ch').classList.toggle('done');
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
-function rbSaveRoutine(idx, k, btn){
-  const ch = btn.closest('.rb-ch'); const inp = ch.querySelector('.rb-jot textarea');
-  const val = (inp ? inp.value : '').trim();
-  if (!val) { if (typeof toast === 'function') toast('Type the answer first'); return; }
-  const it = rbRoutineItems(idx).find(x => x.k === k);
-  if (it && it.target) rbPushToField(idx, it.target, val);
-  const cd = chartData[idx] || (chartData[idx] = {});
-  const ba = cd.briefAsk || (cd.briefAsk = {});
-  ba[k] = Object.assign(ba[k] || {}, { ans: val, pushed: true, done: true });
-  ch.classList.add('done'); ch.classList.remove('open');
-  if (typeof toast === 'function') toast('Added to ' + (it ? it.dest : 'note') + ' ✓', 1500);
-  if (typeof scheduleAutosave === 'function') scheduleAutosave();
-}
 function rbTickConfirm(idx, i, box){
   const a = (typeof _crGet === 'function') ? _crGet(idx) : [];
   if (a[i]) { a[i].done = !a[i].done; if (typeof _crSave === 'function') _crSave(idx, a, false); }
   box.closest('.rb-ch').classList.toggle('done');
 }
-function rbSaveConfirm(idx, i, btn){
-  const ch = btn.closest('.rb-ch'); const inp = ch.querySelector('.rb-jot textarea');
-  const val = (inp ? inp.value : '').trim();
-  if (!val) { if (typeof toast === 'function') toast('Type the answer first'); return; }
-  const a = (typeof _crGet === 'function') ? _crGet(idx) : []; const it = a[i]; if (!it) return;
-  const target = it.target || 'clinicalNotes';
-  it.ans = val; it.pushed = true; it.done = true;
-  rbPushToField(idx, target, val);
-  if (typeof _crSave === 'function') _crSave(idx, a, false);
-  ch.classList.add('done'); ch.classList.remove('open');
-  if (typeof toast === 'function') toast('Added to ' + (CR_SECTION[target] || 'note') + ' ✓', 1500);
-}
-
 function copyNote(idx) {
   const plain = noteStore[idx];
   if (!plain) { toast('Generate the note first'); return; }
