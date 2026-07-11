@@ -9034,7 +9034,7 @@ function rbRoutineItems(idx){
     { k: 'cur',      q: 'Current intake?',              target: 'currentIntake',  dest: 'Current intake' },
     { k: 'prior',    q: 'Intake before admission?',     target: 'homeDiet',       dest: 'Diet history' },
     { k: 'bowel',    q: 'Bowels opened?',               target: 'bowelsDetail',   dest: 'Bowels' },
-    { k: 'allerg',   q: 'Allergies still correct?',     target: null,             dest: null },
+    { k: 'allerg',   q: 'Allergies still correct?',     target: 'foodAllergies',  dest: 'Allergies' },
   ];
   if ((p.ageYears || 0) >= 65) {
     items.push({ k: 'swallow', q: 'Any difficulty swallowing?', target: 'swallowDetail', dest: 'Swallowing' });
@@ -9044,7 +9044,7 @@ function rbRoutineItems(idx){
 }
 // Which smart-phrase set each ask answer uses (by its target field).
 const RB_SPKEY = { clinicalNotes: 'confirmClinical', wtHx: 'confirmWeight', homeDiet: 'homeDiet', currentIntake: 'currentIntake',
-  appetiteDetail: 'appetiteDetail', bowelsDetail: 'bowelsDetail', nvDetail: 'nvDetail', swallowDetail: 'swallowDetail', chewingDetail: 'chewingDetail', giDetail: 'confirmClinical' };
+  appetiteDetail: 'appetiteDetail', bowelsDetail: 'bowelsDetail', nvDetail: 'nvDetail', swallowDetail: 'swallowDetail', chewingDetail: 'chewingDetail', giDetail: 'confirmClinical', foodAllergies: 'foodAllergies' };
 const RB_GI = { dist:'Distension', pain:'Abdominal pain', hb:'Heartburn/reflux', flatus:'Flatus', cramps:'Cramps', bloat:'Bloating' };
 function rbCd(idx){ return chartData[idx] || {}; }
 function rbEsc(s){ return (typeof esc === 'function') ? esc(String(s == null ? '' : s)) : String(s == null ? '' : s); }
@@ -9115,6 +9115,8 @@ function rbFlagLabs(s, age, sex){
   return s;
 }
 function rbRow(k, col, v){ return '<div class="rb-srow"><span class="rb-k" style="color:' + col + '">' + k + '</span><span class="rb-v">' + v + '</span></div>'; }
+// "Nil known allergies" style statement (reassurance) vs a real allergy.
+function rbIsNilAllergy(s){ return /\b(nil|no|none|nkda|not)\b/i.test(s) && !/allergic|allerg(?:y|ies)\s*to|reaction|deficien|g6pd/i.test(s); }
 
 function rbSummary(idx){
   const p = patients[idx], cd = rbCd(idx);
@@ -9177,12 +9179,14 @@ function rbSummary(idx){
   if (intake) diet.push(lbl('intake:', rbEsc(intake.substring(0, 40))));
   if (cd.hospitalDiet) diet.push(rbEsc(cd.hospitalDiet));
   if (cd.homeDiet) diet.push('home: ' + rbEsc(cd.homeDiet.substring(0, 50)));
-  const allg = [];
-  if (cd.foodAllergies) allg.push('Allergy: ' + rbEsc(cd.foodAllergies));
-  if (cd.foodIntolerances) allg.push(rbEsc(cd.foodIntolerances) + ' intolerant');
-  if (cd.g6pd === 'Deficient') allg.push('G6PD deficient');
+  // "No known allergy" is reassurance, not a warning — only a REAL allergy is red.
+  const realAllg = [], nilAllg = [];
+  if (cd.foodAllergies) { if (rbIsNilAllergy(cd.foodAllergies)) nilAllg.push(rbEsc(cd.foodAllergies)); else realAllg.push('Allergy: ' + rbEsc(cd.foodAllergies)); }
+  if (cd.foodIntolerances) { if (rbIsNilAllergy(cd.foodIntolerances)) nilAllg.push(rbEsc(cd.foodIntolerances)); else realAllg.push(rbEsc(cd.foodIntolerances) + ' intolerant'); }
+  if (cd.g6pd === 'Deficient') realAllg.push('G6PD deficient');
   let dietHtml = diet.join(' · ');
-  if (allg.length) dietHtml += (diet.length ? ' · ' : '') + '<span class="rb-allg">⚠ ' + allg.join(' · ') + '</span>';
+  if (realAllg.length) dietHtml += (dietHtml ? ' · ' : '') + '<span class="rb-allg">⚠ ' + realAllg.join(' · ') + '</span>';
+  if (nilAllg.length) dietHtml += (dietHtml ? ' · ' : '') + '<span style="color:var(--text-faint)">' + nilAllg.join(' · ') + '</span>';
   if (dietHtml) rows.push(rbRow('Diet', 'var(--rb-diet)', dietHtml));
   // Requirements
   const sr = (typeof stripReqLabel === 'function') ? stripReqLabel : (x => x);
@@ -9346,6 +9350,12 @@ function rbJotSave(ta){
     const it = rbRoutineItems(idx).find(x => x.k === ref); if (!it || !it.target) return;
     const cd = chartData[idx] || (chartData[idx] = {}); const ba = cd.briefAsk || (cd.briefAsk = {}); const st = ba[ref] || (ba[ref] = {});
     if (val === (st.ans || '')) return;
+    // Adding a real allergy on rounds: clear a standing "nil known allergies" first so
+    // the field doesn't read "Nil known food allergies / Allergic to X".
+    if (it.target === 'foodAllergies' && val && !st.ans) {
+      const el = document.getElementById('foodAllergies_' + idx);
+      if (el && rbIsNilAllergy(el.value)) el.value = '';
+    }
     rbReplaceInField(idx, it.target, st.ans || '', val);
     st.ans = val; st.pushed = !!val;
   } else if (kind === 'confirm') {
