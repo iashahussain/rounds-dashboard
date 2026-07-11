@@ -8971,7 +8971,40 @@ const RB_GI = { dist:'Distension', pain:'Abdominal pain', hb:'Heartburn/reflux',
 function rbCd(idx){ return chartData[idx] || {}; }
 function rbEsc(s){ return (typeof esc === 'function') ? esc(String(s == null ? '' : s)) : String(s == null ? '' : s); }
 function rbFlagChg(s){ return /loss|lost|-|–|↓|drop|deficit/i.test(s) ? '<span class="rb-flag">' + rbEsc(s) + '</span>' : rbEsc(s); }
-function rbFlagLabs(s){ return s.replace(/(\d+\.?\d*\s*(?:[↑↓]|H\b|L\b|\*))/g, '<span class="rb-flag">$1</span>'); }
+
+// Reference-range flagging for the bloods line. CONSERVATIVE by design: only labs
+// with unambiguous units + age-stable (or age-banded) ranges are flagged, so paeds /
+// neonatal values aren't mis-flagged. Deliberately NOT auto-flagged (units/paeds ranges
+// vary at TTH — pending confirmation): CRP, Procalcitonin, Urea, Creatinine, LFTs
+// (ALT/AST/ALP), Phosphate, Magnesium, glucose, lipids, RBC indices. Edit ranges here.
+const RB_LAB_REF = [
+  { re: 'Na',            ck: (v)      => v < 135 ? 'low' : (v > 146 ? 'high' : null) },
+  { re: 'K',             ck: (v, a)   => v < 3.5 ? 'low' : (v > (a < 0.083 ? 6.0 : 5.1) ? 'high' : null) },
+  { re: 'Cl',            ck: (v)      => v < 98 ? 'low' : (v > 109 ? 'high' : null) },
+  { re: 'Ca',            ck: (v, a)   => v < (a < 0.083 ? 1.9 : 2.1) ? 'low' : (v > (a < 0.083 ? 2.8 : 2.6) ? 'high' : null) },
+  { re: 'eGFR',          ck: (v)      => v < 60 ? 'low' : null },
+  { re: 'Alb(?:umin)?',  ck: (v)      => v < 3.0 ? 'low' : (v > 5.5 ? 'high' : null) },
+  { re: 'Plt|Platelets', ck: (v)      => v < 150 ? 'low' : (v > 450 ? 'high' : null) },
+  { re: 'WBC',           ck: (v)      => v < 4 ? 'low' : null },
+  { re: 'Hb',            ck: (v, a, s) => v < (a < 0.083 ? 13 : (a < 1 ? 9.5 : (a < 12 ? 11 : (s === 'M' ? 13 : 11.5)))) ? 'low' : null },
+];
+function rbFlagLabs(s, age, sex){
+  age = (typeof age === 'number') ? age : 99;
+  RB_LAB_REF.forEach(L => {
+    const re = new RegExp('\\b(?:' + L.re + ')\\b\\s*:?\\s*[\\d.]+(?:\\s*(?:→|&gt;)\\s*[\\d.]+)*', 'g');
+    s = s.replace(re, (m) => {
+      const nums = m.match(/[\d.]+/g); if (!nums) return m;
+      const v = parseFloat(nums[nums.length - 1]);
+      if (!isFinite(v)) return m;
+      const st = L.ck(v, age, sex);
+      if (!st) return m;
+      return m.replace(/([\d.]+)(?![\s\S]*[\d.])/, '<span class="rb-flag" title="' + st + '">$1</span>');
+    });
+  });
+  // Also honour any ↑ ↓ H L markers she typed herself.
+  s = s.replace(/(\d+\.?\d*\s*(?:[↑↓]|H\b|L\b|\*))/g, '<span class="rb-flag">$1</span>');
+  return s;
+}
 function rbRow(k, col, v){ return '<div class="rb-srow"><span class="rb-k" style="color:' + col + '">' + k + '</span><span class="rb-v">' + v + '</span></div>'; }
 
 function rbSummary(idx){
@@ -8988,17 +9021,31 @@ function rbSummary(idx){
   const pmh = (cd.pmhText || cd.parsedPMH || p.comorbidities || '').trim();
   if (pmh) dxHtml += '<br><span style="color:var(--text-muted);font-size:12px">PMH: ' + rbEsc(pmh.replace(/\s*\n+\s*/g, ' · ').substring(0, 180)) + '</span>';
   if (dx.length) rows.push(rbRow('Dx', 'var(--rb-social)', dxHtml));
-  // Weight
+  // Weight — adult (wt/bmi) OR paediatric (growth engine: wt/bmi empty, data in
+  // wtZ / growthData / pediPaste).
   const wt = [];
-  if (cd.wt) wt.push('<b>' + rbEsc(cd.wt) + ' kg</b>');
-  if (cd.wtChg) wt.push(rbFlagChg(cd.wtChg));
-  if (cd.bmi) wt.push('BMI ' + rbEsc(cd.bmi));
+  if (cd.wt) {
+    wt.push('<b>' + rbEsc(cd.wt) + ' kg</b>');
+    if (cd.bmi) wt.push('BMI ' + rbEsc(cd.bmi));
+  } else {
+    let pwt = '', pht = '';
+    try { const g = JSON.parse(cd.growthData || '{}'); if (g.visits && g.visits[0]) { pwt = g.visits[0].wt || ''; pht = g.visits[0].ht || ''; } } catch (_) {}
+    if (!pwt && cd.pediPaste) { const m = cd.pediPaste.match(/Weight \(kg\)\s+([\d.]+)/i); if (m) pwt = m[1]; }
+    if (pwt) wt.push('<b>' + rbEsc(pwt) + ' kg</b>');
+    if (cd.wtZ) { const zn = parseFloat(cd.wtZ); wt.push('z ' + ((isFinite(zn) && (zn <= -2 || zn >= 2)) ? '<span class="rb-flag">' + rbEsc(cd.wtZ) + '</span>' : rbEsc(cd.wtZ))); }
+    if (pht) wt.push('ht ' + rbEsc(pht) + ' cm');
+  }
+  // Weight change: adult wtChg field, else the paeds pediPaste trend line.
+  let chg = cd.wtChg || '';
+  if (!chg && cd.pediPaste) { const m = cd.pediPaste.match(/weight (?:lost|gained)[^\n]*?\([^)]*%[^)]*\)/i); if (m) chg = m[0].trim(); }
+  if (chg) wt.push(rbFlagChg(chg));
   if (cd.nutStatus) wt.push(rbEsc(cd.nutStatus));
+  if (cd.growthTrend) wt.push(rbEsc(cd.growthTrend));
   if (cd.wtHx && !cd.wtChg) wt.push(rbEsc(cd.wtHx.substring(0, 70)));
   if (wt.length) rows.push(rbRow('Wt', 'var(--rb-anthro)', wt.join(' · ')));
-  // Bloods
-  const labs = [cd.status, cd.renal, cd.elytes, cd.glyc, cd.lft, cd.fbc, cd.iron, cd.micros, cd.lipids, cd.other].filter(x => x && x.trim());
-  if (labs.length) rows.push(rbRow('Bloods', 'var(--rb-biochem)', rbFlagLabs(labs.map(rbEsc).join(' · '))));
+  // Bloods — flag out-of-reference-range values red (age/sex aware).
+  const labs = [cd.status, cd.renal, cd.elytes, cd.glyc, cd.lft, cd.fbc, cd.iron, cd.micros, cd.lipids].filter(x => x && x.trim());
+  if (labs.length) rows.push(rbRow('Bloods', 'var(--rb-biochem)', rbFlagLabs(labs.map(rbEsc).join(' · '), p.ageYears, p.sex)));
   // Clinical (salient / abnormal only)
   const clin = [];
   if (cd.appetite && cd.appetite !== 'Good') clin.push(rbEsc(cd.appetite) + (cd.appetiteDetail ? ' (' + rbEsc(cd.appetiteDetail) + ')' : ''));
