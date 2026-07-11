@@ -1374,6 +1374,52 @@
   .lbl-ic{width:1.5em;height:1.5em;stroke-width:2;vertical-align:-0.38em;margin-right:3px}
   /* Priority dot — keeps the red/amber/green meaning without an emoji. */
   .pdot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:0.02em;margin-right:1px}
+
+  /* ── ROUNDS BRIEF (bedside view, v130) ── */
+  .rbrief{--rb-anthro:#0f6e56;--rb-biochem:#a32d2d;--rb-clinical:#854f0b;--rb-nfpe:#534ab7;--rb-diet:#3b6d11;--rb-reqs:#185fa5;--rb-plan:#993c1d;--rb-social:#5f5e5a;display:flex;flex-direction:column;gap:11px;margin-bottom:14px}
+  body.dark .rbrief{--rb-anthro:#5dcaa5;--rb-biochem:#f09595;--rb-clinical:#efaa3a;--rb-nfpe:#afa9ec;--rb-diet:#85b7eb;--rb-reqs:#85b7eb;--rb-plan:#f0997b;--rb-social:#cfcdc4}
+  .rb-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+  .rb-lab{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-faint);margin:2px;display:flex;align-items:center;gap:6px}
+  .rb-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .rb-srow{display:flex;gap:11px;padding:9px 13px;border-bottom:1px solid var(--border-soft);align-items:baseline}
+  .rb-srow:last-child{border-bottom:0}
+  .rb-k{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;width:52px;flex:none;padding-top:2px}
+  .rb-v{font-size:13px;line-height:1.5;flex:1}
+  .rb-v b{font-weight:600}
+  .rb-flag{color:#c0392b;font-weight:700}
+  body.dark .rb-flag{color:#f09595}
+  .rb-allg{color:#c0392b;font-weight:700}
+  body.dark .rb-allg{color:#f09595}
+  .rb-ask{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--rb-clinical);border-radius:12px;padding:4px 4px 6px}
+  .rb-hint{font-size:11px;color:var(--text-muted);padding:8px 11px 6px;line-height:1.4}
+  .rb-hint b{color:var(--text);font-weight:600}
+  .rb-ch{display:flex;gap:11px;align-items:flex-start;padding:10px 11px;border-top:1px solid var(--border-soft)}
+  .rb-ch:first-of-type{border-top:0}
+  .rb-box{width:21px;height:21px;border-radius:6px;border:2px solid var(--text-faint);flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.12s}
+  .rb-box svg{width:13px;height:13px;stroke:#fff;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+  .rb-ch.done .rb-box{background:var(--accent);border-color:var(--accent)}
+  .rb-ch.done .rb-box svg{opacity:1}
+  .rb-grow{flex:1;min-width:0}
+  .rb-q{font-size:13.5px;line-height:1.35;font-weight:500;display:block}
+  .rb-ch.done .rb-q{color:var(--text-faint);text-decoration:line-through;font-weight:400}
+  .rb-ctx{font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.4}
+  .rb-ctx .noted{color:var(--rb-clinical);font-weight:600}
+  .rb-ctx .src{color:var(--text-faint)}
+  .rb-add{flex:none;align-self:center;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-light);border:0;border-radius:8px;padding:7px 10px;cursor:pointer;white-space:nowrap}
+  .rb-ch.open .rb-add{display:none}
+  .rb-jot{display:none;margin-top:8px}
+  .rb-ch.open .rb-jot{display:block}
+  .rb-jot .dest{font-size:10px;color:var(--text-faint);margin-bottom:5px}
+  .rb-jot .row2{display:flex;gap:6px;align-items:center}
+  .rb-jot input{flex:1;font-family:var(--sans);font-size:12.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--accent);background:var(--bg);color:var(--text)}
+  .rb-jot .push{font-family:var(--mono);font-size:10.5px;font-weight:600;color:#fff;background:var(--accent);border:0;padding:8px 12px;border-radius:8px;white-space:nowrap;cursor:pointer}
+  .rb-plan{background:var(--accent-faint);border:1px solid var(--border);border-left:3px solid var(--rb-plan);border-radius:12px;padding:11px 13px;font-size:13px;line-height:1.5}
+  details.rb-doc{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:2px 4px}
+  details.rb-doc>summary{font-size:12px;font-weight:600;color:var(--text-muted);padding:9px 11px;cursor:pointer;list-style:none}
+  details.rb-doc>summary::-webkit-details-marker{display:none}
+  details.rb-doc .body{font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.6;padding:2px 12px 11px;white-space:pre-wrap}
+  /* When the brief is on, hide the rest of the chart content behind it. */
+  .prechart-content.rb-on > *:not(#rbrief){display:none}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="16.5" x2="15" y2="16.5"/></symbol>
@@ -6312,6 +6358,7 @@ function renderPrechart(idx) {
         </div>
       </div>
       <div class="prechart-actions">
+        <button class="btn-ghost btn-small" onclick="toggleBrief(${idx})" id="briefBtn_${idx}" title="Bedside pre-charting summary + ask-at-bedside checklist"><svg class="ic"><use href="#i-shield"/></svg> Rounds brief</button>
         <button class="btn-primary btn-small hide-mobile" onclick="generateNote(${idx})"><svg class="ic"><use href="#i-spark"/></svg> Generate Note</button>
         <button class="btn-ghost btn-small ${seenSet.has(idx)?'btn-seen-active':''}" onclick="toggleSeen(${idx})" id="seenBtn_${idx}">${seenSet.has(idx)?'<svg class="ic"><use href="#i-eye"/></svg> Seen':'<svg class="ic"><use href="#i-eye"/></svg> Mark Seen'}</button>
         <button class="btn-ghost btn-small session-toggle" onclick="toggleSessionType(${idx},'st','sessToggle_${idx}')" id="sessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
@@ -6910,6 +6957,7 @@ function renderPrechart(idx) {
   expandAllTextareas();
   setTimeout(updateStickyHeader, 50);
   setTimeout(() => showMobileFloatNav(idx, 'ip'), 100);
+  if (typeof mountRoundsBrief === 'function') mountRoundsBrief(idx);
 }
 
 // ── CONFIRM ON ROUNDS — per-patient bedside checklist captured during pre-charting and ticked
@@ -8895,6 +8943,224 @@ function saveChart(idx, silent) {
   if (!cooledDown) chartedSet.add(idx);
   updateStats();
   if (!silent) { toast('Precharting saved ✓'); renderList(); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  ROUNDS BRIEF — bedside view (v130)
+//  A read-first summary of what was pre-charted + an "ask at bedside" checklist,
+//  shown by default when the time phase is Rounds. Reads chartData[idx]; the ask
+//  answers push into the same chart fields (and thus the note) as Confirm-on-rounds,
+//  but the questions themselves never enter the note.
+// ══════════════════════════════════════════════════════════════════════════
+const RB_ROUTINE = [
+  { k: 'wt',     q: 'Confirm weight / any change?', target: 'wtHx',          dest: 'Weight history' },
+  { k: 'cur',    q: 'Current intake?',              target: 'currentIntake', dest: 'Current intake' },
+  { k: 'prior',  q: 'Intake before admission?',     target: 'homeDiet',      dest: 'Diet history' },
+  { k: 'bowel',  q: 'Bowels opened?',               target: 'clinicalNotes', dest: 'Clinical notes' },
+  { k: 'allerg', q: 'Allergies still correct?',     target: null,            dest: null },
+];
+const RB_GI = { dist:'Distension', pain:'Abdominal pain', hb:'Heartburn/reflux', flatus:'Flatus', cramps:'Cramps', bloat:'Bloating' };
+function rbCd(idx){ return chartData[idx] || {}; }
+function rbEsc(s){ return (typeof esc === 'function') ? esc(String(s == null ? '' : s)) : String(s == null ? '' : s); }
+function rbFlagChg(s){ return /loss|lost|-|–|↓|drop|deficit/i.test(s) ? '<span class="rb-flag">' + rbEsc(s) + '</span>' : rbEsc(s); }
+function rbFlagLabs(s){ return s.replace(/(\d+\.?\d*\s*(?:[↑↓]|H\b|L\b|\*))/g, '<span class="rb-flag">$1</span>'); }
+function rbRow(k, col, v){ return '<div class="rb-srow"><span class="rb-k" style="color:' + col + '">' + k + '</span><span class="rb-v">' + v + '</span></div>'; }
+
+function rbSummary(idx){
+  const p = patients[idx], cd = rbCd(idx);
+  if (!p) return '';
+  const rows = [];
+  // Dx + day + PMH
+  const dx = [];
+  if (p.diagnosis) dx.push('<b>' + rbEsc(p.diagnosis.substring(0, 120)) + '</b>');
+  const now = new Date(); now.setHours(0,0,0,0);
+  const admDay = p.doa ? Math.floor((now - p.doa) / 86400000) + 1 : null;
+  if (admDay && admDay > 0) dx.push('day ' + admDay);
+  let dxHtml = dx.join(' · ');
+  const pmh = (cd.pmhText || cd.parsedPMH || p.comorbidities || '').trim();
+  if (pmh) dxHtml += '<br><span style="color:var(--text-muted);font-size:12px">PMH: ' + rbEsc(pmh.replace(/\s*\n+\s*/g, ' · ').substring(0, 180)) + '</span>';
+  if (dx.length) rows.push(rbRow('Dx', 'var(--rb-social)', dxHtml));
+  // Weight
+  const wt = [];
+  if (cd.wt) wt.push('<b>' + rbEsc(cd.wt) + ' kg</b>');
+  if (cd.wtChg) wt.push(rbFlagChg(cd.wtChg));
+  if (cd.bmi) wt.push('BMI ' + rbEsc(cd.bmi));
+  if (cd.nutStatus) wt.push(rbEsc(cd.nutStatus));
+  if (cd.wtHx && !cd.wtChg) wt.push(rbEsc(cd.wtHx.substring(0, 70)));
+  if (wt.length) rows.push(rbRow('Wt', 'var(--rb-anthro)', wt.join(' · ')));
+  // Bloods
+  const labs = [cd.status, cd.renal, cd.elytes, cd.glyc, cd.lft, cd.fbc, cd.iron, cd.micros, cd.lipids, cd.other].filter(x => x && x.trim());
+  if (labs.length) rows.push(rbRow('Bloods', 'var(--rb-biochem)', rbFlagLabs(labs.map(rbEsc).join(' · '))));
+  // Clinical (salient / abnormal only)
+  const clin = [];
+  if (cd.appetite && cd.appetite !== 'Good') clin.push(rbEsc(cd.appetite) + (cd.appetiteDetail ? ' (' + rbEsc(cd.appetiteDetail) + ')' : ''));
+  const intake = cd.intakePct || cd.currentIntake;
+  if (intake) clin.push('intake ' + rbEsc(intake.substring(0, 40)));
+  if (cd.nv && cd.nv !== 'Nil N&V') clin.push(rbEsc(cd.nv) + (cd.nvDetail ? ' (' + rbEsc(cd.nvDetail) + ')' : ''));
+  if (cd.bowels && cd.bowels !== 'Normal' && cd.bowels !== 'Open') clin.push(rbEsc(cd.bowels) + (cd.bowelsLastOpened ? ' (last ' + rbEsc(cd.bowelsLastOpened) + ')' : ''));
+  else if (cd.bowelsLastOpened) clin.push('bowels last ' + rbEsc(cd.bowelsLastOpened));
+  if (cd.swallow && cd.swallow !== 'Normal') clin.push(rbEsc(cd.swallow));
+  if (cd.chewing && cd.chewing !== 'Normal') clin.push(rbEsc(cd.chewing));
+  if (cd.giArr && cd.giArr.length) clin.push(rbEsc(cd.giArr.map(g => RB_GI[g] || g).join(', ')));
+  if (cd.nfpfArr && cd.nfpfArr.some(x => x && x !== 'nil')) clin.push('fat/muscle loss on exam');
+  if (cd.tube && cd.tube !== 'Nil' && cd.tube !== '') clin.push(rbEsc(cd.tube));
+  if (clin.length) rows.push(rbRow('Clinical', 'var(--rb-clinical)', clin.join(' · ')));
+  // Diet + allergies inline
+  const diet = [];
+  if (cd.hospitalDiet) diet.push(rbEsc(cd.hospitalDiet));
+  if (cd.homeDiet) diet.push('home: ' + rbEsc(cd.homeDiet.substring(0, 50)));
+  const allg = [];
+  if (cd.foodAllergies) allg.push('Allergy: ' + rbEsc(cd.foodAllergies));
+  if (cd.foodIntolerances) allg.push(rbEsc(cd.foodIntolerances) + ' intolerant');
+  if (cd.g6pd === 'Deficient') allg.push('G6PD deficient');
+  let dietHtml = diet.join(' · ');
+  if (allg.length) dietHtml += (diet.length ? ' · ' : '') + '<span class="rb-allg">⚠ ' + allg.join(' · ') + '</span>';
+  if (dietHtml) rows.push(rbRow('Diet', 'var(--rb-diet)', dietHtml));
+  // Requirements
+  const sr = (typeof stripReqLabel === 'function') ? stripReqLabel : (x => x);
+  const reqs = [];
+  if (cd.eer) reqs.push('EER <b>' + rbEsc(sr(cd.eer)) + '</b>');
+  if (cd.epr) reqs.push('EPR <b>' + rbEsc(sr(cd.epr)) + '</b>');
+  if (cd.efr) reqs.push('EFR ' + rbEsc(sr(cd.efr)));
+  if (reqs.length) rows.push(rbRow('Reqs', 'var(--rb-reqs)', reqs.join(' · ')));
+  return rows.join('');
+}
+
+function rbRoutineCtx(idx, it){
+  const cd = rbCd(idx), noted = s => 'you noted <span class="noted">' + rbEsc(s) + '</span>';
+  switch (it.k) {
+    case 'wt': { const b = []; if (cd.wt) b.push(cd.wt + ' kg'); if (cd.wtChg) b.push(cd.wtChg); return b.length ? noted(b.join(' · ')) : ''; }
+    case 'cur': { const v = cd.intakePct || cd.currentIntake; return v ? noted(v.substring(0, 50)) : ''; }
+    case 'prior': return cd.homeDiet ? noted(cd.homeDiet.substring(0, 50)) : '';
+    case 'bowel': { const b = []; if (cd.bowels) b.push(cd.bowels); if (cd.bowelsLastOpened) b.push('last ' + cd.bowelsLastOpened); return b.length ? noted(b.join(' · ')) : ''; }
+    case 'allerg': { const a = []; if (cd.foodAllergies) a.push(cd.foodAllergies); if (cd.foodIntolerances) a.push(cd.foodIntolerances); if (cd.g6pd === 'Deficient') a.push('G6PD deficient'); return a.length ? '<span class="noted">' + rbEsc(a.join(' · ')) + '</span>' : '<span class="src">none noted</span>'; }
+  }
+  return '';
+}
+
+function rbItemHTML(o){
+  const jot = o.hasJot ? (
+    '<div class="rb-jot"><div class="dest">→ adds to ' + rbEsc(o.dest) + '</div>' +
+    '<div class="row2"><input placeholder="what they said…" value="' + rbEsc(o.savedAns || '') + '">' +
+    '<button class="push" onclick="' + o.onSave + '">Save</button></div></div>') : '';
+  const add = o.hasJot ? '<button class="rb-add" onclick="rbOpenJot(this)">✎ Answer</button>' : '';
+  const saved = (o.saved && o.savedAns) ? '<div class="rb-ctx" style="color:var(--rb-diet)">✓ ' + rbEsc(o.savedAns) + '</div>' : '';
+  return '<div class="rb-ch' + (o.done ? ' done' : '') + '">' +
+    '<span class="rb-box" onclick="' + o.onTick + '"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></span>' +
+    '<span class="rb-grow"><span class="rb-q">' + o.q + '</span>' +
+    (o.ctx ? '<div class="rb-ctx">' + o.ctx + '</div>' : '') + saved + jot +
+    '</span>' + add + '</div>';
+}
+
+function rbAsk(idx){
+  const cd = rbCd(idx), ba = cd.briefAsk || {};
+  let h = '<div class="rb-hint"><b>Tick</b> once you\'ve asked · tap <b>✎ Answer</b> to jot what they said</div>';
+  RB_ROUTINE.forEach(it => {
+    const st = ba[it.k] || {};
+    h += rbItemHTML({
+      done: !!st.done, q: rbEsc(it.q), ctx: rbRoutineCtx(idx, it),
+      onTick: "rbTickRoutine(" + idx + ",'" + it.k + "',this)",
+      hasJot: !!it.target, dest: it.dest, saved: !!st.pushed, savedAns: st.ans || '',
+      onSave: "rbSaveRoutine(" + idx + ",'" + it.k + "',this)"
+    });
+  });
+  const arr = (typeof _crGet === 'function') ? _crGet(idx) : [];
+  arr.forEach((c, i) => {
+    h += rbItemHTML({
+      done: !!c.done, q: rbEsc(c.q),
+      ctx: c.suggest ? '<span class="src">from doctor\'s note</span>' : '<span class="src">your note</span>',
+      onTick: 'rbTickConfirm(' + idx + ',' + i + ',this)',
+      hasJot: true, dest: (CR_SECTION[c.target] || 'Clinical notes'), saved: !!c.pushed, savedAns: c.ans || '',
+      onSave: 'rbSaveConfirm(' + idx + ',' + i + ',this)'
+    });
+  });
+  return '<div class="rb-ask">' + h + '</div>';
+}
+
+function buildRoundsBrief(idx){
+  const p = patients[idx]; if (!p) return '';
+  const cd = rbCd(idx);
+  const bar = '<div class="rb-bar"><span class="rb-lab" style="margin:0"><svg class="ic"><use href="#i-shield"/></svg> Rounds brief</span>' +
+    '<button class="btn-ghost btn-small" onclick="toggleBrief(' + idx + ')"><svg class="ic"><use href="#i-file"/></svg> Full chart ›</button></div>';
+  const sRows = rbSummary(idx);
+  const summary = '<div class="rb-lab">Pre-charting summary</div><div class="rb-card">' +
+    (sRows || '<div class="rb-srow"><span class="rb-v" style="color:var(--text-muted)">Nothing precharted yet — tap Full chart to start.</span></div>') + '</div>';
+  const ask = '<div class="rb-lab">✔ Ask at bedside</div>' + rbAsk(idx);
+  const planTxt = [cd.goals, cd.intervention].filter(x => x && x.trim()).map(t => rbEsc(t).replace(/\n/g, '<br>')).join('<br>');
+  const plan = planTxt ? '<div class="rb-lab">Plan I\'m thinking</div><div class="rb-plan">' + planTxt + '</div>' : '';
+  const dn = cd.docNote ? '<details class="rb-doc"><summary>Doctor\'s note (reference)</summary><div class="body">' + rbEsc(cd.docNote) + '</div></details>' : '';
+  return bar + summary + ask + plan + dn;
+}
+
+function rbSetBtn(idx, on){
+  const btn = document.getElementById('briefBtn_' + idx);
+  if (btn) btn.innerHTML = on ? '<svg class="ic"><use href="#i-file"/></svg> Full chart' : '<svg class="ic"><use href="#i-shield"/></svg> Rounds brief';
+}
+function mountRoundsBrief(idx){
+  const c = document.getElementById('pc' + idx); if (!c) return;
+  if (typeof suggestConfirms === 'function') { try { suggestConfirms(idx); } catch (_) {} }
+  const old = document.getElementById('rbrief'); if (old) old.remove();
+  const b = document.createElement('div'); b.id = 'rbrief'; b.className = 'rbrief';
+  b.innerHTML = buildRoundsBrief(idx);
+  c.insertBefore(b, c.firstChild);
+  const onRounds = (typeof detectPhase === 'function' && detectPhase() === 'rounds');
+  c.classList.toggle('rb-on', !!onRounds);
+  rbSetBtn(idx, !!onRounds);
+}
+function toggleBrief(idx){
+  const c = document.getElementById('pc' + idx); if (!c) return;
+  const on = !c.classList.contains('rb-on');
+  if (on) { const b = document.getElementById('rbrief'); if (b) b.innerHTML = buildRoundsBrief(idx); }
+  c.classList.toggle('rb-on', on);
+  rbSetBtn(idx, on);
+  const wrap = c.closest('.prechart-wrap') || c.parentElement;
+  if (wrap && wrap.scrollTo) wrap.scrollTo(0, 0);
+}
+
+// ── ask-item interactions ──
+function rbOpenJot(btn){ const ch = btn.closest('.rb-ch'); ch.classList.add('open'); const i = ch.querySelector('.rb-jot input'); if (i) setTimeout(() => i.focus(), 20); }
+function rbPushToField(idx, target, val){
+  const el = document.getElementById(target + '_' + idx);
+  if (el) { el.value = (el.value.trim() ? el.value.replace(/\s+$/, '') + '\n' : '') + val; el.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(el); }
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
+}
+function rbTickRoutine(idx, k, box){
+  const cd = chartData[idx] || (chartData[idx] = {});
+  const ba = cd.briefAsk || (cd.briefAsk = {});
+  const st = ba[k] || (ba[k] = {});
+  st.done = !st.done;
+  box.closest('.rb-ch').classList.toggle('done');
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
+}
+function rbSaveRoutine(idx, k, btn){
+  const ch = btn.closest('.rb-ch'); const inp = ch.querySelector('.rb-jot input');
+  const val = (inp ? inp.value : '').trim();
+  if (!val) { if (typeof toast === 'function') toast('Type the answer first'); return; }
+  const it = RB_ROUTINE.find(x => x.k === k);
+  if (it && it.target) rbPushToField(idx, it.target, val);
+  const cd = chartData[idx] || (chartData[idx] = {});
+  const ba = cd.briefAsk || (cd.briefAsk = {});
+  ba[k] = Object.assign(ba[k] || {}, { ans: val, pushed: true, done: true });
+  ch.classList.add('done'); ch.classList.remove('open');
+  if (typeof toast === 'function') toast('Added to ' + (it ? it.dest : 'note') + ' ✓', 1500);
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
+}
+function rbTickConfirm(idx, i, box){
+  const a = (typeof _crGet === 'function') ? _crGet(idx) : [];
+  if (a[i]) { a[i].done = !a[i].done; if (typeof _crSave === 'function') _crSave(idx, a, false); }
+  box.closest('.rb-ch').classList.toggle('done');
+}
+function rbSaveConfirm(idx, i, btn){
+  const ch = btn.closest('.rb-ch'); const inp = ch.querySelector('.rb-jot input');
+  const val = (inp ? inp.value : '').trim();
+  if (!val) { if (typeof toast === 'function') toast('Type the answer first'); return; }
+  const a = (typeof _crGet === 'function') ? _crGet(idx) : []; const it = a[i]; if (!it) return;
+  const target = it.target || 'clinicalNotes';
+  it.ans = val; it.pushed = true; it.done = true;
+  rbPushToField(idx, target, val);
+  if (typeof _crSave === 'function') _crSave(idx, a, false);
+  ch.classList.add('done'); ch.classList.remove('open');
+  if (typeof toast === 'function') toast('Added to ' + (CR_SECTION[target] || 'note') + ' ✓', 1500);
 }
 
 function copyNote(idx) {
