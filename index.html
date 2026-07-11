@@ -1414,6 +1414,12 @@
   .rb-jot input{flex:1;font-family:var(--sans);font-size:12.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--accent);background:var(--bg);color:var(--text)}
   .rb-jot .push{font-family:var(--mono);font-size:10.5px;font-weight:600;color:#fff;background:var(--accent);border:0;padding:8px 12px;border-radius:8px;white-space:nowrap;cursor:pointer}
   .rb-plan{background:var(--accent-faint);border:1px solid var(--border);border-left:3px solid var(--rb-plan);border-radius:12px;padding:11px 13px;font-size:13px;line-height:1.5}
+  .rb-plan-goals{font-size:11px;color:var(--text-muted);margin:0 2px 5px;line-height:1.4}
+  .rb-plan-edit{width:100%;box-sizing:border-box;min-height:60px;font-family:var(--sans);font-size:13px;line-height:1.5;color:var(--text);background:var(--accent-faint);border:1px solid var(--border);border-left:3px solid var(--rb-plan);border-radius:12px;padding:11px 13px;resize:vertical}
+  .rb-plan-edit:focus{outline:none;border-color:var(--accent);border-left-color:var(--rb-plan)}
+  /* Hide the wayfinding nav while the brief is up — it only helps in the full chart. */
+  body.rb-active #mobileFloatNav{display:none!important}
+  .prechart-content.rb-on .jump-nav{display:none!important}
   details.rb-doc{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:2px 4px}
   details.rb-doc>summary{font-size:12px;font-weight:600;color:var(--text-muted);padding:9px 11px;cursor:pointer;list-style:none}
   details.rb-doc>summary::-webkit-details-marker{display:none}
@@ -2084,6 +2090,7 @@ function unchart(idx) {
 // edits first so nothing is lost, ends the panel/focus timing, and re-shows the list on mobile.
 function closeIPPanel() {
   const idx = activeIdx;
+  document.body.classList.remove('rb-active'); // brief closed → restore nav elsewhere
   if (idx != null && typeof saveChart === 'function') saveChart(idx, true);
   if (typeof closeIPPanelLog === 'function') closeIPPanelLog();
   if (typeof stopFocusTimer === 'function') stopFocusTimer();
@@ -5844,6 +5851,7 @@ function renderOPDList() {
 
 function selectOPDPatient(i) {
   closeIPPanelLog(); // v59: close any open IP panel timing entry
+  document.body.classList.remove('rb-active'); // leaving IP → OPD: restore the nav
   opdActiveIdx = i;
   maybeAutoStartOPDConsult(i); // v116: begin timing the consult on first open
   renderOPDList();
@@ -9086,8 +9094,10 @@ function buildRoundsBrief(idx){
   const summary = '<div class="rb-lab">Pre-charting summary</div><div class="rb-card">' +
     (sRows || '<div class="rb-srow"><span class="rb-v" style="color:var(--text-muted)">Nothing precharted yet — tap Full chart to start.</span></div>') + '</div>';
   const ask = '<div class="rb-lab">✔ Ask at bedside</div>' + rbAsk(idx);
-  const planTxt = [cd.goals, cd.intervention].filter(x => x && x.trim()).map(t => rbEsc(t).replace(/\n/g, '<br>')).join('<br>');
-  const plan = planTxt ? '<div class="rb-lab">Plan I\'m thinking</div><div class="rb-plan">' + planTxt + '</div>' : '';
+  // Plan is editable at the bedside — writes straight back to the Intervention field.
+  const goalsLine = (cd.goals && cd.goals.trim()) ? '<div class="rb-plan-goals"><b>Goals:</b> ' + rbEsc(cd.goals) + '</div>' : '';
+  const plan = '<div class="rb-lab">Plan I\'m thinking</div>' + goalsLine +
+    '<textarea class="rb-plan-edit" id="rbPlan_' + idx + '" oninput="rbPlanEdit(' + idx + ',this)" placeholder="Your intervention / plan — edit freely, saves to the note">' + rbEsc(cd.intervention || '') + '</textarea>';
   const dn = cd.docNote ? '<details class="rb-doc"><summary>Doctor\'s note (reference)</summary><div class="body">' + rbEsc(cd.docNote) + '</div></details>' : '';
   return bar + summary + ask + plan + dn;
 }
@@ -9105,6 +9115,7 @@ function mountRoundsBrief(idx){
   c.insertBefore(b, c.firstChild);
   const onRounds = (typeof detectPhase === 'function' && detectPhase() === 'rounds');
   c.classList.toggle('rb-on', !!onRounds);
+  document.body.classList.toggle('rb-active', !!onRounds);
   rbSetBtn(idx, !!onRounds);
 }
 function toggleBrief(idx){
@@ -9112,9 +9123,17 @@ function toggleBrief(idx){
   const on = !c.classList.contains('rb-on');
   if (on) { const b = document.getElementById('rbrief'); if (b) b.innerHTML = buildRoundsBrief(idx); }
   c.classList.toggle('rb-on', on);
+  document.body.classList.toggle('rb-active', on);
   rbSetBtn(idx, on);
   const wrap = c.closest('.prechart-wrap') || c.parentElement;
   if (wrap && wrap.scrollTo) wrap.scrollTo(0, 0);
+}
+// Edit the plan from the brief — mirror into the Intervention field so it flows to the note.
+function rbPlanEdit(idx, ta){
+  const el = document.getElementById('intervention_' + idx);
+  if (el) { el.value = ta.value; if (typeof autoExpand === 'function') autoExpand(el); }
+  if (chartData[idx]) chartData[idx].intervention = ta.value;
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
 
 // ── ask-item interactions ──
