@@ -1386,6 +1386,7 @@
   .rb-k{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;width:52px;flex:none;padding-top:2px}
   .rb-v{font-size:13px;line-height:1.5;flex:1}
   .rb-v b{font-weight:600}
+  .rb-cl{color:var(--text-muted);font-weight:600;font-size:11.5px}
   .rb-flag{color:#c0392b;font-weight:700}
   body.dark .rb-flag{color:#f09595}
   .rb-allg{color:#c0392b;font-weight:700}
@@ -1408,14 +1409,13 @@
   .rb-ctx{font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.4}
   .rb-ctx .noted{color:var(--rb-clinical);font-weight:600}
   .rb-ctx .src{color:var(--text-faint)}
-  .rb-add{flex:none;align-self:center;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-light);border:0;border-radius:8px;padding:7px 10px;cursor:pointer;white-space:nowrap}
-  .rb-ch.open .rb-add{display:none}
+  .rb-tap{cursor:pointer}
   .rb-jot{display:none;margin-top:8px}
   .rb-ch.open .rb-jot{display:block}
   .rb-jot .dest{font-size:10px;color:var(--text-faint);margin-bottom:5px}
-  .rb-jot .row2{display:flex;gap:6px;align-items:center}
-  .rb-jot input{flex:1;font-family:var(--sans);font-size:12.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--accent);background:var(--bg);color:var(--text)}
-  .rb-jot .push{font-family:var(--mono);font-size:10.5px;font-weight:600;color:#fff;background:var(--accent);border:0;padding:8px 12px;border-radius:8px;white-space:nowrap;cursor:pointer}
+  .rb-jotarea{width:100%;box-sizing:border-box;min-height:64px;font-family:var(--sans);font-size:13px;line-height:1.5;padding:9px 11px;border-radius:8px;border:1px solid var(--accent);background:var(--bg);color:var(--text);resize:vertical}
+  .rb-jotarea:focus{outline:none}
+  .rb-jot .push{margin-top:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:#fff;background:var(--accent);border:0;padding:8px 14px;border-radius:8px;white-space:nowrap;cursor:pointer}
   .rb-addown{display:flex;gap:6px;padding:10px 11px 5px;border-top:1px solid var(--border-soft)}
   .rb-addown input{flex:1;font-family:var(--sans);font-size:12.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
   .rb-addown button{font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--accent);background:var(--accent-light);border:0;border-radius:8px;padding:8px 12px;cursor:pointer;white-space:nowrap}
@@ -4291,9 +4291,14 @@ function restoreSessionData(data) {
 
   // Defer rendering until DOM settles
   setTimeout(() => {
-    currentFilter = 'all';
+    // On the phone during Rounds, default to the pre-charted worklist (that's what you
+    // walk the round with); otherwise show all.
+    const chartedDefault = (typeof detectDevice === 'function' && detectDevice() === 'mobile')
+      && (typeof detectPhase === 'function' && detectPhase() === 'rounds')
+      && chartedSet.size > 0;
+    currentFilter = chartedDefault ? 'charted' : 'all';
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('fb-all')?.classList.add('active');
+    document.getElementById(chartedDefault ? 'fb-charted' : 'fb-all')?.classList.add('active');
     document.getElementById('filterRow') && (document.getElementById('filterRow').style.display = 'flex');
     updateStats();
     renderList();
@@ -8967,13 +8972,26 @@ function saveChart(idx, silent) {
 //  answers push into the same chart fields (and thus the note) as Confirm-on-rounds,
 //  but the questions themselves never enter the note.
 // ══════════════════════════════════════════════════════════════════════════
-const RB_ROUTINE = [
-  { k: 'wt',     q: 'Confirm weight / any change?', target: 'wtHx',          dest: 'Weight history' },
-  { k: 'cur',    q: 'Current intake?',              target: 'currentIntake', dest: 'Current intake' },
-  { k: 'prior',  q: 'Intake before admission?',     target: 'homeDiet',      dest: 'Diet history' },
-  { k: 'bowel',  q: 'Bowels opened?',               target: 'clinicalNotes', dest: 'Clinical notes' },
-  { k: 'allerg', q: 'Allergies still correct?',     target: null,            dest: null },
-];
+// Bedside asks. Weight, appetite, intake, prior intake, bowels, allergies for everyone;
+// swallowing + chewing added for elderly patients (≥65).
+function rbRoutineItems(idx){
+  const p = patients[idx] || {};
+  const items = [
+    { k: 'wt',       q: 'Confirm weight / any change?', target: 'wtHx',          dest: 'Weight history' },
+    { k: 'appetite', q: 'How is the appetite?',         target: 'clinicalNotes', dest: 'Clinical notes' },
+    { k: 'cur',      q: 'Current intake?',              target: 'currentIntake', dest: 'Current intake' },
+    { k: 'prior',    q: 'Intake before admission?',     target: 'homeDiet',      dest: 'Diet history' },
+    { k: 'bowel',    q: 'Bowels opened?',               target: 'clinicalNotes', dest: 'Clinical notes' },
+    { k: 'allerg',   q: 'Allergies still correct?',     target: null,            dest: null },
+  ];
+  if ((p.ageYears || 0) >= 65) {
+    items.push({ k: 'swallow', q: 'Any difficulty swallowing?', target: 'clinicalNotes', dest: 'Clinical notes' });
+    items.push({ k: 'chewing', q: 'Any difficulty chewing?',    target: 'clinicalNotes', dest: 'Clinical notes' });
+  }
+  return items;
+}
+// Which smart-phrase set each ask answer uses (by its target field).
+const RB_SPKEY = { clinicalNotes: 'confirmClinical', wtHx: 'confirmWeight', homeDiet: 'homeDiet', currentIntake: 'currentIntake' };
 const RB_GI = { dist:'Distension', pain:'Abdominal pain', hb:'Heartburn/reflux', flatus:'Flatus', cramps:'Cramps', bloat:'Bloating' };
 function rbCd(idx){ return chartData[idx] || {}; }
 function rbEsc(s){ return (typeof esc === 'function') ? esc(String(s == null ? '' : s)) : String(s == null ? '' : s); }
@@ -9089,17 +9107,18 @@ function rbSummary(idx){
   if (labs.length) rows.push(rbRow('Bloods', 'var(--rb-biochem)', rbFlagLabs(labs.map(rbEsc).join(' · '), p.ageYears, p.sex)));
   // Clinical (salient / abnormal only)
   const clin = [];
-  if (cd.appetite && cd.appetite !== 'Good') clin.push(rbEsc(cd.appetite) + (cd.appetiteDetail ? ' (' + rbEsc(cd.appetiteDetail) + ')' : ''));
+  const lbl = (t, v) => '<span class="rb-cl">' + t + '</span> ' + v;   // "appetite: poor" so values aren't ambiguous
+  if (cd.appetite && cd.appetite !== 'Good') clin.push(lbl('appetite:', rbEsc(cd.appetite).toLowerCase() + (cd.appetiteDetail ? ' (' + rbEsc(cd.appetiteDetail) + ')' : '')));
   const intake = cd.intakePct || cd.currentIntake;
-  if (intake) clin.push('intake ' + rbEsc(intake.substring(0, 40)));
-  if (cd.nv && cd.nv !== 'Nil N&V') clin.push(rbEsc(cd.nv) + (cd.nvDetail ? ' (' + rbEsc(cd.nvDetail) + ')' : ''));
-  if (cd.bowels && cd.bowels !== 'Normal' && cd.bowels !== 'Open') clin.push(rbEsc(cd.bowels) + (cd.bowelsLastOpened ? ' (last ' + rbEsc(cd.bowelsLastOpened) + ')' : ''));
-  else if (cd.bowelsLastOpened) clin.push('bowels last ' + rbEsc(cd.bowelsLastOpened));
-  if (cd.swallow && cd.swallow !== 'Normal') clin.push(rbEsc(cd.swallow));
-  if (cd.chewing && cd.chewing !== 'Normal') clin.push(rbEsc(cd.chewing));
-  if (cd.giArr && cd.giArr.length) clin.push(rbEsc(cd.giArr.map(g => RB_GI[g] || g).join(', ')));
-  if (cd.nfpfArr && cd.nfpfArr.some(x => x && x !== 'nil')) clin.push('fat/muscle loss on exam');
-  if (cd.tube && cd.tube !== 'Nil' && cd.tube !== '') clin.push(rbEsc(cd.tube));
+  if (intake) clin.push(lbl('intake:', rbEsc(intake.substring(0, 40))));
+  if (cd.nv && cd.nv !== 'Nil N&V') clin.push(lbl('N/V:', rbEsc(cd.nv).toLowerCase() + (cd.nvDetail ? ' (' + rbEsc(cd.nvDetail) + ')' : '')));
+  if (cd.bowels && cd.bowels !== 'Normal' && cd.bowels !== 'Open') clin.push(lbl('bowels:', rbEsc(cd.bowels).toLowerCase() + (cd.bowelsLastOpened ? ' (last ' + rbEsc(cd.bowelsLastOpened) + ')' : '')));
+  else if (cd.bowelsLastOpened) clin.push(lbl('bowels:', 'last ' + rbEsc(cd.bowelsLastOpened)));
+  if (cd.swallow && cd.swallow !== 'Normal') clin.push(lbl('swallow:', rbEsc(cd.swallow).toLowerCase()));
+  if (cd.chewing && cd.chewing !== 'Normal') clin.push(lbl('chewing:', rbEsc(cd.chewing).toLowerCase()));
+  if (cd.giArr && cd.giArr.length) clin.push(lbl('GI:', rbEsc(cd.giArr.map(g => RB_GI[g] || g).join(', ')).toLowerCase()));
+  if (cd.nfpfArr && cd.nfpfArr.some(x => x && x !== 'nil')) clin.push(lbl('exam:', 'fat/muscle loss'));
+  if (cd.tube && cd.tube !== 'Nil' && cd.tube !== '') clin.push(lbl('tube:', rbEsc(cd.tube)));
   if (clin.length) rows.push(rbRow('Clinical', 'var(--rb-clinical)', clin.join(' · ')));
   // Diet + allergies inline
   const diet = [];
@@ -9126,9 +9145,12 @@ function rbRoutineCtx(idx, it){
   const cd = rbCd(idx), noted = s => 'you noted <span class="noted">' + rbEsc(s) + '</span>';
   switch (it.k) {
     case 'wt': { const b = []; if (cd.wt) b.push(cd.wt + ' kg'); if (cd.wtChg) b.push(cd.wtChg); return b.length ? noted(b.join(' · ')) : ''; }
+    case 'appetite': { const b = []; if (cd.appetite) b.push(cd.appetite); if (cd.appetiteDetail) b.push(cd.appetiteDetail); return b.length ? noted(b.join(' — ')) : ''; }
     case 'cur': { const v = cd.intakePct || cd.currentIntake; return v ? noted(v.substring(0, 50)) : ''; }
     case 'prior': return cd.homeDiet ? noted(cd.homeDiet.substring(0, 50)) : '';
     case 'bowel': { const b = []; if (cd.bowels) b.push(cd.bowels); if (cd.bowelsLastOpened) b.push('last ' + cd.bowelsLastOpened); return b.length ? noted(b.join(' · ')) : ''; }
+    case 'swallow': return (cd.swallow && cd.swallow !== 'Normal') ? noted(cd.swallow + (cd.swallowDetail ? ' — ' + cd.swallowDetail : '')) : '';
+    case 'chewing': return (cd.chewing && cd.chewing !== 'Normal') ? noted(cd.chewing + (cd.chewingDetail ? ' — ' + cd.chewingDetail : '')) : '';
     case 'allerg': { const a = []; if (cd.foodAllergies) a.push(cd.foodAllergies); if (cd.foodIntolerances) a.push(cd.foodIntolerances); if (cd.g6pd === 'Deficient') a.push('G6PD deficient'); return a.length ? '<span class="noted">' + rbEsc(a.join(' · ')) + '</span>' : '<span class="src">none noted</span>'; }
   }
   return '';
@@ -9136,27 +9158,28 @@ function rbRoutineCtx(idx, it){
 
 function rbItemHTML(o){
   const jot = o.hasJot ? (
-    '<div class="rb-jot"><div class="dest">→ adds to ' + rbEsc(o.dest) + '</div>' +
-    '<div class="row2"><input placeholder="what they said…" value="' + rbEsc(o.savedAns || '') + '">' +
-    '<button class="push" onclick="' + o.onSave + '">Save</button></div></div>') : '';
-  const add = o.hasJot ? '<button class="rb-add" onclick="rbOpenJot(this)">✎ Answer</button>' : '';
+    '<div class="rb-jot"><div class="dest">→ adds to ' + rbEsc(o.dest) + ' · type / for phrases</div>' +
+    '<textarea class="rb-jotarea cr-ans" data-spkey="' + (o.spkey || 'confirmClinical') + '" placeholder="what they said…">' + rbEsc(o.savedAns || '') + '</textarea>' +
+    '<button class="push" onclick="' + o.onSave + '">Save to note</button></div>') : '';
   const saved = (o.saved && o.savedAns) ? '<div class="rb-ctx" style="color:var(--rb-diet)">✓ ' + rbEsc(o.savedAns) + '</div>' : '';
+  const grow = '<span class="rb-grow' + (o.hasJot ? ' rb-tap' : '') + '"' + (o.hasJot ? ' onclick="rbToggleJot(this,event)"' : '') + '>' +
+    '<span class="rb-q">' + o.q + '</span>' +
+    (o.ctx ? '<div class="rb-ctx">' + o.ctx + '</div>' : '') + saved + jot + '</span>';
   return '<div class="rb-ch' + (o.done ? ' done' : '') + '">' +
     '<span class="rb-box" onclick="' + o.onTick + '"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></span>' +
-    '<span class="rb-grow"><span class="rb-q">' + o.q + '</span>' +
-    (o.ctx ? '<div class="rb-ctx">' + o.ctx + '</div>' : '') + saved + jot +
-    '</span>' + add + '</div>';
+    grow + '</div>';
 }
 
 function rbAsk(idx){
   const cd = rbCd(idx), ba = cd.briefAsk || {};
-  let h = '<div class="rb-hint"><b>Tick</b> once you\'ve asked · tap <b>✎ Answer</b> to jot what they said</div>';
-  RB_ROUTINE.forEach(it => {
+  let h = '<div class="rb-hint"><b>Tick</b> once you\'ve asked · <b>tap a question</b> to jot what they said (type / for phrases)</div>';
+  rbRoutineItems(idx).forEach(it => {
     const st = ba[it.k] || {};
     h += rbItemHTML({
       done: !!st.done, q: rbEsc(it.q), ctx: rbRoutineCtx(idx, it),
       onTick: "rbTickRoutine(" + idx + ",'" + it.k + "',this)",
       hasJot: !!it.target, dest: it.dest, saved: !!st.pushed, savedAns: st.ans || '',
+      spkey: RB_SPKEY[it.target] || 'confirmClinical',
       onSave: "rbSaveRoutine(" + idx + ",'" + it.k + "',this)"
     });
   });
@@ -9167,6 +9190,7 @@ function rbAsk(idx){
       ctx: c.suggest ? '<span class="src">from doctor\'s note</span>' : '<span class="src">your note</span>',
       onTick: 'rbTickConfirm(' + idx + ',' + i + ',this)',
       hasJot: true, dest: (CR_SECTION[c.target] || 'Clinical notes'), saved: !!c.pushed, savedAns: c.ans || '',
+      spkey: RB_SPKEY[c.target] || 'confirmClinical',
       onSave: 'rbSaveConfirm(' + idx + ',' + i + ',this)'
     });
   });
@@ -9236,7 +9260,11 @@ function rbPlanEdit(idx, ta){
 }
 
 // ── ask-item interactions ──
-function rbOpenJot(btn){ const ch = btn.closest('.rb-ch'); ch.classList.add('open'); const i = ch.querySelector('.rb-jot input'); if (i) setTimeout(() => i.focus(), 20); }
+function rbToggleJot(el, ev){
+  if (ev && ev.target && ev.target.closest('.rb-jot')) return;   // taps inside the open box shouldn't toggle it
+  const ch = el.closest('.rb-ch'); ch.classList.toggle('open');
+  if (ch.classList.contains('open')) { const ta = ch.querySelector('.rb-jot textarea'); if (ta) setTimeout(() => ta.focus(), 20); }
+}
 function rbPushToField(idx, target, val){
   const el = document.getElementById(target + '_' + idx);
   if (el) { el.value = (el.value.trim() ? el.value.replace(/\s+$/, '') + '\n' : '') + val; el.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(el); }
@@ -9251,10 +9279,10 @@ function rbTickRoutine(idx, k, box){
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
 function rbSaveRoutine(idx, k, btn){
-  const ch = btn.closest('.rb-ch'); const inp = ch.querySelector('.rb-jot input');
+  const ch = btn.closest('.rb-ch'); const inp = ch.querySelector('.rb-jot textarea');
   const val = (inp ? inp.value : '').trim();
   if (!val) { if (typeof toast === 'function') toast('Type the answer first'); return; }
-  const it = RB_ROUTINE.find(x => x.k === k);
+  const it = rbRoutineItems(idx).find(x => x.k === k);
   if (it && it.target) rbPushToField(idx, it.target, val);
   const cd = chartData[idx] || (chartData[idx] = {});
   const ba = cd.briefAsk || (cd.briefAsk = {});
@@ -9269,7 +9297,7 @@ function rbTickConfirm(idx, i, box){
   box.closest('.rb-ch').classList.toggle('done');
 }
 function rbSaveConfirm(idx, i, btn){
-  const ch = btn.closest('.rb-ch'); const inp = ch.querySelector('.rb-jot input');
+  const ch = btn.closest('.rb-ch'); const inp = ch.querySelector('.rb-jot textarea');
   const val = (inp ? inp.value : '').trim();
   if (!val) { if (typeof toast === 'function') toast('Type the answer first'); return; }
   const a = (typeof _crGet === 'function') ? _crGet(idx) : []; const it = a[i]; if (!it) return;
