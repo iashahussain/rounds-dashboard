@@ -1433,6 +1433,43 @@
   details.rb-doc .body{font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.6;padding:2px 12px 11px;white-space:pre-wrap}
   /* When the brief is on, hide the rest of the chart content behind it. */
   .prechart-content.rb-on > *:not(#rbrief){display:none}
+
+  /* ── ROUNDS PATIENT HEADER (v142) — timer folded in, traffic-light escalation ── */
+  .ph-top{display:flex;align-items:center;gap:10px}
+  .prechart-header .ph-name{font-size:16.5px;font-weight:700;letter-spacing:-.01em;line-height:1.15;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
+  .prechart-header .ph-name .ph-age{font-size:12.5px;font-weight:600;color:var(--text-muted);margin-left:8px}
+  .ph-tmr{flex:none;font-family:var(--mono);font-weight:800;font-size:22px;line-height:1;display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:999px;background:#1a8a4f;color:#fff;white-space:nowrap;box-shadow:0 2px 8px rgba(26,138,79,.35)}
+  .ph-tmr .tclock{width:19px;height:19px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  .ph-tmr.tl-amber{background:#f4c22b;color:#4a3800;box-shadow:0 2px 8px rgba(244,194,43,.45);animation:phpulse 1.5s ease-in-out infinite}
+  .ph-tmr.tl-amber .tclock{stroke:#4a3800}
+  .ph-tmr.tl-red{background:#d1382c;color:#fff;box-shadow:0 2px 10px rgba(209,56,44,.45);animation:phpulse 1.1s ease-in-out infinite}
+  @keyframes phpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.82;transform:scale(1.05)}}
+  body.dark .ph-tmr{background:#1f9a5a}
+  body.dark .ph-tmr.tl-amber{background:#f4c22b;color:#4a3800}
+  body.dark .ph-tmr.tl-amber .tclock{stroke:#4a3800}
+  body.dark .ph-tmr.tl-red{background:#d1382c;color:#fff}
+  body.dark .ph-tmr.tl-red .tclock{stroke:#fff}
+  /* whole header tints with the timer state */
+  .prechart-header.tl-amber{border-left:6px solid #e0a800!important;background:#fdf7df!important}
+  body.dark .prechart-header.tl-amber{border-left-color:#e6b52a!important;background:#241f0e!important}
+  .prechart-header.tl-red{border-left:6px solid #c0392b!important;background:#fdeceb!important}
+  body.dark .prechart-header.tl-red{border-left-color:#dc5450!important;background:#251413!important}
+  .ph-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:7px;font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+  .ph-room{background:var(--surface2);color:var(--text-muted);font-weight:600;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid var(--border)}
+  .ph-pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;line-height:1;cursor:pointer}
+  .ph-pill .pdotx{width:6px;height:6px;border-radius:50%;display:inline-block}
+  .ph-rev{background:#fbe0ec;color:#b03060}
+  body.dark .ph-rev{background:#3a1a28;color:#f0a8c8}
+  .ph-assess{background:#dff0e2;color:#2a7d4f}
+  body.dark .ph-assess{background:#14301f;color:#7ccf9e}
+  .ph-ref{background:var(--accent-light);color:var(--accent)}
+  body.dark .ph-ref{color:#cdbcf2}
+  .ph-strip{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:7px;border-top:1px solid var(--border-soft);font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+  .ph-phase{font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);background:var(--accent-light);padding:3px 8px;border-radius:999px;font-size:9.5px}
+  body.dark .ph-phase{color:#cdbcf2}
+  .ph-strip .ph-rt{color:var(--text)}
+  .ph-strip .ph-toggle{margin-left:auto;flex:none}
+  .ph-dx{font-size:12px;font-weight:600;color:var(--text-muted);margin-top:7px;line-height:1.35}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="16.5" x2="15" y2="16.5"/></symbol>
@@ -1816,6 +1853,32 @@ function updateAwarenessTimers() {
   if (!setupRunning && _setupRunStart) { _setupAccumMs += Date.now() - _setupRunStart; _setupRunStart = 0; saveSetup(); }
 
   updateIPBanner();
+  updateHeaderTimer();
+}
+
+// ── ROUNDS HEADER TIMER (v142) ── while a chart is open the per-patient timer lives
+// IN the patient header (traffic-light: green → amber 7m → red 10m, whole header tints),
+// and the floating banner is hidden. Strip carries the phase, total time on the round,
+// and how many patients seen.
+function updateHeaderTimer() {
+  if (currentMode !== 'ip' || activeIdx === null || !patients[activeIdx]) return;
+  const idx = activeIdx;
+  const hdr = document.getElementById('pchdr' + idx);
+  const tmr = document.getElementById('phTmr_' + idx);
+  if (!hdr || !tmr) return;
+  const perMs = (_focusIdx === idx) ? (Date.now() - _focusStart) : 0;
+  const mins = perMs / 60000;
+  const vEl = document.getElementById('phTmrV_' + idx); if (vEl) vEl.textContent = fmtClock(perMs);
+  const state = mins >= FOCUS_RED_MIN ? 'tl-red' : (mins >= FOCUS_AMBER_MIN ? 'tl-amber' : '');
+  tmr.classList.remove('tl-amber', 'tl-red'); hdr.classList.remove('tl-amber', 'tl-red');
+  if (state) { tmr.classList.add(state); hdr.classList.add(state); }
+  const phase = (typeof livePhase === 'function') ? livePhase() : detectPhase();
+  const phaseLabel = phase === 'rounds' ? 'Rounds' : (phase === 'finalising' ? 'Finalising' : 'Pre-charting');
+  const phEl = document.getElementById('phPhase_' + idx); if (phEl) phEl.textContent = '⏱ ' + phaseLabel;
+  const roundsMs = (typeof ipPhaseTotalMs === 'function') ? ipPhaseTotalMs('rounds') : 0;
+  const rtEl = document.getElementById('phTot_' + idx); if (rtEl) rtEl.textContent = roundsMs > 60000 ? (fmtMins(roundsMs) + ' on round') : '';
+  const f = (typeof worklistFunnel === 'function') ? worklistFunnel() : { seen: seenSet.size, charted: chartedSet.size };
+  const snEl = document.getElementById('phSeen_' + idx); if (snEl) snEl.textContent = '· ' + f.seen + '/' + f.charted + ' seen';
 }
 
 // ── IP AWARENESS BANNER (v89) ──────────────────────────────────────────────
@@ -1918,7 +1981,9 @@ function updateIPBanner() {
   banner.classList.remove('ipb-amber', 'ipb-red');
   if (hasPatient && mins >= FOCUS_RED_MIN) banner.classList.add('ipb-red');
   else if (hasPatient && mins >= FOCUS_AMBER_MIN) banner.classList.add('ipb-amber');
-  banner.style.display = 'flex';
+  // While a chart is open, the header carries the timer — hide the floating banner
+  // (the threshold nudges below still fire).
+  banner.style.display = (currentMode === 'ip' && activeIdx !== null && patients[activeIdx]) ? 'none' : 'flex';
   // Per-patient threshold nudges (once each; reset when the patient changes).
   if (hasPatient && mins >= FOCUS_AMBER_MIN && !_ipNudgeAmber) { _ipNudgeAmber = true; _vibe(200); toast(`⏱ ${Math.round(mins)} min on ${patients[_focusIdx].name}`, 3500); }
   if (hasPatient && mins >= FOCUS_RED_MIN && !_ipNudgeRed) { _ipNudgeRed = true; _vibe([200, 100, 200]); toast(`⏱ ${Math.round(mins)} min on ${patients[_focusIdx].name} — time to wrap up?`, 4500); }
@@ -3364,6 +3429,20 @@ function updatePrioDot(idx) {
   else { dot.style.background = ''; dot.removeAttribute('title'); dot.setAttribute('data-empty', '1'); }
 }
 
+// Compact priority pill for the header — mirrors the card's effectivePriority badge
+// (P1/P2/P3 auto, or manual High/Med/Low, or a bell for referrals).
+function phPrioPill(idx) {
+  const p = patients[idx]; if (!p) return '';
+  if (priorityMap[idx] === 'ref') return '<span class="ph-pill ph-ref" title="Referral">🔔</span>';
+  const ep = (typeof effectivePriority === 'function') ? effectivePriority(p) : null;
+  if (!ep || !ep.badge) return '';
+  const col = ep.badge.col;
+  let s = (ep.badge.lbl || '').replace(/<[^>]*>/g, '').replace(/[⬆⬇●🔔]/g, '').trim();
+  if (!s) return '';
+  s = s.charAt(0) + s.slice(1).toLowerCase();   // HIGH→High, P1→P1
+  return `<span class="ph-pill" style="background:${col}22;color:${col}" title="Priority"><span class="pdotx" style="background:${col}"></span>${s}</span>`;
+}
+
 // Compact mobile replacement for the two Review/Assessment radio pills: one
 // toggle button that flips the (hidden) radios so all existing read/save logic
 // keeps working unchanged. idPrefix is 'st' (IP) or 'opSt' (OPD).
@@ -3386,6 +3465,8 @@ function toggleSessionType(idx, idPrefix, btnId) {
   if (typeof markRadioStates === 'function') markRadioStates();
   const btn = document.getElementById(btnId);
   if (btn) btn.textContent = `⇄ ${goAssessment ? 'Assessment' : 'Review'}`;
+  const chip = document.getElementById('phSes_' + idx);   // header session chip (Review pink / Assessment green)
+  if (chip) { chip.textContent = goAssessment ? 'Assessment' : 'Review'; chip.classList.toggle('ph-assess', goAssessment); chip.classList.toggle('ph-rev', !goAssessment); }
 }
 
 function renderNoteHTML(plainText) {
@@ -6419,20 +6500,33 @@ function renderPrechart(idx) {
 
   panel.innerHTML = `
   <div class="prechart-header sticky-patient-hdr" id="pchdr${idx}">
-      <div>
-        <h2>${esc(p.name)}${prioDotHTML(idx)}</h2>
-        <div class="sub">${p.ward||p.roomNo ? '<span class="room-chip">'+[p.ward,p.roomNo].filter(Boolean).join(' ')+'</span>' : ''}PRN ${esc(p.prn)} · <span class="hi">${esc(fmtAge(p))}</span> · ${p.sex} · DOA: ${doaStr}</div>
-        <div class="sub-dx">${esc(p.diagnosis.substring(0,120))}</div>
+      <div style="flex:1;min-width:0">
+        <div class="ph-top">
+          <h2 class="ph-name">${esc(p.name)}<span class="ph-age">${esc(fmtAge(p))}${p.sex ? ' ' + p.sex : ''}</span></h2>
+          <span class="ph-tmr" id="phTmr_${idx}"><svg class="tclock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="phTmrV_${idx}">0:00</span></span>
+        </div>
+        <div class="ph-meta">
+          ${p.ward||p.roomNo ? `<span class="ph-room">🛏 ${esc([p.ward,p.roomNo].filter(Boolean).join(' · '))}</span>` : ''}
+          <span>PRN ${esc(p.prn)}</span>
+          ${phPrioPill(idx)}
+          <span class="ph-pill ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'ph-assess':'ph-rev'}" id="phSes_${idx}" onclick="toggleSessionType(${idx},'st','sessToggle_${idx}')">${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</span>
+        </div>
+        <div class="ph-strip">
+          <span class="ph-phase" id="phPhase_${idx}">⏱ Rounds</span>
+          <span class="ph-rt" id="phTot_${idx}"></span>
+          <span id="phSeen_${idx}"></span>
+          <button class="ph-toggle btn-ghost btn-small" onclick="toggleBrief(${idx})" id="briefBtn_${idx}" title="Bedside summary + ask-at-bedside"><svg class="ic"><use href="#i-shield"/></svg> Rounds brief</button>
+        </div>
+        <div class="ph-dx">${esc(p.diagnosis.substring(0,120))}${doaStr ? ' · DOA ' + esc(doaStr) : ''}</div>
         ${priorityRowHTML(idx)}
-        <div class="radio-group sessiontype" style="margin-top:8px">
+        <div class="radio-group sessiontype" style="margin-top:8px;display:none">
           ${['Dietetic Review','Dietetic Assessment'].map(v => `<input type="radio" name="sessionType_${idx}" class="radio-opt" id="st${v.replace(/\s/g,'')}_${idx}" value="${v}" ${(saved.sessionType||'Dietetic Review')===v?'checked':''}><label class="radio-label" for="st${v.replace(/\s/g,'')}_${idx}" style="font-size:11px">${v}</label>`).join('')}
         </div>
       </div>
       <div class="prechart-actions">
-        <button class="btn-ghost btn-small" onclick="toggleBrief(${idx})" id="briefBtn_${idx}" title="Bedside pre-charting summary + ask-at-bedside checklist"><svg class="ic"><use href="#i-shield"/></svg> Rounds brief</button>
         <button class="btn-primary btn-small hide-mobile" onclick="generateNote(${idx})"><svg class="ic"><use href="#i-spark"/></svg> Generate Note</button>
         <button class="btn-ghost btn-small ${seenSet.has(idx)?'btn-seen-active':''}" onclick="toggleSeen(${idx})" id="seenBtn_${idx}">${seenSet.has(idx)?'<svg class="ic"><use href="#i-eye"/></svg> Seen':'<svg class="ic"><use href="#i-eye"/></svg> Mark Seen'}</button>
-        <button class="btn-ghost btn-small session-toggle" onclick="toggleSessionType(${idx},'st','sessToggle_${idx}')" id="sessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
+        <button class="btn-ghost btn-small session-toggle hide-mobile" onclick="toggleSessionType(${idx},'st','sessToggle_${idx}')" id="sessToggle_${idx}">⇄ ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</button>
         <button class="btn-ghost btn-small hide-mobile ${noteDoneSet.has(idx)?'btn-seen-active':''}" onclick="markNoteDone(${idx})" id="noteDoneBtn_${idx}">${noteDoneSet.has(idx)?'<svg class="ic"><use href="#i-check"/></svg> Done':'<svg class="ic"><use href="#i-check"/></svg> Note Done'}</button>
         ${chartedSet.has(idx) ? `<button class="btn-ghost btn-small hide-mobile" onclick="unchart(${idx})" title="Remove from Charted (keeps your data)">✕ Uncharted</button>` : ''}
         <button class="btn-ghost btn-small clear-all-btn" style="color:var(--warn);border-color:var(--warn)" onclick="clearChart(${idx})" title="Clear all fields for this patient (asks first)"><svg class="ic"><use href="#i-trash"/></svg> Clear all</button>
