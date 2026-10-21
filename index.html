@@ -1446,6 +1446,8 @@
   .ip-edit-banner{display:flex;align-items:center;gap:6px;margin:4px 2px 8px;padding:7px 10px;border-radius:8px;font-size:12px;font-weight:600;background:var(--accent-soft,rgba(107,78,158,.12));color:var(--accent)}
   .ip-edit-banner::before{content:'✎'}
   .prn-copy.prn-add{opacity:.95;font-style:italic}
+  /* v95: one-tap fill chips under the allergy / diet-order fields */
+  .qf-chip{margin-top:4px;font-size:11px;padding:3px 9px}
   .ph-edit{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
   .ph-edit:hover{color:var(--accent)}
   .bl-warn{margin-top:6px;padding:7px 9px;border-radius:8px;font-size:12px;background:rgba(214,120,60,.14);color:var(--warn,#C2693F)}
@@ -1679,6 +1681,7 @@
             <div class="btn-row">
               <button class="btn-primary" id="ipAddBtn" onclick="addIPPatient()">+ Add Patient</button>
               <button class="btn-ghost" id="ipCancelEditBtn" onclick="cancelIPEdit()" style="display:none">Cancel edit</button>
+              <button class="btn-ghost" id="ipRemoveBtn" onclick="deleteIPPatient(_ipEditIdx)" style="display:none;color:#b42318">Remove patient</button>
               <button class="btn-ghost" onclick="clearIPManualForm()">Clear fields</button>
             </div>
           </details>
@@ -1733,11 +1736,12 @@
           </div>
           <div class="form-group" style="margin-bottom:8px">
             <label>Reason for visit / Referral diagnosis</label>
-            <input type="text" id="opReason" placeholder="e.g. Obesity review / Failure to thrive / Anaemia follow-up">
+            <input type="text" id="opReason" placeholder="e.g. Obesity review / Faltering weight / Anaemia follow-up">
           </div>
           <div class="btn-row">
             <button class="btn-primary" id="opAddBtn" onclick="addOPDPatient()">+ Add Patient</button>
             <button class="btn-ghost" id="opCancelEditBtn" onclick="cancelOPDEdit()" style="display:none">Cancel edit</button>
+            <button class="btn-ghost" id="opRemoveBtn" onclick="deleteOPDPatient(_opEditIdx)" style="display:none;color:#b42318">Remove patient</button>
             <button class="btn-ghost" onclick="clearOPD()">Clear All</button>
           </div>
         </div>
@@ -2087,6 +2091,15 @@ window.addEventListener('DOMContentLoaded', ensureAwarenessLoop);
 
 function openIPPanelLog(idx) {
   endSetup(); // opening a chart to pre-chart ends the set-up/triage phase for the day
+  // v95: on desktop the detector can only ever log Precharting or Finalising - never Rounds -
+  // so a round done from a laptop was booked as precharting ("desktop time is not right").
+  // Say so once a day and point at the Phase selector, which is the designed override.
+  try {
+    if (detectDevice() === 'desktop' && manualPhase === 'auto') {
+      const k = 'tth-desktop-phase-nudge', today = new Date().toDateString();
+      if (localStorage.getItem(k) !== today) { localStorage.setItem(k, today); toast('Desktop: time logs as Precharting. On rounds? Set Phase → Rounds in the session bar.', 6000); }
+    }
+  } catch (_) {}
   closeIPPanelLog();
   // v80: the session now runs continuously from open until you LEAVE the patient
   // (switch / back-to-list / Mark Seen / Note Done) — it no longer pauses when the
@@ -2514,7 +2527,10 @@ function buildWorklogText() {
       opdTotal += r.totalMs;
       const sessLabel = `${r.sessions} session${r.sessions===1?'':'s'}`;
       const openNote = r.openCount > 0 ? ' [open consult unclosed]' : '';
-      lines.push(`Patient ${i+1} — ${sessLabel} · ${fmtDuration(r.totalMs)}${openNote}`);
+      // v95: same de-identified tags as the IP rows (OPD stores the reason, not a diagnosis)
+      const op = opdPatients[r.idx];
+      const opTags = op ? ` · ${ageBand(op)} · ${caseCategory({ diagnosis: op.reason || '', comorbidities: '' })}` : '';
+      lines.push(`Patient ${i+1} (${sessLabel}${opTags}) · ${fmtDuration(r.totalMs)}${openNote}`);
     });
     lines.push(`OPD subtotal: ${fmtDuration(opdTotal)}`);
     lines.push('');
@@ -2838,9 +2854,19 @@ document.addEventListener('visibilitychange', () => {
     // Vesalius). Just stamp lastActive + persist so a backgrounded-tab kill can
     // still recover the session up to this moment.
     try { if (currentPanelOpen) currentPanelOpen.lastActive = Date.now(); } catch(_) {}
+    try { opdConsultLog.forEach(e => { if (!e.endTime) e.lastActive = Date.now(); }); } catch(_) {}   // v95
     try { persistSessionNow(); } catch(_) {}
-  } else if (document.visibilityState === 'visible' && currentMode === 'ip' && activeIdx !== null && !currentPanelOpen) {
-    try { openIPPanelLog(activeIdx); } catch(_) {}
+  } else if (document.visibilityState === 'visible') {
+    // v95: an OPD consult left running across a long absence is closed at its last heartbeat,
+    // using the same break threshold the worklog already applies between sessions.
+    try {
+      const open = opdConsultLog.find(e => !e.endTime);
+      if (open && open.lastActive && (Date.now() - open.lastActive) > _ttBreakMin * 60000) {
+        open.endTime = open.lastActive; maybeStopOPDTimerLoop();
+        toast('OPD consult ended at the time you left (' + Math.round((Date.now() - open.lastActive) / 60000) + ' min away)', 4000);
+      }
+    } catch (_) {}
+    if (currentMode === 'ip' && activeIdx !== null && !currentPanelOpen) { try { openIPPanelLog(activeIdx); } catch(_) {} }
   }
 });
 // pagehide is the most reliable "leaving" signal on mobile Safari/Chrome
@@ -3399,6 +3425,7 @@ function openIPEdit(idx) {
   const ban = document.getElementById('ipEditBanner');
   if (ban) { ban.style.display = 'flex'; ban.querySelector('span').textContent = 'Editing ' + p.name; }
   const cancel = document.getElementById('ipCancelEditBtn'); if (cancel) cancel.style.display = '';
+  const rm = document.getElementById('ipRemoveBtn'); if (rm) rm.style.display = '';
   if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ block: 'start', behavior: 'smooth' });
   const nameEl = document.getElementById('ipPRN'); if (nameEl) nameEl.focus();  // PRN is the usual reason to be here
 }
@@ -3409,6 +3436,7 @@ function endIPEdit() {
   const btn = document.getElementById('ipAddBtn'); if (btn) btn.textContent = '+ Add Patient';
   const ban = document.getElementById('ipEditBanner'); if (ban) ban.style.display = 'none';
   const cancel = document.getElementById('ipCancelEditBtn'); if (cancel) cancel.style.display = 'none';
+  const rm = document.getElementById('ipRemoveBtn'); if (rm) rm.style.display = 'none';
 }
 function cancelIPEdit() { endIPEdit(); toast('Edit cancelled'); }
 
@@ -3730,6 +3758,8 @@ function renderList() {
       <div class="card-top">
         <div class="patient-name">${esc(p.name)}</div>
         <div class="badges">
+          ${p.carriedOver ? '<span class="badge" style="background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)" title="Carried over from ' + esc(p.carriedOver) + '">↩ carried</span>' : ''}
+          <button class="prn-copy prn-add" onclick="event.stopPropagation();deleteIPPatient(${origIdx})" title="Remove from today's list">✕</button>
           ${ep.badge ? `<span class="badge prio-badge${ep.badge.manual ? ' is-manual' : ''}" style="background:${ep.badge.col};color:#fff" title="${esc(prioTitle)}">${ep.badge.lbl}</span>` : ''}
           ${p.isNew ? '<span class="badge badge-new">NEW</span>' : ''}
           <span class="badge ${badgeClass}">${badgeLabel}</span>
@@ -4396,6 +4426,10 @@ const SHORTCODES = {
   '/dia':  'Diabetes education:\n- Relationship between carbohydrate and blood glucose levels\n- Carbohydrate identification including timing of meal, portion sizes of carbohydrate at meals and snacks and choosing lower glycaemic index carbohydrates\n- Physical activity to aid with BGL management',
   '/age':  'AGE counselling:\nAvoid milk and undiluted juice till loose stools are resolved',
   '/hyd':  'Hydration counselling:\nEncourage oral intake as per appetite prioritising hydration with ORS, coconut water, diluted juice',
+  // v95: thalassaemia - mirrors "🩸 Thalassaemia (intervention)" in Canned text (note phrases).
+  // Keep ONE of the [TDT] / [NTDT] lines and delete the bracketed lines that do not apply. Not for carriers.
+  '/thal': 'Education provided to [patient / parent / caregiver]:\n- Explained that energy intake is usually adequate in thalassaemia, but nutrient density is often low; encouraged a varied diet with fruit and vegetables daily, whole grains, protein at each meal and calcium from food.\n- [TDT] Explained that iron is managed by transfusion and chelation, not diet. No dietary iron restriction advised; reassured that iron-containing plant foods (beans, lentils, greens, whole grains) can be eaten. Reinforced adherence to chelation.\n- [NTDT] Advised to limit foods high in haem iron (red meat, organ meats, processed meats) and iron-fortified cereals, and to avoid iron supplements. Tea with meals may reduce iron absorption (not for children; milk preferred). If cautious about iron absorption, vitamin C foods can be taken as a snack rather than at iron-rich plant-based meals; vitamin C foods need not be avoided overall.\n- Fluids at least [8 cups / >2.5 L/day if stone history]. Salt under 5 g/day.\n- Weight-bearing activity encouraged, as cleared by haematology.\n- [Diabetes] Small regular high-fibre meals; coordinate with endocrine team and chelation/insulin schedule.\n- [Stones] Fluids, low salt, calcium from food, fruit and vegetables; no vitamin C supplements.\n- [Chelator nausea] Advised to report to team and not skip meals; small frequent meals.\n- Advised against labelling foods as good or bad and against strict or extreme diets without team input.\nSupplements: vitamin D, folic acid, zinc and iron-free multivitamin only as prescribed by haematology. No vitamin C, iron or herbal supplements (turmeric, wheatgrass, green tea extract) unless approved by the team.\nCoordination: recommended [vitamin D / zinc / folate / calcium] levels be checked [if not done in the past year]. Discussed with [haematologist / doctor] regarding [__]. [Referral: eating disorder service / endocrine / psychology].\nMaterials: [thalassaemia nutrition handout / Dhivehi version / none] given. Patient/caregiver verbalised understanding: [Y/N]. Goals agreed: [__].\nFollow-up: [date]; annual nutrition review with labs.',
+  '/thr':  'Reinforced thalassaemia nutrition advice ([TDT: no dietary iron restriction, adhere to chelation / NTDT: limit haem iron and iron-fortified foods, no iron supplements]); varied nutrient-dense diet, calcium from food, fluids, supplements only as prescribed by haematology.',
   // Oral nutrition supplement (ONS) shortcodes
   '/ped':  'Oral nutrition supplementation with Paediasure - OD\nDilution: 5 scoops + 190 ml water\nProvides 219 kcal & 6.5 g protein (X% of energy requirements, X% of protein requirements)',
   '/ens':  'Oral nutrition supplementation with Ensure Plus - TDS\nDilution: 3 scoops + 120 ml water\nProvides 333 kcal & 15 g protein (X% of energy requirements, X% of protein requirements)',
@@ -4663,6 +4697,12 @@ function checkForRecovery() {
   const n = (data.patients || data.patientList || []).length;
   const nOpd = (data.opdPatients || []).length;
   if (!n && !nOpd) return;
+  // v95: an autosave from a PREVIOUS day is yesterday's round, not a crash. Carry its
+  // uncharted IP patients forward automatically; everything else is left behind.
+  try {
+    const savedDay = data.savedAt ? new Date(data.savedAt).toDateString() : null;
+    if (savedDay && savedDay !== new Date().toDateString()) { carryOverFrom(data, savedDay); return; }
+  } catch (_) {}
   const banner = document.getElementById('recoveryBanner');
   if (!banner) return;
   const whenEl = document.getElementById('recoveryWhen');
@@ -4673,6 +4713,32 @@ function checkForRecovery() {
     } catch(_) {}
   }
   banner.style.display = 'flex';
+}
+// v95: carry yesterday's UNCHARTED inpatients into today. Keeps each one's charting (re-indexed
+// so it stays bound to the right patient), recomputes day-of-admission flags, and drops what
+// belongs to yesterday: charted patients, the OPD clinic list, all timing, seen / note-done.
+function carryOverFrom(data, savedDay) {
+  const pts = data.patients || data.patientList || [];
+  const charted = new Set((data.chartedSet || data.chartedArr || []).map(Number));
+  const cdIn = data.chartData || {}, cdOut = {}, keep = [];
+  const now = new Date();
+  pts.forEach((p, i) => {
+    if (charted.has(i)) return;
+    const j = keep.length;
+    const doa = p.doa ? new Date(p.doa) : null;
+    const daysSince = (doa && !isNaN(doa)) ? Math.floor((now - doa) / 86400000) : 999;
+    keep.push(Object.assign({}, p, { carriedOver: p.carriedOver || savedDay, daysSince, isNew: daysSince <= 1 }));
+    if (cdIn[i]) cdOut[j] = cdIn[i];
+  });
+  try { localStorage.removeItem(AUTOSAVE_KEY); } catch (_) {}
+  dismissRecovery();
+  const day = String(savedDay).slice(0, 3);
+  if (!keep.length) { toast(day + "'s session (" + pts.length + ' patient' + (pts.length === 1 ? '' : 's') + '): all charted \u2014 nothing carried over', 4000); return; }
+  restoreSessionData({ version: 2, savedAt: now.toISOString(), patients: keep, chartData: cdOut,
+    chartedSet: [], seenSet: [], noteDoneSet: [], opdPatients: [], opdChartData: {}, opdChartedSet: [],
+    panelOpenLog: [], opdConsultLog: [], currentPanelOpen: null, lastSavedDevice: data.lastSavedDevice || null });
+  try { persistSessionNow(); } catch (_) {}
+  toast('Carried over ' + keep.length + ' uncharted patient' + (keep.length === 1 ? '' : 's') + ' from ' + day + ' \u21a9', 4500);
 }
 function restoreAutosave() {
   let raw; try { raw = localStorage.getItem(AUTOSAVE_KEY); } catch(_) {}
@@ -5412,7 +5478,7 @@ function parseNutritionHighlightsOPD(idx) {
     { p: /constipat|not\s+passed\s+stool|no\s+stool/i, e:'🔴', l:'Constipation / no stool' },
     { p: /bowel[s]?\s+(?:moved|open(?:ed)?|passed)\s+today|stool\s+(?:passed|today)|opened\s+bowel/i, e:'✅', l:'Bowels opened today' },
     { p: /loose\s+stool|diarr/i, e:'💧', l:'Loose stools / diarrhoea' },
-    { p: /failure\s+to\s+thrive|faltering\s+growth|poor\s+weight\s+gain/i, e:'⚡', l:'Failure to thrive / faltering growth' },
+    { p: /faltering\s+weight|failure\s+to\s+thrive|faltering\s+growth|poor\s+weight\s+gain/i, e:'⚡', l:'Faltering weight (failure to thrive)' },
     { p: /\bmalnutri/i, e:'⚡', l:'Malnutrition mentioned' },
     { p: /refeeding/i, e:'⚡', l:'Refeeding risk' },
   ];
@@ -6371,6 +6437,91 @@ function lipidViews(t) {
   return { lip, tc };
 }
 
+// v95: one-tap fills for the two answers given on almost every chart. Fills only an EMPTY
+// field - never overwrites - and fires the same input path a keystroke would, so autosave,
+// auto-expand and the rounds brief all see it. The strings are the canonical phrase-list ones.
+function quickFill(id, text) {
+  const el = document.getElementById(id); if (!el) return;
+  if (el.value && el.value.trim()) { if (el.value.trim() !== text) toast('Already has: ' + el.value.trim().slice(0, 40)); return; }
+  el.value = text;
+  try { if (typeof autoExpand === 'function' && el.tagName === 'TEXTAREA') autoExpand(el); } catch (_) {}
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  try { scheduleAutosave(); } catch (_) {}
+}
+
+// v95: remove a patient. Every store is keyed by array index, so the removal shifts each one
+// down above the removed index - the complete inventory is listed at the top of patch v95d.
+const _shiftIdx = (k, r) => (k < r ? k : k - 1);
+function _rekeyObj(obj, r) {
+  const out = {}; Object.keys(obj).forEach(k => { const n = Number(k); if (!Number.isInteger(n)) { out[k] = obj[k]; return; } if (n === r) return; out[_shiftIdx(n, r)] = obj[k]; });
+  Object.keys(obj).forEach(k => delete obj[k]); Object.assign(obj, out);
+}
+function _rekeySet(set, r) { const v = [...set].filter(i => i !== r).map(i => _shiftIdx(i, r)); set.clear(); v.forEach(i => set.add(i)); }
+function _rekeyLog(arr, r) { return arr.filter(e => e.idx !== r).map(e => (e.idx > r ? Object.assign({}, e, { idx: e.idx - 1 }) : e)); }
+function _rekeyScalar(v, r) { return v == null ? v : (v === r ? null : (v > r ? v - 1 : v)); }
+function _rekeySection(mode, r) {
+  const pre = mode + '-'; const out = {};
+  Object.keys(sectionState).forEach(k => {
+    if (!k.startsWith(pre)) { out[k] = sectionState[k]; return; }
+    const rest = k.slice(pre.length); const m = rest.match(/^(\d+)-(.*)$/); if (!m) { out[k] = sectionState[k]; return; }
+    const n = Number(m[1]); if (n === r) return; out[pre + _shiftIdx(n, r) + '-' + m[2]] = sectionState[k];
+  });
+  Object.keys(sectionState).forEach(k => delete sectionState[k]); Object.assign(sectionState, out);
+}
+function deleteIPPatient(idx) {
+  const p = patients[idx]; if (!p) return;
+  if (!confirm('Remove ' + p.name + ' from today\'s list? Their charting for today is removed with them.')) return;
+  try { if (_ipEditIdx === idx) endIPEdit(); } catch (_) {}
+  try { if (typeof _growthIdx !== 'undefined' && _growthIdx === idx && !_growthOPD) closeGrowthModal(); } catch (_) {}
+  try { if (currentPanelOpen && currentPanelOpen.idx === idx) { closeIPPanelLog(); } } catch (_) {}
+  // Flush the OPEN chart under its current index first: its DOM ids still carry that index,
+  // and after the shift any save-by-index would read empty fields and clobber the record.
+  const oldActive = activeIdx;
+  if (oldActive != null && oldActive !== idx) { try { saveChart(oldActive, true); } catch (_) {} }
+  patients.splice(idx, 1);
+  [chartData, priorityMap, noteStore, unchartCooldown].forEach(o => _rekeyObj(o, idx));
+  [chartedSet, seenSet, noteDoneSet].forEach(st => _rekeySet(st, idx));
+  panelOpenLog = _rekeyLog(panelOpenLog, idx);
+  if (currentPanelOpen && currentPanelOpen.idx > idx) currentPanelOpen.idx -= 1;
+  _rekeySection('ip', idx);
+  const wasActive = activeIdx === idx;
+  activeIdx = _rekeyScalar(activeIdx, idx);
+  _focusIdx = _rekeyScalar(_focusIdx, idx);
+  _ipEditIdx = _rekeyScalar(_ipEditIdx, idx);
+  if (typeof _growthIdx !== 'undefined' && !_growthOPD) _growthIdx = _rekeyScalar(_growthIdx, idx);
+  if (wasActive) { try { stopFocusTimer(); } catch (_) {} document.getElementById('prechartPanel').innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><p>Select a patient to begin precharting</p></div>'; }
+  else if (activeIdx != null) { try { renderPrechart(activeIdx); } catch (_) {} }   // DOM ids now match the shifted index
+  try { updateStats(); } catch (_) {}
+  renderList();
+  try { persistSessionNow(); } catch (_) {}
+  toast('Removed ' + p.name);
+}
+function deleteOPDPatient(idx) {
+  const p = opdPatients[idx]; if (!p) return;
+  if (!confirm('Remove ' + p.name + ' from the OPD list? Their charting is removed with them.')) return;
+  try { if (_opEditIdx === idx) endOPDEdit(); } catch (_) {}
+  try { if (typeof _growthIdx !== 'undefined' && _growthIdx === idx && _growthOPD) closeGrowthModal(); } catch (_) {}
+  const oldActive = opdActiveIdx;
+  if (oldActive != null && oldActive !== idx) { try { saveOPDChart(oldActive, true); } catch (_) {} }
+  opdConsultLog.forEach(e => { if (e.idx === idx && !e.endTime) e.endTime = Date.now(); });
+  opdPatients.splice(idx, 1);
+  [opdChartData, opdNoteStore].forEach(o => _rekeyObj(o, idx));
+  _rekeySet(opdChartedSet, idx);
+  opdConsultLog = _rekeyLog(opdConsultLog, idx);
+  _rekeySection('op', idx);
+  const wasActive = opdActiveIdx === idx;
+  opdActiveIdx = _rekeyScalar(opdActiveIdx, idx);
+  _opEditIdx = _rekeyScalar(_opEditIdx, idx);
+  if (typeof _growthIdx !== 'undefined' && _growthOPD) _growthIdx = _rekeyScalar(_growthIdx, idx);
+  try { maybeStopOPDTimerLoop(); } catch (_) {}
+  if (wasActive) document.getElementById('prechartPanel').innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><p>Select a patient to begin precharting</p></div>';
+  else if (opdActiveIdx != null) { try { renderOPDPrechart(opdActiveIdx); } catch (_) {} }   // DOM ids now match the shifted index
+  renderOPDList();
+  try { collapseOPDImport(); } catch (_) {}
+  try { persistSessionNow(); } catch (_) {}
+  toast('Removed ' + p.name);
+}
+
 function setMode(mode) {
   closeIPPanelLog(); // v59: close any open IP panel timing entry
   // v95: flush the open chart's live fields BEFORE the panel is blanked below. Every other
@@ -6378,6 +6529,9 @@ function setMode(mode) {
   // so switching IP -> OPD discarded anything typed since the last autosave (her 3 Oct note).
   // persistSessionNow() holds the canonical flush for whichever mode is current.
   try { persistSessionNow(); } catch (_) {}
+  // v95: leaving OPD ends any running consult. Nothing else ever closed it, so a consult
+  // auto-started on first open kept running until found in the time-tracking modal hours later.
+  if (currentMode === 'op' && mode !== 'op') { try { opdConsultLog.forEach(e => { if (!e.endTime) e.endTime = Date.now(); }); maybeStopOPDTimerLoop(); } catch (_) {} }
   currentMode = mode;
   document.getElementById('tabIP').classList.toggle('active', mode === 'ip');
   document.getElementById('tabOP').classList.toggle('active', mode === 'op');
@@ -6407,6 +6561,7 @@ function openOPDEdit(idx) {
   const ban = document.getElementById('opEditBanner');
   if (ban) { ban.style.display = 'flex'; ban.querySelector('span').textContent = 'Editing ' + p.name; }
   const cancel = document.getElementById('opCancelEditBtn'); if (cancel) cancel.style.display = '';
+  const rm = document.getElementById('opRemoveBtn'); if (rm) rm.style.display = '';
   const area = document.getElementById('opdImportArea'); if (area && area.scrollIntoView) area.scrollIntoView({ block: 'start', behavior: 'smooth' });
   const sx = document.getElementById('opSex'); if (sx) sx.focus();   // sex is the usual reason to be here
 }
@@ -6416,6 +6571,7 @@ function endOPDEdit() {
   const btn = document.getElementById('opAddBtn'); if (btn) btn.textContent = '+ Add Patient';
   const ban = document.getElementById('opEditBanner'); if (ban) ban.style.display = 'none';
   const cancel = document.getElementById('opCancelEditBtn'); if (cancel) cancel.style.display = 'none';
+  const rm = document.getElementById('opRemoveBtn'); if (rm) rm.style.display = 'none';
 }
 function cancelOPDEdit() { endOPDEdit(); toast('Edit cancelled'); }
 
@@ -6509,7 +6665,7 @@ function renderOPDList() {
           ${isCharted ? '<span class="badge badge-charted">✓</span>' : ''}
         </div>
       </div>
-      <div class="card-meta">PRN ${esc(p.prn||'—')} · ${esc(p.ageRaw)} · ${p.sex || '—'} · 🕐 ${p.timeStr} <button class="prn-copy prn-add" onclick="event.stopPropagation();openOPDEdit(${i})" title="Edit name / PRN / age / sex / reason">✎</button></div>
+      <div class="card-meta">PRN ${esc(p.prn||'—')} · ${esc(p.ageRaw)} · ${p.sex || '—'} · 🕐 ${p.timeStr} <button class="prn-copy prn-add" onclick="event.stopPropagation();openOPDEdit(${i})" title="Edit name / PRN / age / sex / reason">✎</button> <button class="prn-copy prn-add" onclick="event.stopPropagation();deleteOPDPatient(${i})" title="Remove from the OPD list">✕</button></div>
       <div class="card-dx">${esc(p.reason||'')}</div>
     </div>`;
   });
@@ -6834,6 +6990,7 @@ function renderOPDPrechart(idx) {
           <div class="form-group">
             <label>🚫 Food Allergies</label>
             <input type="text" id="opAllergies_${idx}" value="${esc(saved.allergies||'')}" placeholder="e.g. Peanuts, Fish, Milk">
+            <button type="button" class="btn-ghost btn-small qf-chip" onclick="quickFill('opAllergies_${idx}','Nil known food allergies')">Nil known food allergies</button>
           </div>
           <div class="form-group">
             <label>⚠️ Food Intolerances</label>
@@ -7331,6 +7488,7 @@ function renderPrechart(idx) {
           <div class="form-group">
             <label>🚫 Food Allergies</label>
             <textarea class="field auto-detail" id="foodAllergies_${idx}" placeholder="e.g. Peanuts, Tree nuts, Fish, Milk, Egg — type / for quick picks">${esc(saved.foodAllergies||'')}</textarea>
+            <button type="button" class="btn-ghost btn-small qf-chip" onclick="quickFill('foodAllergies_${idx}','Nil known food allergies')">Nil known food allergies</button>
           </div>
           <div class="form-group">
             <label>⚠️ Food Intolerances</label>
@@ -7347,6 +7505,7 @@ function renderPrechart(idx) {
           <div class="form-group">
             <label>🏥 Hospital Diet Order</label>
             <textarea class="field auto-detail" id="hospitalDiet_${idx}" placeholder="e.g. Normal diet / Soft diet — type / for quick picks">${esc(saved.hospitalDiet||'')}</textarea>
+            <button type="button" class="btn-ghost btn-small qf-chip" onclick="quickFill('hospitalDiet_${idx}','Normal Diet')">Normal Diet</button>
           </div>
         </div>
         <div class="form-group" style="margin-top:8px">
@@ -9820,6 +9979,7 @@ function rbSummary(idx){
   if (intake) diet.push(lbl('intake:', rbEsc(intake.substring(0, 40))));
   if (cd.hospitalDiet) diet.push(rbEsc(cd.hospitalDiet));
   if (cd.homeDiet) diet.push('home: ' + rbEsc(cd.homeDiet.substring(0, 50)));
+  if (cd.dietNotes) diet.push('food groups: ' + rbEsc(cd.dietNotes.replace(/\s*\n+\s*/g, ' · ').substring(0, 90)));   // v95
   // "No known allergy" is reassurance, not a warning — only a REAL allergy is red.
   const realAllg = [], nilAllg = [];
   if (cd.foodAllergies) { if (rbIsNilAllergy(cd.foodAllergies)) nilAllg.push(rbEsc(cd.foodAllergies)); else realAllg.push('Allergy: ' + rbEsc(cd.foodAllergies)); }
