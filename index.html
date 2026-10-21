@@ -1431,6 +1431,25 @@
   details.rb-doc>summary{font-size:12px;font-weight:600;color:var(--text-muted);padding:9px 11px;cursor:pointer;list-style:none}
   details.rb-doc>summary::-webkit-details-marker{display:none}
   details.rb-doc .body{font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.6;padding:2px 12px 11px;white-space:pre-wrap}
+  /* v143: manual IP patient entry — fallback for when the nursing list can't be obtained */
+  details.manual-add{margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:2px 10px 10px}
+  details.manual-add>summary{font-size:12px;font-weight:700;color:var(--accent);padding:9px 2px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
+  details.manual-add>summary::-webkit-details-marker{display:none}
+  details.manual-add>summary::after{content:'▾';margin-left:auto;color:var(--text-muted);font-size:11px}
+  details.manual-add[open]>summary::after{content:'▴'}
+  details.manual-add .manual-hint{font-size:11px;color:var(--text-muted);line-height:1.5;margin:0 2px 10px}
+  /* v144: bed-list import confirm */
+  .bl-row{display:grid;grid-template-columns:52px 1.3fr 42px 2fr;gap:8px;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border);align-items:start}
+  .bl-row span{overflow:hidden;text-overflow:ellipsis}
+  .bl-head{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+  /* v145: edit-an-existing-patient affordances */
+  .ip-edit-banner{display:flex;align-items:center;gap:6px;margin:4px 2px 8px;padding:7px 10px;border-radius:8px;font-size:12px;font-weight:600;background:var(--accent-soft,rgba(107,78,158,.12));color:var(--accent)}
+  .ip-edit-banner::before{content:'✎'}
+  .prn-copy.prn-add{opacity:.95;font-style:italic}
+  .ph-edit{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+  .ph-edit:hover{color:var(--accent)}
+  .bl-warn{margin-top:6px;padding:7px 9px;border-radius:8px;font-size:12px;background:rgba(214,120,60,.14);color:var(--warn,#C2693F)}
+  .bl-ok{margin-top:6px;padding:7px 9px;border-radius:8px;font-size:12px;background:rgba(124,165,133,.15);color:var(--ok,#4f8a63)}
   /* When the brief is on, hide the rest of the chart content behind it. */
   .prechart-content.rb-on > *:not(#rbrief){display:none}
 
@@ -1592,15 +1611,80 @@
             <p style="font-size:11px;margin-top:2px">or paste tab-separated data below</p>
           </div>
           <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(this)">
-          <textarea class="paste-box" id="pasteBox" placeholder="Paste rows from Excel here (Name | PRN | Age | Sex | Date of Admission | Diagnosis | Consultant)..."></textarea>
+          <textarea class="paste-box" id="pasteBox" placeholder="Paste rows from Excel here (Name | PRN | Age | Sex | Date of Admission | Diagnosis | Consultant) — or paste the whole nursing bed-availability list copied from the PDF..."></textarea>
           <div class="btn-row">
             <button class="btn-primary" onclick="parsePasted()">Parse List</button>
             <button class="btn-ghost" onclick="loadDemo()">Load Demo</button>
             <button class="btn-ghost" onclick="clearAll()">Clear</button>
           </div>
+          <!-- v143: manual IP entry — for days when the nursing list can't be obtained -->
+          <details class="manual-add" id="ipManualWrap">
+            <summary><svg class="ic"><use href="#i-user"/></svg> Add a patient manually</summary>
+            <div id="ipEditBanner" class="ip-edit-banner" style="display:none"><span></span></div>
+            <div class="manual-hint">
+              Adds one patient to the list without clearing it. Note that parsing a pasted list
+              <strong>replaces</strong> everything — so if you get the list later, paste it first, then re-add.
+            </div>
+            <div class="form-grid" style="margin-bottom:0">
+              <div class="form-group">
+                <label>Name *</label>
+                <input type="text" id="ipName" placeholder="e.g. ALI AFUNAN" style="text-transform:uppercase" onkeydown="if(event.key==='Enter')addIPPatient()">
+              </div>
+              <div class="form-group">
+                <label>PRN</label>
+                <input type="text" id="ipPRN" placeholder="e.g. 00400573" onkeydown="if(event.key==='Enter')addIPPatient()">
+              </div>
+              <div class="form-group">
+                <label>Room / Bed</label>
+                <input type="text" id="ipRoom" placeholder="e.g. 301 — 1st digit = ward" onkeydown="if(event.key==='Enter')addIPPatient()">
+              </div>
+              <div class="form-group">
+                <label>Ward</label>
+                <input type="text" id="ipWard" placeholder="e.g. Ward 3 / ICU / HDU" onkeydown="if(event.key==='Enter')addIPPatient()">
+              </div>
+              <div class="form-group">
+                <label>Date of birth</label>
+                <input type="text" id="ipDOB" inputmode="text" autocomplete="off" placeholder="e.g. 23/08/1954 or 23-Aug-1954" oninput="ipDobToAge()" onkeydown="if(event.key==='Enter')addIPPatient()">
+                <div id="ipDobHint" class="manual-hint" style="margin:2px 0 0"></div>
+              </div>
+              <div class="form-group">
+                <label>Age <span style="font-weight:400;color:var(--text-muted)">— or fill DOB</span></label>
+                <input type="text" id="ipAge" placeholder="e.g. 72y · 6m · 2y3m · 3d" onkeydown="if(event.key==='Enter')addIPPatient()">
+              </div>
+              <div class="form-group">
+                <label>Sex</label>
+                <select id="ipSex">
+                  <option value="">—</option>
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Date of admission</label>
+                <input type="text" id="ipDOA" inputmode="text" autocomplete="off" placeholder="e.g. 25/06/2026 or 25-Jun-2026" onkeydown="if(event.key==='Enter')addIPPatient()">
+              </div>
+              <div class="form-group">
+                <label>Consultant</label>
+                <input type="text" id="ipConsultant" placeholder="e.g. Dr Ahmed" onkeydown="if(event.key==='Enter')addIPPatient()">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label>Diagnosis</label>
+              <input type="text" id="ipDx" placeholder="e.g. CVA with dysphagia, NGT in situ" onkeydown="if(event.key==='Enter')addIPPatient()">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>Comorbidities</label>
+              <input type="text" id="ipComorb" placeholder="e.g. T2DM, CKD stage 3" onkeydown="if(event.key==='Enter')addIPPatient()">
+            </div>
+            <div class="btn-row">
+              <button class="btn-primary" id="ipAddBtn" onclick="addIPPatient()">+ Add Patient</button>
+              <button class="btn-ghost" id="ipCancelEditBtn" onclick="cancelIPEdit()" style="display:none">Cancel edit</button>
+              <button class="btn-ghost" onclick="clearIPManualForm()">Clear fields</button>
+            </div>
+          </details>
         </div>
-        <div class="import-chip" id="ipImportChip" onclick="expandIPImport()" style="display:none" title="Tap to re-open the upload / paste area">
-          <span class="ic-label">📥 0 patients loaded · Edit list</span>
+        <div class="import-chip" id="ipImportChip" onclick="expandIPImport()" style="display:none" title="Tap to re-open the upload / paste area, or to add a patient manually">
+          <span class="ic-label">📥 0 patients loaded · Edit list / add</span>
           <span class="ic-hint">▾</span>
         </div>
         <div class="filter-row" id="filterRow" style="display:none;flex-wrap:wrap">
@@ -1624,6 +1708,7 @@
       <div id="opPanel" style="display:none">
         <div id="opdImportArea">
           <div style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Add OPD Patient</div>
+          <div id="opEditBanner" class="ip-edit-banner" style="display:none"><span></span></div>
           <div class="form-grid" style="margin-bottom:8px">
             <div class="form-group">
               <label>Name</label>
@@ -1640,6 +1725,7 @@
             <div class="form-group">
               <label>Sex</label>
               <select id="opSex">
+                <option value="">—</option>
                 <option value="M">Male</option>
                 <option value="F">Female</option>
               </select>
@@ -1650,7 +1736,8 @@
             <input type="text" id="opReason" placeholder="e.g. Obesity review / Failure to thrive / Anaemia follow-up">
           </div>
           <div class="btn-row">
-            <button class="btn-primary" onclick="addOPDPatient()">+ Add Patient</button>
+            <button class="btn-primary" id="opAddBtn" onclick="addOPDPatient()">+ Add Patient</button>
+            <button class="btn-ghost" id="opCancelEditBtn" onclick="cancelOPDEdit()" style="display:none">Cancel edit</button>
             <button class="btn-ghost" onclick="clearOPD()">Clear All</button>
           </div>
         </div>
@@ -1716,13 +1803,16 @@ function collapseIPImport() {
   if (!area || !chip) return;
   area.style.display = 'none';
   const lbl = chip.querySelector('.ic-label');
-  if (lbl) lbl.textContent = `📥 ${patients.length} patient${patients.length===1?'':'s'} loaded · Edit list`;
+  if (lbl) lbl.textContent = `📥 ${patients.length} patient${patients.length===1?'':'s'} loaded · Edit list / add`;
   chip.style.display = 'flex';
 }
 function expandIPImport() {
   const area = document.getElementById('ipImportArea');
   const chip = document.getElementById('ipImportChip');
   if (!area || !chip) return;
+  // v143: with a list already up, re-opening is usually to add a late admission — save a tap.
+  const man = document.getElementById('ipManualWrap');
+  if (man && patients.length) man.open = true;
   area.style.display = '';
   chip.style.display = 'none';
 }
@@ -2790,8 +2880,183 @@ function parseXLSX(wb) {
 function parsePasted() {
   const text = document.getElementById('pasteBox').value.trim();
   if (!text) { toast('Nothing to parse'); return; }
+  // v144: the nursing bed-availability PDF pastes with a different grammar to the Excel
+  // sheet, so it gets its own parser plus a confirm step. Excel paste is unchanged.
+  if (looksLikeBedlist(text)) { previewBedlist(text); return; }
   const rows = text.split('\n').map(r => r.split('\t').map(c => c.trim()));
   extractPatients(rows);
+}
+
+// ──────────────────────────────────────────
+//  BED-AVAILABILITY PDF PASTE (v144)
+// ──────────────────────────────────────────
+// Copying the nursing bed list out of the PDF gives the INVERSE of Excel: TABS join the
+// words inside one column, a single SPACE separates columns, and long columns wrap onto
+// their own lines. Columns: # | Room Type | Status | Room# | Patient | Age | Sex |
+// Diagnosis / Procedure | Consultant. There is NO PRN and NO admission date on this
+// report, which is why it cannot go through extractPatients — that requires a PRN or DOA
+// and then drops every PRN-less row in its dedup pass.
+const TTH_ROOM_TYPES = ['Presidential Suite','Deluxe S. lite','Deluxe Single','Single Deluxe','Superior Twin',
+  'Junior Suite','Day Care Unit','Labour Room','Chemo Bay','Isolation','Nursery','Newborn','NICU','Suite','ICU','CCU','HDU'];
+const TTH_STATUSES = ['OT','DS','ISO','ICU','CCU','HDU','NICU','M'];
+
+function looksLikeBedlist(text) {
+  const t = text.replace(/\t/g, ' ');
+  return /Room#\s+Patient\s+Age\s+Sex/i.test(t) || /BED\s+AVAILABILITY/i.test(t);
+}
+function sectionToWard(sec) {
+  if (!sec) return '';
+  const s = sec.replace(/\s+/g, ' ').trim();
+  if (/ICU\s*\/\s*CCU\s*\/\s*HDU/i.test(s)) return s;
+  const m = s.match(/^(\d+[AB])\s*-\s*(.+)$/);
+  if (m) return 'Ward ' + m[1];
+  if (/^(\d+)[A-Z]?\s*-\s*WARD/i.test(s)) return 'Ward ' + s.match(/^(\d+[A-Z]?)/)[1];
+  return s;
+}
+function bedlistScore(p) { return (p.name||'').length + (p.diagnosis||'').length + (p.consultant||'').length; }
+
+function parseBedlist(text) {
+  const rawLines = String(text).split(/\r?\n/);
+  const rows = [], skipped = [];
+  let section = '', floor = '', cur = null, expected = 1;
+  // Section headings start with a digit too ("4A - MEDICAL CASES"), so they can't be told
+  // from a continuation line on sight. They are always followed by the column-header line,
+  // so remember the last chunk appended to an open row and take it back if that happens.
+  let lastLoose = null;
+  const flush = () => { if (cur) { rows.push(cur); cur = null; } };
+
+  for (const raw of rawLines) {
+    if (!raw.trim()) continue;
+    const flat = raw.replace(/\t/g, ' ').replace(/\s+/g, ' ').trim();
+    if (/^#?\s*Room\s+Type\s+Status/i.test(flat)) {
+      if (lastLoose) {
+        if (lastLoose.ownerRow) {
+          const strip = ' ' + lastLoose.text;
+          if (lastLoose.ownerRow.text.endsWith(strip)) lastLoose.ownerRow.text = lastLoose.ownerRow.text.slice(0, -strip.length);
+        }
+        section = lastLoose.text; lastLoose = null;
+      }
+      flush(); continue;
+    }
+    if (/^\d+(st|nd|rd|th)\s+FLOOR$/i.test(flat) || /^(OTHER|UNCLASSIFIED)$/i.test(flat)) { flush(); floor = flat; lastLoose = null; continue; }
+    if (/^Live\s+Bed\s+Occupancy/i.test(flat) || /^Sources:/i.test(flat) || /^Department\s*\/\s*Ward/i.test(flat)) { flush(); break; }
+    if (/^(Generated|Prepared\s+by|NURSING\s+DEPARTMENT)/i.test(flat)) continue;
+
+    const m = flat.match(/^(\d{1,4})\s+(.*)$/);
+    if (m && (+m[1] === expected || +m[1] === expected - 1) && m[2]) {
+      flush(); cur = { num: +m[1], text: flat, section, floor }; expected = +m[1] + 1; lastLoose = null; continue;
+    }
+    if (cur) { cur.text += ' ' + flat; lastLoose = { text: flat, ownerRow: cur }; continue; }
+    lastLoose = { text: flat, ownerRow: null }; section = flat;
+  }
+  flush();
+
+  const out = [];
+  for (const r of rows) { const p = parseBedlistRow(r); if (p) out.push(p); else skipped.push(r.num); }
+
+  // The report can print a row twice (once truncated); keep the richest per bed. Bed
+  // numbers only repeat ACROSS sections (ICU 1, Nursery 1, Labour Room 1 all exist), so
+  // the key must include the ward or real patients get dropped.
+  const byKey = new Map();
+  for (const p of out) {
+    const k = p.roomNo ? (p.ward || '') + '|' + p.roomNo : '#' + p.srcRow;
+    const prev = byKey.get(k);
+    if (!prev || bedlistScore(p) > bedlistScore(prev)) byKey.set(k, p);
+  }
+  let stated = null;
+  const tm = String(text).replace(/\t/g, ' ').match(/Total\s+Occupied\s*\n?\s*(\d{1,4})/i);
+  if (tm) stated = +tm[1];
+  return { patients: [...byKey.values()], emptyBeds: skipped.length, rowsSeen: rows.length, statedTotal: stated };
+}
+
+function parseBedlistRow(r) {
+  let t = r.text.replace(/\s+/g, ' ').trim().replace(/^(\d{1,4})\s+/, '');
+  let roomType = '';
+  for (const rt of TTH_ROOM_TYPES) {
+    if (t.toLowerCase().startsWith(rt.toLowerCase() + ' ') || t.toLowerCase() === rt.toLowerCase()) { roomType = rt; t = t.slice(rt.length).trim(); break; }
+  }
+  let status = '';
+  const first = t.split(' ')[0];
+  if (first && TTH_STATUSES.some(s => s.toLowerCase() === first.toLowerCase())) { status = first; t = t.slice(first.length).trim(); }
+  let roomNo = '';
+  const rm = t.match(/^(\S+)\s*/);
+  if (rm) { roomNo = rm[1]; t = t.slice(rm[0].length); }
+
+  // Age + sex is the anchor that separates the patient from the diagnosis.
+  const am = t.match(/^(.*?)\s(\d{1,3})\s([MF])\b\s*(.*)$/);
+  if (!am) return null;                       // unoccupied bed
+  const name = am[1].trim();
+  if (!name) return null;
+  const ageYears = parseInt(am[2], 10), sex = am[3].toUpperCase();
+  const tail = am[4].trim();
+
+  let diagnosis = tail, consultant = '';
+  const dm = tail.match(/^(.*?)\s*\b(Dr\.?\s+\S.*)$/);
+  if (dm) { diagnosis = dm[1].trim(); consultant = dm[2].trim(); }
+
+  let otTime = '';
+  const om = name.match(/^(.*?)\s*@\s*(\d{3,4})\s*$/);
+  const cleanName = om ? om[1].trim() : name;
+  if (om) otTime = om[2];
+
+  let ageGroup = ageYears < 2 ? 'infant' : ageYears < 5 ? 'toddler' : ageYears < 18 ? 'child' : 'adult';
+  if (ageGroup !== 'adult' && /gravida|\bG\d+\s*[PAL]\d+|\d{1,2}\s*\+\s*\d\s*week|hyperemesis|antenatal|pre[\s-]?eclampsia|eclampsia/i.test(diagnosis)) ageGroup = 'adult';
+
+  return {
+    name: cleanName.toUpperCase(), prn: '', roomNo, ageRaw: String(ageYears), ageYears, sex,
+    doa: null, doaRaw: '', diagnosis: sanitiseDiagnosis(diagnosis), comorbidities: '', consultant,
+    ward: sectionToWard(r.section) || roomType, isPaeds: ageGroup !== 'adult', ageGroup,
+    isNew: false, daysSince: 999, roomType, status, otTime, srcRow: r.num, fromBedlist: true
+  };
+}
+
+// Confirm step: a silently mis-parsed row is the real danger in a ward tool, so show what
+// was understood (and the report's own occupancy total) before anything is loaded.
+let _bedlistPending = null;
+function previewBedlist(text) {
+  const r = parseBedlist(text);
+  _bedlistPending = r;
+  if (!r.patients.length) { toast('Looks like a bed list, but no occupied beds were read. Check the paste.'); return; }
+  const wards = {};
+  r.patients.forEach(p => { const w = p.ward || '—'; wards[w] = (wards[w] || 0) + 1; });
+  const tally = Object.keys(wards).sort().map(w => `${esc(w)} <b>${wards[w]}</b>`).join(' · ');
+  const mismatch = r.statedTotal != null && r.statedTotal !== r.patients.length;
+  const sample = r.patients.slice(0, 4).map(p =>
+    `<div class="bl-row"><span>${esc(p.roomNo || '—')}</span><span>${esc(p.name)}</span><span>${p.ageYears}${esc(p.sex)}</span><span>${esc((p.diagnosis || '—').slice(0, 44))}</span></div>`).join('');
+  const ov = document.createElement('div');
+  ov.id = 'bedlistOverlay'; ov.className = 'pes-overlay';
+  ov.innerHTML = `<div class="pes-modal" role="dialog" aria-label="Confirm bed list import">
+    <div class="pes-head"><div class="pes-headrow"><span style="font-size:14px;font-weight:700;flex:1">🛏️ Bed list — check before loading</span>
+    <button class="pes-close" onclick="closeBedlistPreview()" aria-label="Close">✕</button></div></div>
+    <div class="pes-list" style="padding:10px 12px">
+      <div style="font-size:13px;margin-bottom:6px"><b>${r.patients.length}</b> occupied beds · ${r.emptyBeds} empty skipped
+        ${r.statedTotal != null ? (mismatch
+          ? `<div class="bl-warn">⚠ The report says <b>${r.statedTotal}</b> occupied but ${r.patients.length} were read — check for rows the paste cut off.</div>`
+          : `<div class="bl-ok">✓ Matches the report's own total of ${r.statedTotal}</div>`) : ''}</div>
+      <div class="tt-section-label" style="margin:8px 0 4px">By ward</div>
+      <div style="font-size:12px;color:var(--text-muted);line-height:1.7">${tally}</div>
+      <div class="tt-section-label" style="margin:10px 0 4px">First rows as understood</div>
+      <div class="bl-row bl-head"><span>Bed</span><span>Patient</span><span>Age</span><span>Diagnosis</span></div>
+      ${sample}
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px">This report carries no PRN or admission date, so those stay blank and the <b>New</b> filter won't apply.</div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn-primary" onclick="commitBedlist()">Load ${r.patients.length} patients</button>
+        <button class="btn-ghost" onclick="closeBedlistPreview()">Cancel</button>
+      </div>
+    </div></div>`;
+  document.body.appendChild(ov);
+}
+function closeBedlistPreview() { const o = document.getElementById('bedlistOverlay'); if (o) o.remove(); _bedlistPending = null; }
+function commitBedlist() {
+  if (!_bedlistPending) return;
+  try { endIPEdit(); } catch(_) {}
+  patients = _bedlistPending.patients;
+  const n = patients.length;
+  closeBedlistPreview();
+  updateStats(); renderList();
+  document.getElementById('filterRow').style.display = 'flex';
+  collapseIPImport();
+  toast(`Loaded ${n} patients from the bed list`);
 }
 
 
@@ -2811,6 +3076,7 @@ function sanitiseDiagnosis(dx) {
 }
 
 function extractPatients(rows) {
+  try { endIPEdit(); } catch(_) {}
   patients = [];
   const now = new Date(); now.setHours(0,0,0,0);
   const msPerDay = 86400000;
@@ -2975,6 +3241,182 @@ function extractPatients(rows) {
   document.getElementById('filterRow').style.display = 'flex';
   collapseIPImport(); // v59 round-3
   toast(`Loaded ${patients.length} patients`);
+}
+
+// ──────────────────────────────────────────
+//  MANUAL IP ENTRY (v143)
+// ──────────────────────────────────────────
+// For days when the nursing list can't be obtained at all. Unlike extractPatients (which
+// REPLACES `patients` and applies defensive row-rejection heuristics to filter spreadsheet
+// noise), this APPENDS one typed patient and trusts the input — a deliberate entry should
+// never be silently dropped. Appending keeps existing indices stable, which matters because
+// chartData / chartedSet / seenSet / noteDoneSet / priorityMap are all keyed by patient index.
+// Age bands and the obstetric→adult override are kept identical to extractPatients.
+function fmtDMY(d) {
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+// Live feedback as the DOB is typed or pasted: show the computed age and mirror it into
+// the Age box, so what she sees is what gets saved. DOB wins over a typed age; clearing
+// the DOB hands control back to the Age field.
+function ipDobToAge() {
+  const el = document.getElementById('ipDOB'), hint = document.getElementById('ipDobHint');
+  const ageEl = document.getElementById('ipAge');
+  if (!el || !hint) return;
+  const s = el.value.trim();
+  if (!s) { hint.textContent = ''; return; }
+  const d = gParseDate(s);
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  if (!d || isNaN(d)) { hint.textContent = '⋯ not a date yet'; return; }
+  if (d > now) { hint.textContent = '⚠ that date is in the future'; return; }
+  const a = ageBetween(d, now);
+  hint.textContent = `→ ${_ageStr(a)} (${fmtDMY(d)})`;
+  if (ageEl) ageEl.value = _ageStr(a);
+}
+
+function parseManualAge(ageStr) {
+  const s = (ageStr || '').toString().trim().toLowerCase();
+  if (!s) return 0;
+  if (/^\d+\s*d$/.test(s)) return 0;                      // days → infant
+  if (s.includes('y') || s.includes('m')) {
+    const yM = s.match(/(\d+)\s*y/), mM = s.match(/(\d+)\s*m/);
+    const yrs = yM ? parseFloat(yM[1]) : 0;
+    const mos = mM ? parseFloat(mM[1]) : 0;
+    return yM ? yrs + mos / 12 : mos / 12;                // months only → true months
+  }
+  return parseFloat(s.replace(/[^\d.]/g, '')) || 0;        // plain number → years
+}
+
+function addIPPatient() {
+  const v = id => (document.getElementById(id)?.value || '').trim();
+  const name = v('ipName').toUpperCase();
+  if (!name) { toast('Please enter a patient name'); return; }
+
+  const prn = v('ipPRN'), roomNo = v('ipRoom'), ward = v('ipWard');
+  const ageTyped = v('ipAge'), sex = v('ipSex').toUpperCase();
+  const dobInput = v('ipDOB'), doaInput = v('ipDOA');
+  const consultant = v('ipConsultant').substring(0, 80);
+  const diagnosis = sanitiseDiagnosis(v('ipDx'));
+  const comorbidities = v('ipComorb').substring(0, 150);
+
+  if (prn && patients.some((p, i) => p.prn && p.prn === prn && i !== _ipEditIdx)) { toast('A patient with this PRN is already on the list'); return; }
+
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+
+  // Date of birth (optional). Same flexible parser as the admission date and the
+  // growth-chart DOB. When given it DRIVES the age, and is carried over into the
+  // anthropometry serial-measures DOB for this patient. Stored as the DD/MM/YYYY
+  // STRING (not a Date) so it round-trips through save/restore without reviving.
+  let dobRaw = '';
+  let ageFromDob = null;
+  if (dobInput) {
+    const d = gParseDate(dobInput);
+    if (!d || isNaN(d)) { toast(`Couldn't read the date of birth "${dobInput}" — try 23/08/1954 or 23-Aug-1954`); return; }
+    if (d > now) { toast('Check the date of birth — it must be in the past'); return; }
+    dobRaw = fmtDMY(d);
+    ageFromDob = ageBetween(d, now);
+  }
+
+  // Newborns: B/O or BABY names have no usable age column on the real list either.
+  const isNamedNewborn = /^\s*b\s*\/?\s*o\b/i.test(name) || /^\s*baby\b/i.test(name);
+  const ageRaw = ageFromDob ? _ageStr(ageFromDob) : ageTyped;
+  const ageYears = ageFromDob ? ageFromDob.yr + ageFromDob.mo / 12
+                 : (isNamedNewborn && !ageTyped ? 0 : parseManualAge(ageTyped));
+
+  let ageGroup = ageYears < 2 ? 'infant' : ageYears < 5 ? 'toddler' : ageYears < 18 ? 'child' : 'adult';
+  if (ageGroup !== 'adult' && /gravida|\bG\d+\s*[PAL]\d+|\d{1,2}\s*\+\s*\d\s*week|hyperemesis|antenatal|pre[\s-]?eclampsia|eclampsia/i.test(diagnosis + ' ' + comorbidities)) {
+    ageGroup = 'adult';
+  }
+  const isPaeds = ageGroup !== 'adult';
+
+  // DOA is typed or pasted in any common form, using the same flexible parser as the
+  // growth-chart date of birth (gParseDate): 25/06/2026 · 25-Jun-2026 · Jun 25 2026 ·
+  // 2026-06-25. It returns LOCAL midnight, so the days-since count is exact.
+  let doa = null, doaRaw = '';
+  if (doaInput) {
+    const d = gParseDate(doaInput);
+    if (!d || isNaN(d)) { toast(`Couldn't read the admission date "${doaInput}" — try 25/06/2026 or 25-Jun-2026`); return; }
+    if (d > now) { toast('Check the admission date — it must be in the past'); return; }
+    if ((now - d) / 86400000 > 1825) { toast('That admission date is more than 5 years ago — please check it'); return; }
+    doa = d;
+    doaRaw = fmtDMY(d);
+  }
+  const daysSince = doa ? Math.floor((now - doa) / 86400000) : 999;
+  const isNew = daysSince <= 1;
+
+  const fields = { name, prn, roomNo, ageRaw, ageYears, sex, doa, doaRaw, dobRaw, diagnosis, comorbidities, consultant, ward, isPaeds, ageGroup, isNew, daysSince };
+
+  if (_ipEditIdx != null && patients[_ipEditIdx]) {
+    // Edit in place. Object.assign (not replace) so flags this form doesn't manage —
+    // fromBedlist, roomType, status, otTime, srcRow, isManualEntry — survive the edit.
+    // The array index never moves, so chartData / chartedSet / seenSet / noteDoneSet /
+    // priorityMap stay bound to the right patient.
+    const idx = _ipEditIdx;
+    Object.assign(patients[idx], fields);
+    const was = name;
+    endIPEdit();
+    updateStats();
+    renderList();
+    if (typeof activeIdx !== 'undefined' && activeIdx === idx && typeof selectPatient === 'function') selectPatient(idx);
+    toast(`Updated ${was}`);
+    return;
+  }
+
+  patients.push(Object.assign({}, fields, { isManualEntry: true }));
+
+  updateStats();
+  renderList(); // also flushes the autosave snapshot via persistSession()
+  document.getElementById('filterRow').style.display = 'flex';
+
+  // Keep the form open and focused for fast repeated entry (she may be rebuilding a whole list).
+  clearIPManualForm();
+  document.getElementById('ipName').focus();
+  toast(`Added ${name} · ${patients.length} on the list`);
+}
+
+// ──────────────────────────────────────────
+//  EDIT AN EXISTING IP PATIENT (v145)
+// ──────────────────────────────────────────
+// The bed-list import carries no PRN, admission date or date of birth, so those have to be
+// fillable afterwards. This reuses the manual-add form in an edit mode rather than adding a
+// second form. Editing never reorders `patients`, so index-keyed state stays correct.
+let _ipEditIdx = null;
+
+function openIPEdit(idx) {
+  const p = patients[idx];
+  if (!p) return;
+  _ipEditIdx = idx;
+  try { expandIPImport(); } catch (_) {}
+  const wrap = document.getElementById('ipManualWrap');
+  if (wrap) wrap.open = true;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('ipName', p.name); set('ipPRN', p.prn); set('ipRoom', p.roomNo); set('ipWard', p.ward);
+  set('ipSex', p.sex); set('ipDx', p.diagnosis); set('ipComorb', p.comorbidities); set('ipConsultant', p.consultant);
+  set('ipDOA', p.doaRaw || '');
+  set('ipDOB', p.dobRaw || '');
+  if (p.dobRaw) ipDobToAge(); else { set('ipAge', p.ageRaw); const h = document.getElementById('ipDobHint'); if (h) h.textContent = ''; }
+  const btn = document.getElementById('ipAddBtn'); if (btn) btn.textContent = '✓ Save changes';
+  const ban = document.getElementById('ipEditBanner');
+  if (ban) { ban.style.display = 'flex'; ban.querySelector('span').textContent = 'Editing ' + p.name; }
+  const cancel = document.getElementById('ipCancelEditBtn'); if (cancel) cancel.style.display = '';
+  if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const nameEl = document.getElementById('ipPRN'); if (nameEl) nameEl.focus();  // PRN is the usual reason to be here
+}
+
+function endIPEdit() {
+  _ipEditIdx = null;
+  clearIPManualForm();
+  const btn = document.getElementById('ipAddBtn'); if (btn) btn.textContent = '+ Add Patient';
+  const ban = document.getElementById('ipEditBanner'); if (ban) ban.style.display = 'none';
+  const cancel = document.getElementById('ipCancelEditBtn'); if (cancel) cancel.style.display = 'none';
+}
+function cancelIPEdit() { endIPEdit(); toast('Edit cancelled'); }
+
+function clearIPManualForm() {
+  ['ipName','ipPRN','ipRoom','ipWard','ipAge','ipDOB','ipDOA','ipDx','ipComorb','ipConsultant']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const sx = document.getElementById('ipSex'); if (sx) sx.value = '';
+  const h = document.getElementById('ipDobHint'); if (h) h.textContent = '';
 }
 
 // ──────────────────────────────────────────
@@ -3304,7 +3746,9 @@ function renderList() {
       <div class="card-dx">${esc(p.diagnosis.substring(0,100))}${p.diagnosis.length>100?'…':''}</div>
       ${ep.reasons.length ? `<div class="prio-reasons">${ep.reasons.slice(0,3).map(r=>`<span class="rchip">${esc(r)}</span>`).join('')}</div>` : ''}
       <div class="card-foot">
-        <button class="prn-copy" onclick="event.stopPropagation();copyPRN('${esc(p.prn)}',this)" title="Copy PRN for Vesalius"><svg class="ic"><use href="#i-copy"/></svg> PRN ${esc(p.prn)}</button>
+        ${p.prn
+          ? `<button class="prn-copy" onclick="event.stopPropagation();copyPRN('${esc(p.prn)}',this)" title="Copy PRN for Vesalius"><svg class="ic"><use href="#i-copy"/></svg> PRN ${esc(p.prn)}</button>`
+          : `<button class="prn-copy prn-add" onclick="event.stopPropagation();openIPEdit(${origIdx})" title="This list carried no PRN — tap to add PRN / admission date / date of birth">✎ Add PRN</button>`}
         ${isCharted
           ? `<span class="ses-badge ${/assess/i.test((chartData[origIdx]||{}).sessionType||'')?'ses-a':'ses-r'}" onclick="event.stopPropagation();unchart(${origIdx})" title="On worklist — tap to remove">${/assess/i.test((chartData[origIdx]||{}).sessionType||'')?'Assessment':'Review'}</span>`
           : `<span class="triage-chips">
@@ -4894,13 +5338,15 @@ function parseBiochemOPD(idx) {
     || /(?:Hemoglobin|Platelet\s+Count|White\s+Blood\s+Cell|Red\s+Blood\s+Cell|Packed\s+Cell\s+Volume|Total\s+Cholesterol|LDL\s+Cholesterol|Alkaline\s+Phosphatase|Aminotransferase)[\s,]+\d/i.test(s)
     // Stacked single-result copy (e.g. a lone CRP): Vesalius timestamp + a standalone unit line.
     || (/\b\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{2,4}\s+\d{1,2}:\d{2}\b/.test(text) && /(?:^|\n|\s)(?:mg\/dL|mmol\/L|g\/dL|g\/L|IU\/L|U\/L|ng\/mL|pg\/mL|[µu]mol\/L|mIU\/L)\b/i.test(text));
-  const vGet = label => {
-    let m = s.match(new RegExp(label+'[\\s,]*:?[\\s,]*([0-9.]+)','i'));
+  const vGet = (label, text) => {
+    const t = text || s;
+    let m = t.match(new RegExp(label+'[\\s,]*:?[\\s,]*([0-9.]+)','i'));
     // Fallback for the stacked Vesalius layout (e.g. "CRP (Vario)  ORDERER … \n 4.27 \n mg/dL")
     // where the value sits a line below the name after a "(method)" suffix + orderer/blank cells.
-    if (!m) m = s.match(new RegExp(label+'\\b[^0-9]{0,80}?([0-9][0-9.]*)','i'));
+    if (!m) m = t.match(new RegExp(label+'\\b[^0-9]{0,80}?([0-9][0-9.]*)','i'));
     return m?m[1].replace(/\.$/,''):null;
   };
+  const _lv = lipidViews(s); const sLip = _lv.lip, sTC = _lv.tc; // v95
   const V = {}; const otherParts = [];
   if (isVes) {
     V.na=vGet('Sodium'); V.k=vGet('Potassium'); V.cl=vGet('Chloride'); V.hco3=vGet('Bicarbonate')||vGet('Total CO2')||vGet('CO2');
@@ -4909,13 +5355,14 @@ function parseBiochemOPD(idx) {
     V.hb=vGet('Hemoglobin'); V.alb=vGet('Albumin'); V.crp=vGet('C.Reactive Protein')||vGet('CRP'); V.esr=vGet('ESR');
     V.alt=vGet('Alanine Aminotransferase')||vGet('Alanine Transaminase')||vGet('SGPT')||vGet('ALT'); V.ast=vGet('Aspartate Aminotransferase')||vGet('Aspartate Transaminase')||vGet('SGOT')||vGet('AST'); V.alp=vGet('Alkaline Phosphatase')||vGet('ALP'); V.ggt=vGet('Gamma Glutamyl')||vGet('GGT'); V.bili=vGet('Total Bilirubin')||vGet('Bilirubin');
     V.glu=vGet('Glucose'); V.hba1c=vGet('HbA1c')||vGet('Glycated');
-    V.tc=vGet('Total Cholesterol')||vGet('Cholesterol'); V.ldl=vGet('LDL Cholesterol')||vGet('LDL'); V.hdl=vGet('HDL Cholesterol')||vGet('HDL'); V.tg=vGet('Triglycerides')||vGet('Triglyceride');
+    V.tc=vGet('Total Cholesterol')||vGet('Cholesterol',sTC); V.ldl=vGet('LDL Cholesterol',sLip)||vGet('LDL',sLip); V.hdl=vGet('HDL Cholesterol',sLip)||vGet('HDL',sLip); V.tg=vGet('Triglycerides')||vGet('Triglyceride');
     V.ferritin=vGet('Ferritin'); V.iron=vGet('Serum Iron')||vGet('Iron'); V.tibc=vGet('TIBC')||vGet('Total Iron Binding'); V.tsat=vGet('Transferrin Saturation')||vGet('Transferrin Sat');
     V.b12=vGet('Vitamin B12')||vGet('Cobalamin')||vGet('B12'); V.folate=vGet('Folate')||vGet('Folic Acid'); V.vitd=vGet('Vitamin D')||vGet('25-Hydroxy')||vGet('25 Hydroxy'); V.zinc=vGet('Zinc');
     V.tsh=vGet('TSH')||vGet('Thyroid Stimulating'); V.ft4=vGet('Free T4')||vGet('FT4'); V.ft3=vGet('Free T3')||vGet('FT3');
     V.wbc=vGet('White Blood Cell'); V.plt=vGet('Platelet Count'); V.mcv=vGet('MCV'); V.mch=vGet('MCH'); V.mchc=vGet('MCHC'); V.rbc=vGet('Red Blood Cell'); V.pcv=vGet('Packed Cell Volume'); V.neut=vGet('Neutrophil %'); V.lymph=vGet('Lymphocyte %');
   } else {
     const gm=(re)=>{const m=s.match(re);return m?(m[1]||'').trim().replace(/\.$/,''):null;};
+    const gmOn=(t,re)=>{const m=t.match(re);return m?(m[1]||'').trim().replace(/\.$/,''):null;}; // v95
     const TR='(?:\\s*→\\s*[\\d.\\/]+)*'; const num=lbl=>gm(new RegExp('\\b'+lbl+'[:\\s]+([0-9.]+'+TR+')','i'));
     V.na=gm(/\bNa\+?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.k=gm(/\bK[\s\+]*[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.cl=num('Cl(?:oride)?'); V.hco3=gm(/\b(?:HCO3|Bicarb(?:onate)?)[:\s]+([0-9.]+)/i);
     V.ca=gm(/\bCa(?:lcium)?[:\s]+([0-9.]+)/i); V.mg=gm(/\bMg(?:nesium)?[:\s]+([0-9.]+)/i)||gm(/\bMagnesium[:\s]+([0-9.]+)/i); V.po4=gm(/\bPhos(?:phorus|phate)?[:\s]+([0-9.]+)/i)||gm(/\bPO4[:\s]+([0-9.]+)/i);
@@ -4923,7 +5370,7 @@ function parseBiochemOPD(idx) {
     V.hb=gm(/\bHb[b]?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.alb=gm(/\bAlb(?:umin)?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.crp=num('CRP'); V.esr=num('ESR');
     V.alt=gm(/\bSGPT[:\s]*([0-9.]+)/i)||num('ALT'); V.ast=gm(/\bSGOT[:\s]*([0-9.]+)/i)||num('AST'); V.alp=num('ALP')||gm(/\bAlkaline\s+Phosphatase[:\s]+([0-9.]+)/i); V.ggt=num('GGT'); V.bili=num('Bilirubin');
     V.glu=gm(/\b(?:RBS|FBS|RBG|Glucose|BSL)[:\s]+([0-9.]+)/i); V.hba1c=gm(/\bHbA1c[:\s]+([0-9.]+%?)/i);
-    V.tc=gm(/\bT\.?\s*Chol(?:esterol)?[:\s]+([0-9.]+)/i)||gm(/\bTotal\s+Cholesterol\s+([0-9.]+)/i)||gm(/\bChol(?:esterol)?[:\s]+([0-9.]+)/i); V.ldl=gm(/\bLDL(?:\s+Cholesterol)?\s*[:\s]+([0-9.]+)/i); V.hdl=gm(/\bHDL(?:\s+Cholesterol)?\s*[:\s]+([0-9.]+)/i); V.tg=num('TG')||gm(/\bTriglycerides?[:\s]+([0-9.]+)/i);
+    V.tc=gm(/\bT\.?\s*Chol(?:esterol)?\s*[:\s]+([0-9.]+)/i)||gm(/\bTotal\s+Cholesterol\s*[:\s]+([0-9.]+)/i)||gmOn(sTC,/\bChol(?:esterol)?\s*[:\s]+([0-9.]+)/i); V.ldl=gmOn(sLip,/\bLDL(?:-C)?(?:\s+Chol(?:esterol)?)?\s*[:\s]+([0-9.]+)/i); V.hdl=gmOn(sLip,/\bHDL(?:-C)?(?:\s+Chol(?:esterol)?)?\s*[:\s]+([0-9.]+)/i); V.tg=num('TG')||gm(/\bTriglycerides?[:\s]+([0-9.]+)/i);
     V.ferritin=gm(/\bFerritin[:\s]+([0-9.]+)/i); V.iron=gm(/\bIron[:\s]+([0-9.]+)/i); V.tibc=num('TIBC')||gm(/\bTransferrin[:\s]+([0-9.]+)/i); V.tsat=gm(/\bTransferrin\s+sat(?:uration)?[:\s]+([0-9.]+)/i);
     V.b12=gm(/\bB\.?12[:\s]+([0-9.]+)/i)||gm(/\bVitamin\s*B\.?12[:\s]+([0-9.]+)/i); V.folate=num('Folate')||gm(/\bFolic\s+Acid[:\s]+([0-9.]+)/i); V.vitd=gm(/\bVitamin\s*D[:\s]+([0-9.]+)/i)||gm(/\bVit\.?\s*D[:\s]+([0-9.]+)/i)||num('VD'); V.zinc=num('Zinc');
     V.tsh=num('TSH'); V.ft4=gm(/\bF(?:ree\s*)?T4[:\s]+([0-9.]+)/i); V.ft3=gm(/\bF(?:ree\s*)?T3[:\s]+([0-9.]+)/i);
@@ -5335,16 +5782,18 @@ function parseBiochem(idx, text) {
   // vGet captures the FIRST number after the label, tolerating ", , " or ":" or
   // whitespace between the label and its value. Runs on the normalised `src` (which has
   // the "VIEW PATIENT RESULTS CHART" column stripped) so the value isn't hidden behind it.
-  const vGet = (label) => {
+  const vGet = (label, text) => {
+    const t = text || src; // v95: lipid lookups pass a sanitised view
     // 1) Tight inline match — value right after the label (the VIEW-CHART export format).
-    let m = src.match(new RegExp(label + '[\\s,]*:?[\\s,]*([0-9.]+)', 'i'));
+    let m = t.match(new RegExp(label + '[\\s,]*:?[\\s,]*([0-9.]+)', 'i'));
     // 2) Fallback for Vesalius' STACKED layout — "CRP (Vario)  ORDERER … \n 4.27 \n mg/dL" —
     //    where a "(method)" suffix + the orderer/blank cells sit between the name and its value
     //    (value a line or two below). Non-greedy, bounded skip of non-digits grabs the NEAREST
     //    number (the value), never reaching back into another analyte's row (date is before name).
-    if (!m) m = src.match(new RegExp(label + '\\b[^0-9]{0,80}?([0-9][0-9.]*)', 'i'));
+    if (!m) m = t.match(new RegExp(label + '\\b[^0-9]{0,80}?([0-9][0-9.]*)', 'i'));
     return m ? m[1].replace(/\.$/, '') : null;
   };
+  const _lvSrc = lipidViews(src); const srcLip = _lvSrc.lip, srcTC = _lvSrc.tc; // v95
 
   // ── Pull every analyte into one value-map V, then assemble the 10 clusters once. ──
   const V = {};        // numeric analytes
@@ -5358,7 +5807,7 @@ function parseBiochem(idx, text) {
     V.hb = vGet('Hemoglobin'); V.alb = vGet('Albumin'); V.crp = vGet('C.Reactive Protein') || vGet('CRP'); V.procal = vGet('Procalcitonin'); V.esr = vGet('ESR');
     V.alt = vGet('Alanine Aminotransferase') || vGet('Alanine Transaminase') || vGet('SGPT') || vGet('ALT'); V.ast = vGet('Aspartate Aminotransferase') || vGet('Aspartate Transaminase') || vGet('SGOT') || vGet('AST'); V.alp = vGet('Alkaline Phosphatase') || vGet('ALP'); V.ggt = vGet('Gamma Glutamyl') || vGet('GGT'); V.bili = vGet('Total Bilirubin') || vGet('Bilirubin');
     V.glu = vGet('Glucose'); V.hba1c = vGet('HbA1c') || vGet('Glycated');
-    V.tc = vGet('Total Cholesterol') || vGet('Cholesterol'); V.ldl = vGet('LDL Cholesterol') || vGet('LDL'); V.hdl = vGet('HDL Cholesterol') || vGet('HDL'); V.tg = vGet('Triglycerides') || vGet('Triglyceride');
+    V.tc = vGet('Total Cholesterol') || vGet('Cholesterol', srcTC); V.ldl = vGet('LDL Cholesterol', srcLip) || vGet('LDL', srcLip); V.hdl = vGet('HDL Cholesterol', srcLip) || vGet('HDL', srcLip); V.tg = vGet('Triglycerides') || vGet('Triglyceride');
     V.ferritin = vGet('Ferritin'); V.iron = vGet('Serum Iron') || vGet('Iron'); V.tibc = vGet('TIBC') || vGet('Total Iron Binding'); V.tsat = vGet('Transferrin Saturation') || vGet('Transferrin Sat');
     V.b12 = vGet('Vitamin B12') || vGet('Cobalamin') || vGet('B12'); V.folate = vGet('Folate') || vGet('Folic Acid'); V.vitd = vGet('Vitamin D') || vGet('25-Hydroxy') || vGet('25 Hydroxy'); V.zinc = vGet('Zinc');
     V.wbc = vGet('White Blood Cell'); V.plt = vGet('Platelet Count'); V.mcv = vGet('MCV'); V.mch = vGet('MCH'); V.mchc = vGet('MCHC'); V.rbc = vGet('Red Blood Cell'); V.pcv = vGet('Packed Cell Volume'); V.neut = vGet('Neutrophil %'); V.lymph = vGet('Lymphocyte %');
@@ -5374,6 +5823,8 @@ function parseBiochem(idx, text) {
     const s = investBlock.length > 80 ? investBlock : src;
     const TR = '(?:\\s*→\\s*[\\d.\\/]+)*';
     const gm = (re, i2) => { const m = s.match(re); return m ? (m[i2 || 1] || '').toString().trim().replace(/\.$/, '') : null; };
+    const gmOn = (t, re) => { const m = t.match(re); return m ? (m[1] || '').toString().trim().replace(/\.$/, '') : null; }; // v95
+    const _lv = lipidViews(s); const sLip = _lv.lip, sTC = _lv.tc; // v95
     const num = lbl => gm(new RegExp('\\b' + lbl + '[:\\s]+([0-9.]+' + TR + ')', 'i'));
     V.na = gm(/\bNa\+?[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
     V.k = gm(/\bK[\s\+]*[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i);
@@ -5387,8 +5838,8 @@ function parseBiochem(idx, text) {
     V.alt = gm(/\bSGPT[:\s]*([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || num('ALT'); V.ast = gm(/\bSGOT[:\s]*([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i) || num('AST');
     V.alp = num('ALP') || gm(/\bAlkaline\s+Phosphatase[:\s]+([0-9.]+)/i); V.ggt = num('GGT'); V.bili = num('Bilirubin') || gm(/\bT\.?\s*Bili[:\s]+([0-9.]+)/i);
     V.glu = gm(/\b(?:RBS|FBS|RBG|Glucose|BSL)[:\s]+([0-9.]+(?:\s*→\s*[\d.\/]+)*)/i); V.hba1c = gm(/\bHbA1c[:\s]+([0-9.]+%?)/i);
-    V.tc = gm(/\bT\.?\s*Chol(?:esterol)?[:\s]+([0-9.]+)/i) || gm(/\bTotal\s+Cholesterol\s+([0-9.]+)/i) || gm(/\bChol(?:esterol)?[:\s]+([0-9.]+)/i);
-    V.ldl = gm(/\bLDL(?:\s+Cholesterol)?\s*[:\s]+([0-9.]+)/i); V.hdl = gm(/\bHDL(?:\s+Cholesterol)?\s*[:\s]+([0-9.]+)/i);
+    V.tc = gm(/\bT\.?\s*Chol(?:esterol)?\s*[:\s]+([0-9.]+)/i) || gm(/\bTotal\s+Cholesterol\s*[:\s]+([0-9.]+)/i) || gmOn(sTC, /\bChol(?:esterol)?\s*[:\s]+([0-9.]+)/i);
+    V.ldl = gmOn(sLip, /\bLDL(?:-C)?(?:\s+Chol(?:esterol)?)?\s*[:\s]+([0-9.]+)/i); V.hdl = gmOn(sLip, /\bHDL(?:-C)?(?:\s+Chol(?:esterol)?)?\s*[:\s]+([0-9.]+)/i);
     V.tg = num('TG') || gm(/\bTriglycerides?[:\s]+([0-9.]+)/i) || gm(/\bTriglycerides?\s+([0-9.]+)/i);
     V.ferritin = gm(/\bFerritin[:\s]+([0-9.]+)/i); V.iron = gm(/\bIron[:\s]+([0-9.]+)/i); V.tibc = num('TIBC') || gm(/\bTransferrin[:\s]+([0-9.]+)/i); V.tsat = gm(/\bTransferrin\s+sat(?:uration)?[:\s]+([0-9.]+)/i);
     V.b12 = gm(/\bB\.?12[:\s]+([0-9.]+)/i) || gm(/\bVitamin\s*B\.?12[:\s]+([0-9.]+)/i); V.folate = num('Folate') || gm(/\bFolic\s+Acid[:\s]+([0-9.]+)/i);
@@ -5904,8 +6355,29 @@ let opdActiveIdx = null;
 const opdChartData = {};
 const opdChartedSet = new Set();
 
+// v95: lipid-panel views. A paste can list "Non-HDL Cholesterol" before "HDL Cholesterol",
+// or carry a "Cholesterol/HDL" ratio line, and every analyte lookup took the FIRST thing that
+// looked like HDL or Cholesterol. Rather than make each regex defensive (a hyphen guard would
+// also break "hs-CRP"), derive two views of the text and point the lipid lookups at them:
+//   lip - Non-HDL entries and TC:HDL ratio entries removed        -> use for HDL and LDL
+//   tc  - lip, with the HDL / LDL fraction LABELS removed as well -> use for bare "Cholesterol"
+// Each removal eats the label and its nearest following number, covering inline and the
+// stacked Vesalius layout alike. Values on those entries are not analytes we capture.
+function lipidViews(t) {
+  const lip = String(t || '')
+    .replace(/\bNon[\s-]*HDL(?:-C)?(?:\s+Chol(?:esterol)?)?[^0-9]{0,80}?[0-9][0-9.]*/gi, ' ')
+    .replace(/\b(?:T\.?C|(?:Total\s+)?Chol(?:esterol)?)\s*\/\s*HDL(?:-C)?(?:\s*ratio)?[^0-9]{0,40}?[0-9][0-9.]*/gi, ' ');
+  const tc = lip.replace(/\b(?:V?LDL|HDL)(?:-C)?\s*Chol(?:esterol)?/gi, ' ');
+  return { lip, tc };
+}
+
 function setMode(mode) {
   closeIPPanelLog(); // v59: close any open IP panel timing entry
+  // v95: flush the open chart's live fields BEFORE the panel is blanked below. Every other
+  // path that can lose the live DOM does this first; setMode was the only one that did not,
+  // so switching IP -> OPD discarded anything typed since the last autosave (her 3 Oct note).
+  // persistSessionNow() holds the canonical flush for whichever mode is current.
+  try { persistSessionNow(); } catch (_) {}
   currentMode = mode;
   document.getElementById('tabIP').classList.toggle('active', mode === 'ip');
   document.getElementById('tabOP').classList.toggle('active', mode === 'op');
@@ -5920,6 +6392,32 @@ function setMode(mode) {
   // Clear prechart panel
   document.getElementById('prechartPanel').innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><p>Select a patient to begin precharting</p></div>`;
 }
+
+// v95: edit an existing OPD patient in place — the same mechanism as IP's v145 edit. OPD had
+// no edit path at all, so a wrong sex (or age, PRN, reason) was permanent once added. Reuses
+// the add form; the array index never moves, so opdChartData / opdChartedSet stay bound.
+let _opEditIdx = null;
+function openOPDEdit(idx) {
+  const p = opdPatients[idx]; if (!p) return;
+  _opEditIdx = idx;
+  try { expandOPDImport(); } catch (_) {}
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('opName', p.name); set('opPRN', p.prn); set('opAge', p.ageRaw); set('opSex', p.sex); set('opReason', p.reason);
+  const btn = document.getElementById('opAddBtn'); if (btn) btn.textContent = '✓ Save changes';
+  const ban = document.getElementById('opEditBanner');
+  if (ban) { ban.style.display = 'flex'; ban.querySelector('span').textContent = 'Editing ' + p.name; }
+  const cancel = document.getElementById('opCancelEditBtn'); if (cancel) cancel.style.display = '';
+  const area = document.getElementById('opdImportArea'); if (area && area.scrollIntoView) area.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const sx = document.getElementById('opSex'); if (sx) sx.focus();   // sex is the usual reason to be here
+}
+function endOPDEdit() {
+  _opEditIdx = null;
+  ['opName','opPRN','opAge','opReason','opSex'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const btn = document.getElementById('opAddBtn'); if (btn) btn.textContent = '+ Add Patient';
+  const ban = document.getElementById('opEditBanner'); if (ban) ban.style.display = 'none';
+  const cancel = document.getElementById('opCancelEditBtn'); if (cancel) cancel.style.display = 'none';
+}
+function cancelOPDEdit() { endOPDEdit(); toast('Edit cancelled'); }
 
 function addOPDPatient() {
   const name = document.getElementById('opName').value.trim().toUpperCase();
@@ -5940,16 +6438,39 @@ function addOPDPatient() {
   let ageGroup = ageYears < 2 ? 'infant' : ageYears < 5 ? 'toddler' : ageYears < 18 ? 'child' : 'adult';
   const isPaeds = ageGroup !== 'adult';
 
+  // v95: sex drives every z-score lookup, so a paediatric OPD patient cannot be added
+  // without it. Adults may be left blank.
+  if (isPaeds && !sex) { toast('Select sex — every growth z-score depends on it'); return; }
+
   const now = new Date();
   const timeStr = now.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
 
   // Avoid duplicate PRN
-  if (prn && opdPatients.some(p => p.prn === prn)) { toast('Patient with this PRN already added'); return; }
+  if (prn && opdPatients.some((p, i) => p.prn === prn && i !== _opEditIdx)) { toast('Patient with this PRN already added'); return; }
+
+  if (_opEditIdx != null && opdPatients[_opEditIdx]) {
+    // Edit in place. Object.assign (not replace) so timeStr, isOPD, consult timing and anything
+    // else this form doesn't manage survive the edit; the index never moves.
+    const idx = _opEditIdx;
+    Object.assign(opdPatients[idx], { name, prn, ageRaw: age, ageYears, sex, reason, ageGroup, isPaeds });
+    endOPDEdit();
+    renderOPDList();
+    if (opdActiveIdx === idx) {
+      // Refresh the open chart WITHOUT re-firing the consult timer (selectOPDPatient would):
+      // flush its live fields, then redraw from what was just saved.
+      try { saveOPDChart(idx, true); } catch (_) {}
+      try { renderOPDPrechart(idx); } catch (_) {}
+    }
+    collapseOPDImport();
+    toast(`Updated ${name}`);
+    return;
+  }
 
   opdPatients.push({ name, prn, ageRaw: age, ageYears, sex, reason, timeStr, ageGroup, isPaeds, isOPD: true });
 
-  // Clear form fields (keep sex)
-  ['opName','opPRN','opAge','opReason'].forEach(id => document.getElementById(id).value = '');
+  // v95: sex is cleared too. Carrying it over meant the next child silently inherited the
+  // previous one's sex — the same defect as the Male default, one patient later.
+  ['opName','opPRN','opAge','opReason','opSex'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('opName').focus();
 
   renderOPDList();
@@ -5958,6 +6479,7 @@ function addOPDPatient() {
 }
 
 function clearOPD() {
+  try { endOPDEdit(); } catch (_) {}   // v95: an in-progress edit must never land on a stale row
   opdPatients = []; opdActiveIdx = null;
   Object.keys(opdChartData).forEach(k => delete opdChartData[k]);
   opdChartedSet.clear();
@@ -5987,7 +6509,7 @@ function renderOPDList() {
           ${isCharted ? '<span class="badge badge-charted">✓</span>' : ''}
         </div>
       </div>
-      <div class="card-meta">PRN ${esc(p.prn||'—')} · ${esc(p.ageRaw)} · ${p.sex} · 🕐 ${p.timeStr}</div>
+      <div class="card-meta">PRN ${esc(p.prn||'—')} · ${esc(p.ageRaw)} · ${p.sex || '—'} · 🕐 ${p.timeStr} <button class="prn-copy prn-add" onclick="event.stopPropagation();openOPDEdit(${i})" title="Edit name / PRN / age / sex / reason">✎</button></div>
       <div class="card-dx">${esc(p.reason||'')}</div>
     </div>`;
   });
@@ -6013,7 +6535,7 @@ function renderOPDPrechart(idx) {
   <div class="prechart-header sticky-patient-hdr" id="opphdr${idx}">
       <div>
         <h2>${esc(p.name)} <span style="font-size:13px;font-weight:400;color:var(--text-muted)">OPD</span></h2>
-        <div class="sub">PRN ${esc(p.prn||'—')} · ${esc(fmtAge(p))} · ${p.sex} · ${today} · 🕐 ${p.timeStr}</div>
+        <div class="sub"><span class="ph-edit" onclick="openOPDEdit(${idx})" title="Edit name / PRN / age / sex / reason">PRN ${esc(p.prn||'—')} · ${esc(fmtAge(p))} · ${p.sex || '—'} ✎</span> · ${today} · 🕐 ${p.timeStr}</div>
         <div class="sub-dx">${esc(p.reason||'')}</div>
         <div class="radio-group sessiontype" style="margin-top:8px">
           ${['Dietetic Review','Dietetic Assessment'].map(v=>`<input type="radio" name="opSessionType_${idx}" class="radio-opt" id="opSt${v.replace(/\s/g,'')}_${idx}" value="${v}" ${(saved.sessionType||'Dietetic Review')===v?'checked':''}><label class="radio-label" for="opSt${v.replace(/\s/g,'')}_${idx}" style="font-size:11px">${v}</label>`).join('')}
@@ -6507,7 +7029,7 @@ function renderPrechart(idx) {
         </div>
         <div class="ph-meta">
           ${p.ward||p.roomNo ? `<span class="ph-room">🛏 ${esc([p.ward,p.roomNo].filter(Boolean).join(' · '))}</span>` : ''}
-          <span>PRN ${esc(p.prn)}</span>
+          <span class="ph-edit" onclick="openIPEdit(${idx})" title="Edit PRN / admission date / date of birth and other details">${p.prn ? 'PRN ' + esc(p.prn) : 'PRN —'} ✎</span>
           ${phPrioPill(idx)}
           <span class="ph-pill ${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'ph-assess':'ph-rev'}" id="phSes_${idx}" onclick="toggleSessionType(${idx},'st','sessToggle_${idx}')">${(saved.sessionType||'Dietetic Review')==='Dietetic Assessment'?'Assessment':'Review'}</span>
         </div>
@@ -8069,6 +8591,19 @@ function renderGrowthVisits() {
     <button class="gv-del" onclick="growthDelVisit(${i})" aria-label="Remove visit">✕</button>
   </div>`).join('') || '<div class="hint" style="padding:4px 0">No visits yet.</div>';
 }
+// v95: sex is editable from the growth modal and persists to the patient record. OPD had
+// no edit path at all, and its add form defaulted to Male, so a girl entered on the default
+// got male references for every z-score with no way to correct it (her 19 Oct note).
+function growthSetSex(v) {
+  if (_growthIdx == null) return;
+  const p = (_growthOPD ? opdPatients : patients)[_growthIdx]; if (!p) return;
+  p.sex = (v || '').toUpperCase();
+  try { _growthOPD ? renderOPDList() : renderList(); } catch (_) {}
+  try { scheduleAutosave(); } catch (_) {}
+  // every z-score depends on sex, so re-score if results are already on screen
+  const r = document.getElementById('growthResults');
+  if (r && r.innerHTML.trim()) { try { computeGrowthPanel(); } catch (_) {} }
+}
 function openGrowthModal(idx) {
   closeGrowthModal();
   _growthOPD = (currentMode === 'op');
@@ -8077,15 +8612,14 @@ function openGrowthModal(idx) {
   _growthVisits = Array.isArray(saved.visits) && saved.visits.length ? saved.visits.map(v => ({ ...v }))
     : [{ date: new Date().toISOString().slice(0, 10), wt: document.getElementById((_growthOPD ? 'opWt_' : 'wt_') + idx)?.value || '', ht: document.getElementById((_growthOPD ? 'opHt_' : 'ht_') + idx)?.value || '' }];
   PRIORGROWTH = Array.isArray(saved.priorGrowth) ? saved.priorGrowth.slice() : [];
-  const sexWord = p.sex === 'F' ? 'F' : p.sex === 'M' ? 'M' : '—';
   const ov = document.createElement('div'); ov.id = 'growthOverlay'; ov.className = 'pes-overlay';
   ov.innerHTML = `<div class="pes-modal" role="dialog" aria-label="Growth and malnutrition assessment">
     <div class="pes-head">
       <div class="pes-headrow"><span style="font-size:14px;font-weight:700;flex:1">📊 Serial measures</span><button class="pes-close" onclick="closeGrowthModal()" aria-label="Close">✕</button></div>
       <div class="gv-inputs">
-        <div><label>Date of birth</label><input type="text" id="gaDob" inputmode="text" autocomplete="off" value="${esc(saved.dob || '')}" placeholder="e.g. 23/08/2025 or 23-Aug-2025" oninput="_growthPersist()"></div>
+        <div><label>Date of birth</label><input type="text" id="gaDob" inputmode="text" autocomplete="off" value="${esc(saved.dob || p.dobRaw || '')}" placeholder="e.g. 23/08/2025 or 23-Aug-2025" oninput="_growthPersist()"></div>
         <div><label>GA at birth</label><input type="text" id="gaGa" value="${esc(saved.ga || '')}" placeholder="e.g. 32+4" onchange="_growthPersist()"></div>
-        <div><label>Sex</label><input type="text" value="${sexWord}" disabled style="opacity:.7"></div>
+        <div><label>Sex</label><select id="gaSex" onchange="growthSetSex(this.value)"><option value=""${!p.sex?' selected':''}>—</option><option value="M"${p.sex==='M'?' selected':''}>Male</option><option value="F"${p.sex==='F'?' selected':''}>Female</option></select></div>
       </div>
     </div>
     <div class="pes-list" style="padding:10px 12px">
@@ -9601,6 +10135,7 @@ function clearAll() {
   document.getElementById('prechartPanel').innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><p>Select a patient to begin precharting</p></div>';
   document.getElementById('filterRow').style.display='none';
   document.getElementById('pasteBox').value='';
+  try { endIPEdit(); } catch(_) {} // v143/v145 - also drops any in-progress edit
   // Deliberate reset — drop the crash-recovery snapshot too
   try { localStorage.removeItem(AUTOSAVE_KEY); } catch(_) {}
   const _as = document.getElementById('autosaveStatus');
