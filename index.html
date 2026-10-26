@@ -4685,13 +4685,24 @@ function persistSessionNow() { // immediate — for backgrounding / load
     else if (currentMode === 'op' && typeof opdActiveIdx !== 'undefined' && opdActiveIdx !== null) saveOPDChart(opdActiveIdx, true);
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(buildSessionData()));
     updateAutosaveStatus();
-  } catch(_) { /* quota/serialization error — JSON save still available */ }
+  } catch(err) { updateAutosaveStatus(err); }   // v150: never silent
 }
-function updateAutosaveStatus() {
+function updateAutosaveStatus(err) {
   const el = document.getElementById('autosaveStatus');
   if (!el) return;
-  const d = new Date();
-  el.textContent = `Auto-saved ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  const d = new Date(); const hm = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  if (err) {
+    // v150: a failed autosave used to look exactly like a working one. Say so, in red, and
+    // name the error so she can report it; toast once per error type.
+    el.textContent = '\u26a0 Autosave FAILED ' + hm + ' \u2014 use Save session';
+    el.style.color = '#b42318'; el.style.fontWeight = '700';
+    el.title = (err && (err.name + ': ' + err.message)) || 'unknown error';
+    const k = err && err.name || 'err';
+    if (!window._autosaveErrShown) window._autosaveErrShown = {};
+    if (!window._autosaveErrShown[k]) { window._autosaveErrShown[k] = 1; try { toast('\u26a0 Autosave failed (' + k + '). Your charting is only in this window \u2014 use Save session.', 7000); } catch (_) {} }
+    return;
+  }
+  el.textContent = 'Auto-saved ' + hm; el.style.color = ''; el.style.fontWeight = ''; el.title = 'Charting is auto-saved to this device';
 }
 
 // On load: if an auto-save exists and nothing is loaded yet, offer to restore it.
@@ -4715,7 +4726,11 @@ function checkForRecovery() {
   if (whenEl && data.savedAt) {
     try {
       const d = new Date(data.savedAt);
-      whenEl.textContent = ` from ${d.toLocaleString('en-GB',{weekday:'short',hour:'2-digit',minute:'2-digit'})} (${n||nOpd} patient${(n||nOpd)!==1?'s':''})`;
+      const ageMin = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+      const age = ageMin < 60 ? ageMin + ' min ago' : Math.floor(ageMin / 60) + ' h ' + (ageMin % 60) + ' min ago';
+      whenEl.textContent = ` from ${d.toLocaleString('en-GB',{weekday:'short',hour:'2-digit',minute:'2-digit'})} \u2014 ${age} (${n||nOpd} patient${(n||nOpd)!==1?'s':''})`;
+      // v150: an old autosave is a warning sign (another window? autosave stopped?) - make it visible
+      if (ageMin > 10) { whenEl.style.color = '#b42318'; whenEl.style.fontWeight = '700'; }
     } catch(_) {}
   }
   banner.style.display = 'flex';
@@ -4761,6 +4776,36 @@ function dismissRecovery() {
   const b = document.getElementById('recoveryBanner');
   if (b) b.style.display = 'none';
 }
+// v150: two windows of the app on one device overwrite each other's autosave and never share
+// changes - her 26 Oct files show exactly that. Each window heartbeats under its own id; when a
+// fresh heartbeat from ANOTHER id is seen (on load, and live via the storage event the other
+// window's writes raise) a sticky warning is shown in both.
+// The id lives in sessionStorage: per tab, survives a reload (so refreshing this tab is not
+// mistaken for a second window), never shared with another tab or the installed PWA window.
+const _INSTANCE_ID = (() => { try { let v = sessionStorage.getItem('tth-instance-id'); if (!v) { v = Math.random().toString(36).slice(2, 10); sessionStorage.setItem('tth-instance-id', v); } return v; } catch (_) { return Math.random().toString(36).slice(2, 10); } })();
+const _HB_KEY = 'tth-instance', _HB_FRESH_MS = 25000;
+function _heartbeat() { try { localStorage.setItem(_HB_KEY, JSON.stringify({ id: _INSTANCE_ID, ts: Date.now(), mode: typeof currentMode !== 'undefined' ? currentMode : '' })); } catch (_) {} }
+function _otherInstance() {
+  try { const o = JSON.parse(localStorage.getItem(_HB_KEY) || 'null'); if (o && o.id !== _INSTANCE_ID && (Date.now() - o.ts) < _HB_FRESH_MS) return o; } catch (_) {}
+  return null;
+}
+function _showMultiBanner(o) {
+  let b = document.getElementById('multiBanner');
+  if (!b) {
+    b = document.createElement('div'); b.id = 'multiBanner';
+    b.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 16px;background:#fff4e5;border-bottom:2px solid #b45309;color:#7a3e00;font-size:13px;font-weight:600';
+    b.innerHTML = '<span id="multiBannerText"></span><button class="btn-ghost btn-small" onclick="document.getElementById(\'multiBanner\').style.display=\'none\'">Dismiss</button>';
+    const rb = document.getElementById('recoveryBanner');
+    if (rb && rb.parentNode) rb.parentNode.insertBefore(b, rb.nextSibling); else document.body.insertBefore(b, document.body.firstChild);
+  }
+  const t = new Date(o.ts); const hm = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+  document.getElementById('multiBannerText').textContent = '\u26a0 This session is also open in ANOTHER window or tab (active ' + hm + (o.mode ? ', ' + (o.mode === 'op' ? 'OPD' : 'IP') + ' mode' : '') + '). The two do not share changes and overwrite each other\'s autosave \u2014 work in one window, and Save session before closing the other.';
+  b.style.display = 'flex';
+}
+function _checkOtherInstance() { const o = _otherInstance(); if (o) _showMultiBanner(o); }
+window.addEventListener('storage', e => { if (e.key === _HB_KEY) _checkOtherInstance(); });
+_checkOtherInstance(); _heartbeat(); setInterval(_heartbeat, 10000);
+
 // Run the recovery check once the page is parsed
 window.addEventListener('DOMContentLoaded', () => setTimeout(checkForRecovery, 200));
 
@@ -5495,6 +5540,7 @@ function parseNutritionHighlightsOPD(idx) {
 
 // ── OPD save ──
 function saveOPDChart(idx, silent) {
+  if (!document.getElementById('opDocNote_' + idx)) return;   // v150: see saveChart
   const g = id => { const el=document.getElementById(id); return el?el.value:''; };
   const radio = name => { const el=document.querySelector(`input[name="${name}"]:checked`); return el?el.value:''; };
   const p = opdPatients[idx];
@@ -6593,6 +6639,7 @@ function insertCanned(i) {
   toast('Inserted: ' + it.title);
 }
 
+let _lastIPActive = null, _lastOPDActive = null;   // v150: the chart to bring back on return
 function setMode(mode) {
   closeIPPanelLog(); // v59: close any open IP panel timing entry
   // v95: flush the open chart's live fields BEFORE the panel is blanked below. Every other
@@ -6603,6 +6650,10 @@ function setMode(mode) {
   // v95: leaving OPD ends any running consult. Nothing else ever closed it, so a consult
   // auto-started on first open kept running until found in the time-tracking modal hours later.
   if (currentMode === 'op' && mode !== 'op') { try { opdConsultLog.forEach(e => { if (!e.endTime) e.endTime = Date.now(); }); maybeStopOPDTimerLoop(); } catch (_) {} }
+  // v150: nothing is "active" while this mode's panel is off screen - a live index with a blank
+  // panel is exactly what emptied records. Remember it so the same chart comes back on return.
+  if (currentMode === 'ip') { if (activeIdx !== null) _lastIPActive = activeIdx; activeIdx = null; try { stopFocusTimer(); } catch (_) {} }
+  else if (currentMode === 'op') { if (opdActiveIdx !== null) _lastOPDActive = opdActiveIdx; opdActiveIdx = null; }
   currentMode = mode;
   document.getElementById('tabIP').classList.toggle('active', mode === 'ip');
   document.getElementById('tabOP').classList.toggle('active', mode === 'op');
@@ -6614,7 +6665,10 @@ function setMode(mode) {
   } else {
     renderOPDList();
   }
-  // Clear prechart panel
+  // v150: reopen the chart that was open in this mode; only blank the panel if there was none.
+  const back = (mode === 'ip') ? _lastIPActive : _lastOPDActive;
+  const list = (mode === 'ip') ? patients : opdPatients;
+  if (back != null && list[back]) { try { (mode === 'ip' ? selectPatient : selectOPDPatient)(back); return; } catch (_) {} }
   document.getElementById('prechartPanel').innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><p>Select a patient to begin precharting</p></div>`;
 }
 
@@ -9800,6 +9854,9 @@ function generateNote(idx) {
 //  SAVE / COPY
 // ──────────────────────────────────────────
 function saveChart(idx, silent) {
+  // v150: a save-by-index while this patient's panel is not on screen would read every field
+  // as empty and overwrite the record. If the panel is not mounted there is nothing to save.
+  if (!document.getElementById('docNote_' + idx)) return;
   const g = id => { const el=document.getElementById(id); return el?el.value:''; };
   const radio = name => { const el=document.querySelector(`input[name="${name}"]:checked`); return el?el.value:''; };
 
