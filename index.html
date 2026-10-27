@@ -10219,7 +10219,9 @@ function computeGrowthPanel() {
   // The three verdicts, kept separate, saved with the patient so the rounds brief can show them.
   const strip = v => String(v || '').replace(/^(WHO|ASPEN|AAP)[^:]*:\s*/, '');
   const V = res.verdicts;
-  _growthVerdicts = { who: strip(V.who.label), whoTone: V.who.tone, aspen: strip(V.aspen.label), aspenTone: V.aspen.tone, aap: strip(V.aap.label), aapTone: V.aap.tone, pair: gePairLabel(res.pair), at: new Date().toISOString().slice(0, 10) };
+  const _gaE = ENC.find(x => x.gaLabel);
+  const frame = (res.dual && res.pair && res.pair.to) ? 'corrected age ' + geAgeShort(res.pair.to.a) + (_gaE ? ', born ' + _gaE.gaLabel : '') : '';
+  _growthVerdicts = { who: strip(V.who.label), whoTone: V.who.tone, aspen: strip(V.aspen.label), aspenTone: V.aspen.tone, aap: strip(V.aap.label), aapTone: V.aap.tone, pair: gePairLabel(res.pair), frame, at: new Date().toISOString().slice(0, 10) };
   // 50th-centile reference at the "to" visit, for the rounds brief (screen only, never the note)
   try {
     const M = res.medians;
@@ -10260,8 +10262,12 @@ function _setField(id, val, append) {
   e.classList.remove('from-prev'); if (typeof autoExpand === 'function') autoExpand(e);
 }
 function growthInsertAnthro() {
-  if (!_growthLast) return; const idx = _growthLast.idx, e = _growthLast.ENC[0]; // latest visit
-  const zc = o => o ? `${o.z} / ${o.pct}%` : '';
+  if (!_growthLast) return; const idx = _growthLast.idx, raw = _growthLast.ENC[0]; // latest visit
+  // v152: same age frame as the verdicts — corrected when a GA is set (as PediTools), else chronological.
+  const corr = !!raw.parsedCorr;
+  const e = corr ? Object.assign({}, raw, { parsed: raw.parsedCorr, ageMo: raw.correctedAgeMo, a: raw.correctedAgeObj || raw.a }) : raw;
+  const tag = corr ? ' (corrected ' + geAgeShort(e.a) + (raw.gaLabel ? ', born ' + raw.gaLabel : '') + ')' : '';
+  const zc = o => o ? `${o.z} / ${o.pct}%${tag}` : '';
   _setField(_gid('wtZ'), zc(e.parsed.weight)); _setField(_gid('htZ'), zc(e.parsed.stature));
   const wfl = e.ageMo < 24 ? e.parsed.wtfs : e.parsed.bmi; _setField(_gid('bmiZ'), zc(wfl));
   const gc = document.getElementById(_gid('growthChart')); if (gc) { gc.value = e.ageMo < 24 ? 'WHO' : 'CDC'; const fn = _growthOPD ? updateOPDGrowthChartLabel : updateGrowthChartLabel; if (typeof fn === 'function') fn(idx); }
@@ -10963,7 +10969,7 @@ function rbSummary(idx){
     const gv = JSON.parse(cd.growthData || '{}').verdicts;
     if (gv && gv.who) {
       const chip = (t, lab, tone) => '<span class="rb-chip rb-' + (tone || 'na') + '"><span class="rb-chip-k">' + t + '</span> ' + rbEsc(lab) + '</span>';
-      rows.push(rbRow('Growth', 'var(--rb-anthro)', chip('WHO', gv.who, gv.whoTone) + chip('ASPEN', gv.aspen, gv.aspenTone) + chip('AAP', gv.aap, gv.aapTone) + (gv.pair ? ' <span style="color:var(--text-muted);font-size:11px">' + rbEsc(gv.pair) + '</span>' : '')));
+      rows.push(rbRow('Growth', 'var(--rb-anthro)', chip('WHO', gv.who, gv.whoTone) + chip('ASPEN', gv.aspen, gv.aspenTone) + chip('AAP', gv.aap, gv.aapTone) + (gv.pair ? ' <span style="color:var(--text-muted);font-size:11px">' + rbEsc(gv.pair) + (gv.frame ? ' · ' + rbEsc(gv.frame) : '') + '</span>' : '')));
     }
   } catch (_) {}
   // Height / length — paeds gets its own line (height is often measured less often
