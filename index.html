@@ -3828,7 +3828,7 @@ function renderList() {
 
     const doaStr = p.doa ? p.doa.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : (p.doaRaw || '?');
     const daysStr = p.daysSince === 999 ? '' : p.daysSince === 0 ? ' · Today' : p.daysSince === 1 ? ' · Yesterday' : ` · ${p.daysSince}d ago`;
-    const ageStr = p.ageRaw || '?';
+    const _ad = childAgeFromDob(p), ageStr = _ad ? (_ad.yr >= 1 ? _ad.yr + 'y' + (_ad.mo ? ' ' + _ad.mo + 'm' : '') : (_ad.mo >= 1 ? _ad.mo + 'm' : _ad.d + 'd')) : (p.ageRaw || '?');
     const prioTitle = !ep.badge ? '' : (ep.badge.manual ? 'Manual priority (overrides auto)' : (ep.reasons.length ? 'Auto: ' + ep.reasons.join(', ') : 'Auto priority'));
 
     return `
@@ -3931,7 +3931,29 @@ function fmtPaedsAge(ageYears) {
   if (m === 0) return `${y} year${y !== 1 ? 's' : ''}`;
   return `${y} year${y !== 1 ? 's' : ''} ${m} month${m !== 1 ? 's' : ''}`;
 }
+// v154: a child's exact age today from the date of birth, wherever it was entered: the patient
+// record, else Serial measures (the live hidden field first, then the saved chart). Read-only — the
+// listed age and everything keyed on it (filters, age bands) stay as they are. Adults: null.
+function childAgeFromDob(p) {
+  if (!p) return null;
+  let d = gParseDate(p.dobRaw || '');
+  if (!d || isNaN(d)) {
+    const opd = opdPatients.indexOf(p) >= 0, i = (opd ? opdPatients : patients).indexOf(p); if (i < 0) return null;
+    const raw = document.getElementById((opd ? 'opGrowthData_' : 'growthData_') + i)?.value || ((opd ? opdChartData : chartData)[i] || {}).growthData || '';
+    if (!raw) return null;
+    try { d = gParseDate(JSON.parse(raw).dob || ''); } catch (_) { return null; }
+  }
+  if (!d || isNaN(d)) return null;
+  const a = ageBetween(d, new Date());
+  return a && a.yr < 18 ? a : null;
+}
 function fmtAge(p) {
+  const a = childAgeFromDob(p);
+  if (a) {
+    const yr = a.yr + ' year' + (a.yr !== 1 ? 's' : ''), mo = a.mo + ' month' + (a.mo !== 1 ? 's' : '');
+    if (a.yr >= 1) return a.mo ? yr + ' ' + mo : yr;
+    return a.mo >= 1 ? mo : a.d + ' day' + (a.d !== 1 ? 's' : '');
+  }
   if (p && p.isPaeds && typeof p.ageYears === 'number' && p.ageYears > 0) return fmtPaedsAge(p.ageYears);
   const raw = p ? (p.ageRaw || '') : '';
   return /[ym]/i.test(raw) ? raw.replace(/\s+/g, ' ').trim() : `${raw}y`;
@@ -6894,7 +6916,7 @@ function renderOPDPrechart(idx) {
   <div class="prechart-header sticky-patient-hdr" id="opphdr${idx}">
       <div>
         <h2>${esc(p.name)} <span style="font-size:13px;font-weight:400;color:var(--text-muted)">OPD</span></h2>
-        <div class="sub"><span class="ph-edit" onclick="openOPDEdit(${idx})" title="Edit name / PRN / age / sex / reason">PRN ${esc(p.prn||'—')} · ${esc(fmtAge(p))} · ${p.sex || '—'} ✎</span> · ${today} · 🕐 ${p.timeStr}</div>
+        <div class="sub"><span class="ph-edit" onclick="openOPDEdit(${idx})" title="Edit name / PRN / age / sex / reason">PRN ${esc(p.prn||'—')} · <span id="opAgeV_${idx}">${esc(fmtAge(p))}</span> · ${p.sex || '—'} ✎</span> · ${today} · 🕐 ${p.timeStr}</div>
         <div class="sub-dx">${esc(p.reason||'')}</div>
         <div class="radio-group sessiontype" style="margin-top:8px">
           ${['Dietetic Review','Dietetic Assessment'].map(v=>`<input type="radio" name="opSessionType_${idx}" class="radio-opt" id="opSt${v.replace(/\s/g,'')}_${idx}" value="${v}" ${(saved.sessionType||'Dietetic Review')===v?'checked':''}><label class="radio-label" for="opSt${v.replace(/\s/g,'')}_${idx}" style="font-size:11px">${v}</label>`).join('')}
@@ -7384,7 +7406,7 @@ function renderPrechart(idx) {
   <div class="prechart-header sticky-patient-hdr" id="pchdr${idx}">
       <div style="flex:1;min-width:0">
         <div class="ph-top">
-          <h2 class="ph-name">${esc(p.name)}<span class="ph-age">${esc(fmtAge(p))}${p.sex ? ' ' + p.sex : ''}</span></h2>
+          <h2 class="ph-name">${esc(p.name)}<span class="ph-age"><span id="ipAgeV_${idx}">${esc(fmtAge(p))}</span>${p.sex ? ' ' + p.sex : ''}</span></h2>
           <span class="ph-tmr" id="phTmr_${idx}"><svg class="tclock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="phTmrV_${idx}">0:00</span></span>
         </div>
         <div class="ph-meta">
@@ -10233,7 +10255,14 @@ function openGrowthModal(idx) {
   document.addEventListener('keydown', _growthEsc);
 }
 function closeGrowthModal() {
-  const ov = document.getElementById('growthOverlay'); if (ov) ov.remove();
+  const ov = document.getElementById('growthOverlay');
+  if (ov && _growthIdx != null) {   // a DOB entered here reaches the header and the list straight away
+    _growthPersist();
+    const list = _growthOPD ? opdPatients : patients, el = document.getElementById((_growthOPD ? 'opAgeV_' : 'ipAgeV_') + _growthIdx);
+    const shown = fmtAge(list[_growthIdx]);
+    if (el && el.textContent !== shown) { el.textContent = shown; try { _growthOPD ? renderOPDList() : renderList(); } catch (_) {} }
+  }
+  if (ov) ov.remove();
   const tip = document.getElementById('tgcTip'); if (tip) { tip.style.display = 'none'; delete tip.dataset.pinned; }
   const nav = document.getElementById('mobileFloatNav'); if (nav) nav.style.visibility = '';
   if (_growthEsc) { document.removeEventListener('keydown', _growthEsc); _growthEsc = null; }
@@ -11537,6 +11566,51 @@ function rbRow(k, col, v){ return '<div class="rb-srow"><span class="rb-k" style
 // "Nil known allergies" style statement (reassurance) vs a real allergy.
 function rbIsNilAllergy(s){ return /\b(nil|no|none|nkda|not)\b/i.test(s) && !/allergic|allerg(?:y|ies)\s*to|reaction|deficien|g6pd/i.test(s); }
 
+// v154: the 50th-centile reference for a child's brief, worked out live from everything recorded,
+// whichever box it went into: Serial measures visits plus the chart's Weight / Height fields. A
+// typed reading joins the serial visit with the same weight (same reading), else stands as its own
+// visit on its date. geMedians then applies the shared rules (age it was measured at, fresh only).
+function rbGrowthRef(p, cd) {
+  try {
+    const g = JSON.parse(cd.growthData || '{}');
+    const sex = p.sex === 'M' ? 'M' : p.sex === 'F' ? 'F' : ''; if (!sex) return null;
+    const dob = gParseDate(g.dob || p.dobRaw || ''), hasDob = !!(dob && !isNaN(dob));
+    const gaDays = ptParseGA(g.ga || cd.ga || ''), corr = hasDob && gaDays != null && gaDays < 280 ? 280 - gaDays : 0;
+    const visits = (g.visits || []).map(v => ({ md: gParseDate(v.date), wt: parseFloat(v.wt) || 0, ht: parseFloat(v.ht) || 0, hc: parseFloat(v.hc) || 0 })).filter(v => v.md && !isNaN(v.md));
+    const mw = parseFloat(cd.wt) || 0, mh = parseFloat(cd.ht) || 0;
+    let undated = null;
+    if (mw > 0 || mh > 0) {
+      const latest = list => list.slice().sort((a, b) => b.md - a.md)[0];
+      const same = mw > 0 ? latest(visits.filter(v => v.wt === mw)) : latest(visits);
+      if (same) { if (!(same.ht > 0)) same.ht = mh; }
+      else {
+        const d = rbParseDate(cd.wtDate), md = d || new Date(new Date().setHours(0, 0, 0, 0));
+        if (!d) undated = md;
+        visits.push({ md, wt: mw, ht: mh, hc: 0 });
+      }
+    }
+    if (!hasDob) {
+      // no date of birth anywhere: the listed age, for the reading in the chart fields only
+      if (!(mw > 0 || mh > 0) || p.ageYears == null) return null;
+      const ageMo = p.ageYears * 12, total = Math.round(ageMo), md = rbParseDate(cd.wtDate) || new Date(new Date().setHours(0, 0, 0, 0));
+      const m0 = geMedians([{ md, a: { total, yr: Math.floor(total / 12), mo: total % 12, d: 0 }, ageMo, parsed: computeParsedSet(sex, ageMo, mw, mh, 0) }], { sex });
+      if (m0 && !rbParseDate(cd.wtDate)) m0.undated = md;
+      return m0;
+    }
+    const ENC = [];
+    visits.forEach(v => {
+      const when = new Date(v.md.getTime() - corr * 86400000), ageMo = (when - dob) / 86400000 / 30.4375;   // corrected when GA is set, as the verdicts
+      if (ageMo < 0) return;
+      const parsed = computeParsedSet(sex, ageMo, v.wt, v.ht, v.hc);
+      if (parsed.weight || parsed.stature || parsed.bmi || parsed.wtfs || parsed.head) ENC.push({ md: v.md, a: ageBetween(dob, when), ageMo, parsed });
+    });
+    if (!ENC.length) return null;
+    ENC.sort((x, y) => y.md - x.md);
+    const m = geMedians(ENC, { sex, dob });
+    if (m) m.undated = undated;
+    return m;
+  } catch (_) { return null; }
+}
 function rbSummary(idx){
   const p = patients[idx], cd = rbCd(idx);
   if (!p) return '';
@@ -11554,10 +11628,19 @@ function rbSummary(idx){
   // Weight — adult (wt/bmi) OR paediatric (growth engine: wt/bmi empty, data in
   // wtZ / growthData / pediPaste).
   const wt = [];
+  // v154: a child with the chart's Weight field filled used to fall into the adult line: no 50th,
+  // and the height line below was skipped. The 50th now comes from rbGrowthRef either way.
+  const isPaeds = p.ageYears != null && p.ageYears < 18;
+  const ref = isPaeds ? rbGrowthRef(p, cd) : null;
+  const refRow = l => ref ? ref.rows.find(r => r.label.startsWith(l)) : null;
+  const refBmi = refRow('BMI for age'), hasRefBmi = !!(refBmi && refBmi.actual != null);
   if (cd.wt) {
     wt.push('<b>' + rbEsc(cd.wt) + ' kg</b>');
-    const rec = rbRecency(rbParseDate(cd.wtDate)); if (rec) wt.push(rbRecencyHTML(rec, cd.wtSource));
-    if (cd.bmi) wt.push('BMI ' + rbEsc(cd.bmi));
+    // a typed weight with no date of its own takes the date of the serial visit with the same reading
+    const sameSerial = ref && !ref.undated && ref.at.parsed.weight && ref.at.parsed.weight.val === parseFloat(cd.wt);
+    const rec = rbRecency(rbParseDate(cd.wtDate) || (sameSerial ? ref.at.md : null)); if (rec) wt.push(rbRecencyHTML(rec, cd.wtSource));
+    if (cd.bmi && !hasRefBmi) wt.push('BMI ' + rbEsc(cd.bmi));
+    if (isPaeds && cd.wtZ) { const zn = parseFloat(cd.wtZ); wt.push('z ' + ((isFinite(zn) && (zn <= -2 || zn >= 2)) ? '<span class="rb-flag">' + rbEsc(cd.wtZ) + '</span>' : rbEsc(cd.wtZ))); }
   } else {
     let pwt = '', pht = '', pdate = '';
     try {
@@ -11574,14 +11657,21 @@ function rbSummary(idx){
     if (pwt) wt.push('<b>' + rbEsc(pwt) + ' kg</b>');
     const rec = rbRecency(rbParseDate(pdate)); if (rec) wt.push(rbRecencyHTML(rec, ''));
     if (cd.wtZ) { const zn = parseFloat(cd.wtZ); wt.push('z ' + ((isFinite(zn) && (zn <= -2 || zn >= 2)) ? '<span class="rb-flag">' + rbEsc(cd.wtZ) + '</span>' : rbEsc(cd.wtZ))); }
-    // 50th centile for age (and for the measured height) — from Serial measures, at the "to" visit
-    try {
+    // saved 50th from Serial measures — only when it cannot be worked out live (no sex or age)
+    if (!refRow('Weight for age')) try {
       const p = JSON.parse(cd.growthData || '{}').verdicts, q = p && p.p50;
       if (q && q.wt) {
         if (!pwt && q.wt.a != null) wt.unshift('<b>' + rbEsc(q.wt.a) + ' kg</b>');
         wt.push('<span class="rb-cl">50th</span> ' + rbEsc(q.wt.m) + ' kg' + (q.wfh && q.ht && q.ht.a != null ? ' <span class="rb-cl">· for ' + rbEsc(q.ht.a) + ' cm' + (q.ht.date && q.ht.date !== q.date ? ' (' + rbEsc(_fmtDate(gParseDate(q.ht.date))) + ')' : '') + '</span> ' + rbEsc(q.wfh.m) + ' kg' : ''));
       }
     } catch (_) {}
+  }
+  // 50th for age, and for this length / height while that is fresh
+  const wr = refRow('Weight for age');
+  if (wr) {
+    const wl = ref.rows.find(r => /^Weight for this/.test(r.label)), lm = wl && wl.label.match(/\(([\d.]+) cm\)/);
+    const carried = wl && wl.md && !geSameDay(wl.md, ref.at.md);
+    wt.push('<span class="rb-cl">50th</span> ' + (+wr.median).toFixed(2) + ' kg' + (wl && lm ? ' <span class="rb-cl">· for ' + rbEsc(lm[1]) + ' cm' + (carried ? ' (' + rbEsc(_fmtDate(wl.md)) + ')' : '') + '</span> ' + (+wl.median).toFixed(2) + ' kg' : ''));
   }
   // Weight change: adult wtChg field, else the paeds pediPaste trend line.
   let chg = cd.wtChg || '';
@@ -11602,7 +11692,16 @@ function rbSummary(idx){
   // Height / length — paeds gets its own line (height is often measured less often
   // than weight, so it can be stale even when the weight is fresh). Uses the most
   // recent visit that actually has a height, with its own "measured X ago".
-  if (!cd.ht) {
+  const hr = refRow('Length for age') || refRow('Height for age');
+  if (hr && hr.actual != null) {
+    // v154: every child with a height, in either box, with the 50th for the age it was measured at
+    const same = geSameDay(hr.md, ref.at.md), undated = ref.undated && geSameDay(hr.md, ref.undated);
+    const h = ['<b>' + rbEsc(hr.actual) + ' cm</b>'];
+    const hrec = undated ? null : rbRecency(hr.md); if (hrec) h.push(rbRecencyHTML(hrec, ''));
+    if (cd.htZ) { const zn = parseFloat(cd.htZ); h.push('z ' + ((isFinite(zn) && (zn <= -2 || zn >= 2)) ? '<span class="rb-flag">' + rbEsc(cd.htZ) + '</span>' : rbEsc(cd.htZ))); }
+    h.push('<span class="rb-cl">50th' + (!same && hr.ageAt ? ' at ' + rbEsc(geAgeShort(hr.ageAt)) : '') + '</span> ' + (+hr.median).toFixed(1) + ' cm');
+    rows.push(rbRow(hr.label.startsWith('Length') ? 'Length' : 'Ht', 'var(--rb-anthro)', h.join(' · ')));
+  } else if (!cd.ht) {
     let pHt = '', pHtDate = '';
     try { const g = JSON.parse(cd.growthData || '{}'); if (g.visits) { const hv = g.visits.filter(v => v.ht && String(v.ht).trim()).map(v => ({ v, d: gParseDate(v.date) })).filter(x => x.d).sort((a, b) => b.d - a.d)[0]; if (hv) { pHt = hv.v.ht; pHtDate = hv.v.date || ''; } } } catch (_) {}
     if (!pHt && cd.pediPaste) { const m = cd.pediPaste.match(/(?:Stature|Length|Height)[\s\S]{0,60}?([\d.]{2,})\s*(?:cm)?\s+\d+(?:\.\d+)?%[\s\S]*?(\d{1,2}\s+[A-Za-z]{3,}\s+\d{2,4})/i); if (m) { pHt = m[1]; pHtDate = m[2]; } }
@@ -11623,7 +11722,10 @@ function rbSummary(idx){
   }
   // BMI over 2 y (v153) — with the weight at the 50th BMI for this height, which is the only
   // weight-for-height reference left past 5 y, where WHO's table ends.
-  if (!cd.bmi) {
+  if (hasRefBmi) {
+    const wb = refRow('Weight at median BMI');
+    rows.push(rbRow('BMI', 'var(--rb-anthro)', '<b>' + rbEsc(refBmi.actual) + '</b> · <span class="rb-cl">50th</span> ' + (+refBmi.median).toFixed(1) + (wb ? ' <span class="rb-cl">· weight at 50th BMI for this height</span> ' + (+wb.median).toFixed(1) + ' kg' : '')));
+  } else if (!cd.bmi) {
     try {
       const q = JSON.parse(cd.growthData || '{}').verdicts, b = q && q.p50 && q.p50.bmi;
       if (b) rows.push(rbRow('BMI', 'var(--rb-anthro)', '<b>' + rbEsc(b.a) + '</b> · <span class="rb-cl">50th</span> ' + rbEsc(b.m) + (q.p50.wBmi ? ' <span class="rb-cl">· weight at 50th BMI for this height</span> ' + rbEsc(q.p50.wBmi.m) + ' kg' : '')));
