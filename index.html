@@ -10090,41 +10090,43 @@ function calcGrowth(idx) {
   const say = (msg) => { if (resEl) resEl.textContent = msg; };
   const sex = p.sex === 'M' ? 'M' : p.sex === 'F' ? 'F' : null;
   if (!sex) { say('⚠ Sex not set for this patient — needed for z-scores.'); return; }
-  const ageMo = (p.ageYears || 0) * 12;
+  // v155: exact age from the date of birth when the record has one (the list age is rounded)
+  const _dobD = (typeof gParseDate === 'function') ? gParseDate(p.dobRaw || '') : null;
+  const ageMo = _dobD ? (Date.now() - _dobD) / 86400000 / 30.4375 : (p.ageYears || 0) * 12;
   const wt = parseFloat(document.getElementById('wt_' + idx)?.value);
   const ht = parseFloat(document.getElementById('ht_' + idx)?.value);
   if (!(wt > 0)) { say('⚠ Enter a weight first.'); return; }
   const parsed = computeParsedSet(sex, ageMo, wt, ht > 0 ? ht : 0);
   const fmt = o => o ? `${o.z} / ${o.pct}%` : '';
   const setV = (id, val) => { const e = document.getElementById(id); if (e && val) { e.value = val; e.classList.remove('from-prev'); } };
-  setV('wtZ_' + idx, fmt(parsed.weight));
-  setV('htZ_' + idx, fmt(parsed.stature));
-  const wflOrBmi = ageMo < 24 ? parsed.wtfs : parsed.bmi;
-  setV('bmiZ_' + idx, fmt(wflOrBmi));
-  const gc = document.getElementById('growthChart_' + idx);
-  if (gc) { gc.value = ageMo < 24 ? 'WHO' : 'CDC'; if (typeof updateGrowthChartLabel === 'function') updateGrowthChartLabel(idx); }
-  const standard = ageMo < 24 ? 'WHO 0–2y' : 'CDC 2–20y';
-  const summary = [];
-  if (parsed.weight) summary.push('Wt ' + parsed.weight.pct + '%');
-  if (parsed.stature) summary.push((ageMo < 24 ? 'Len ' : 'Ht ') + parsed.stature.pct + '%');
-  if (wflOrBmi) summary.push((ageMo < 24 ? 'WFL ' : 'BMI ') + wflOrBmi.pct + '%');
-  // Corrected age for prems → write a corrected-age line into the PediTools/reference field.
-  let corrected = false;
+  // v155: same age frame as Serial measures — corrected when a GA is set (PediTools convention), labelled.
   const gaDays = (typeof ptParseGA === 'function') ? ptParseGA(document.getElementById('ga_' + idx)?.value || '') : null;
+  let corrected = false, useMo = ageMo, useP = parsed, tag = '';
   if (gaDays != null && gaDays < 280) {
     const corrMo = ageMo - (280 - gaDays) / 30.4375;
-    if (corrMo >= 0) {
-      const pc = computeParsedSet(sex, corrMo, wt, ht > 0 ? ht : 0);
-      const cwfl = corrMo < 24 ? pc.wtfs : pc.bmi;
-      const cp = [];
-      if (pc.weight) cp.push('Weight ' + pc.weight.z + ' (' + pc.weight.pct + '%)');
-      if (pc.stature) cp.push((corrMo < 24 ? 'Length ' : 'Stature ') + pc.stature.z + ' (' + pc.stature.pct + '%)');
-      if (cwfl) cp.push((corrMo < 24 ? 'Wt-for-Length ' : 'BMI ') + cwfl.z + ' (' + cwfl.pct + '%)');
-      setV('pediPaste_' + idx, 'Auto-calculated z-scores (' + standard + ').\nCorrected for GA ' + ptGaWD(gaDays) + ' wk (corrected age ' + corrMo.toFixed(1) + ' mo): ' + cp.join('; '));
-      corrected = true;
-    }
+    if (corrMo >= 0) { corrected = true; useMo = corrMo; useP = computeParsedSet(sex, corrMo, wt, ht > 0 ? ht : 0); tag = ' (corrected ' + corrMo.toFixed(1) + ' mo, born ' + ptGaWD(gaDays) + ' wk)'; }
   }
-  say('✓ ' + standard + ' · ' + summary.join(' · ') + (corrected ? '  (+ corrected-age line added)' : ''));
+  const fmtT = o => o ? fmt(o) + tag : '';
+  setV('wtZ_' + idx, fmtT(useP.weight));
+  setV('htZ_' + idx, fmtT(useP.stature));
+  const wflOrBmi = useMo < 24 ? useP.wtfs : useP.bmi;
+  setV('bmiZ_' + idx, fmtT(wflOrBmi));
+  const gc = document.getElementById('growthChart_' + idx);
+  if (gc) { gc.value = useMo < 24 ? 'WHO' : 'CDC'; if (typeof updateGrowthChartLabel === 'function') updateGrowthChartLabel(idx); }
+  const standard = useMo < 24 ? 'WHO 0–2y' : 'CDC 2–20y';
+  const summary = [];
+  if (useP.weight) summary.push('Wt ' + useP.weight.pct + '%');
+  if (useP.stature) summary.push((useMo < 24 ? 'Len ' : 'Ht ') + useP.stature.pct + '%');
+  if (wflOrBmi) summary.push((useMo < 24 ? 'WFL ' : 'BMI ') + wflOrBmi.pct + '%');
+  if (corrected) {
+    // the chronological figures go to the reference line, so both frames stay visible
+    const cwfl = ageMo < 24 ? parsed.wtfs : parsed.bmi, cp = [];
+    if (parsed.weight) cp.push('Weight ' + parsed.weight.z + ' (' + parsed.weight.pct + '%)');
+    if (parsed.stature) cp.push((ageMo < 24 ? 'Length ' : 'Stature ') + parsed.stature.z + ' (' + parsed.stature.pct + '%)');
+    if (cwfl) cp.push((ageMo < 24 ? 'Wt-for-Length ' : 'BMI ') + cwfl.z + ' (' + cwfl.pct + '%)');
+    setV('pediPaste_' + idx, 'Auto-calculated z-scores on CORRECTED age ' + useMo.toFixed(1) + ' mo (born ' + ptGaWD(gaDays) + ' wk; ' + standard + ').\nChronological age ' + ageMo.toFixed(1) + ' mo for reference: ' + cp.join('; '));
+  }
+  say('✓ ' + standard + ' · ' + summary.join(' · ') + (corrected ? '  (corrected age ' + useMo.toFixed(1) + ' mo)' : ''));
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
   if (typeof toast === 'function') toast('z-scores calculated ✓', 1600);
 }
@@ -10251,6 +10253,9 @@ function openGrowthModal(idx) {
   renderGrowthVisits();
   PG_EDIT = -1; TGC.ENC = []; TGC.ctx = null; TGC.set = null; TGC.measure = null;
   pgPattern(); pgPreview(); renderPGList();
+  // v155: verdicts, 50th centile and the brief's Growth row need a compute — do it on open when
+  // there is anything to compute, so a record from before v151 is not left blank.
+  if (_growthVisits.some(v => v.date && (parseFloat(v.wt) > 0 || parseFloat(v.ht) > 0 || parseFloat(v.hc) > 0))) { try { computeGrowthPanel(); } catch (_) {} }
   _growthEsc = e => { if (e.key === 'Escape') closeGrowthModal(); };
   document.addEventListener('keydown', _growthEsc);
 }
@@ -10855,6 +10860,9 @@ function computeGrowthPanel() {
   if (badVisit) {
     out.innerHTML = '<div class="pes-empty">Couldn\'t read the visit date "' + esc(badVisit.date) + '". Try 23/08/2025, 23-Aug-2025, or 2025-08-23.</div>'; return;
   }
+  // v155: a visit dated after today is almost always a day/month swap — say so, but still compute.
+  const _fut = _growthVisits.filter(v => _hasMeas(v) && gParseDate(v.date) > new Date());
+  const futWarn = _fut.length ? '<div style="color:#a32d2d;font-size:12.5px;font-weight:600;margin:4px 0 8px">⚠ Visit date in the future: ' + _fut.map(v => esc(v.date)).join(', ') + ' — check the day/month order.</div>' : '';
   const { ENC, sex, dob, preterm } = buildGrowthENC();
   if (!ENC.length) { out.innerHTML = '<div class="pes-empty">Add at least one visit with a date and a measurement (weight, height, or head).</div>'; return; }
   const intake = document.getElementById('aspenIntake')?.value, etio = document.getElementById('aspenEtio')?.value;
@@ -10893,7 +10901,7 @@ function computeGrowthPanel() {
   const indHtml = aspen && aspen.indicators.length
     ? '<ul class="gv-ind">' + aspen.indicators.map(i => `<li><b>${esc(i.name)}</b> — ${esc(i.detail)} <span class="gv-g gv-g${i.grade}">${GRADE_LBL[i.grade]}</span></li>`).join('') + '</ul>'
     : '<div class="hint" style="margin-top:4px">No ASPEN anthropometric indicator triggered.</div>';
-  out.innerHTML = `
+  out.innerHTML = futWarn + `
     <div class="gv-aspen" style="border-color:${aspen && !aspen.insufficient ? gradeColors[aspen.overall] : 'var(--border)'}">
       ${geRenderChips(V)}
       ${indHtml}
